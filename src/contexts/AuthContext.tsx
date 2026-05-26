@@ -5,6 +5,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { authService } from "@/services/auth";
+import { isOwnerAdminEmail } from "@/lib/admin";
 import type { User } from "@/services/types";
 
 interface AuthContextValue {
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.handleRedirectResult().then((redirectUser) => {
       if (!cancelled && redirectUser) {
         setUser(redirectUser);
-        navigate("/dashboard", { replace: true });
+        navigate(isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard", { replace: true });
       }
     });
     return () => { cancelled = true; };
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!loading && user) {
       const path = location.pathname;
       if (AUTH_PAGES.some((p) => path.includes(p))) {
-        navigate("/dashboard", { replace: true });
+        navigate(isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard", { replace: true });
       }
     }
   }, [loading, user, location.pathname, navigate]);

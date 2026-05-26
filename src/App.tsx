@@ -76,7 +76,7 @@ const App = () => (
                 <Route path="/order-status" element={<OrderStatus />} />
 
                 {/* Protected routes */}
-                <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                   <Route index element={<DashboardOverview />} />
                   <Route path="accounts" element={<MyAccounts />} />

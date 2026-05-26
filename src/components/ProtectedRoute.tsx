@@ -1,7 +1,8 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { isOwnerAdminEmail } from "@/lib/admin";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export default function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -14,6 +15,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && !isOwnerAdminEmail(user.email)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // Block unverified email/password users (OAuth users are typically auto-verified)

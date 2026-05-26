@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { mapFirebaseError } from "@/lib/auth-error-map";
+import { isOwnerAdminEmail } from "@/lib/admin";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -18,7 +19,7 @@ export default function Login() {
 
   const handleGoogle = async () => {
     setError("");
-    try { await signInWithGoogle(); navigate("/dashboard"); } catch (err: any) { setError(mapFirebaseError(err)); }
+    try { await signInWithGoogle(); } catch (err: any) { setError(mapFirebaseError(err)); }
   };
   const handleApple = async () => {
     setError("");
@@ -30,7 +31,7 @@ export default function Login() {
     setError("");
     try {
       await signIn(email, password);
-      navigate("/dashboard");
+      navigate(isOwnerAdminEmail(email) ? "/admin" : "/dashboard");
     } catch (err: any) {
       setError(mapFirebaseError(err));
     }
