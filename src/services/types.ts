@@ -13,6 +13,7 @@ export interface User {
   emailVerified: boolean;
   kycStatus: KycStatus;
   provider: "email" | "google" | "apple" | "oauth";
+  role?: "admin" | "user";
 }
 
 export type KycStatus = "not_started" | "pending" | "verified" | "failed";
@@ -53,7 +54,7 @@ export interface Challenge {
   currency?: string;
 }
 
-export type ChallengeStatus = "active" | "passed" | "failed" | "funded" | "expired";
+export type ChallengeStatus = "active" | "passed" | "failed" | "breached" | "paid_out" | "funded" | "expired";
 
 // ── Accounts / Credentials ────────────────────────────────
 export interface TradingAccount {
@@ -66,7 +67,24 @@ export interface TradingAccount {
   password: string;
   balance: number;
   equity: number;
-  status: "active" | "suspended" | "closed";
+  status: "active" | "passed" | "failed" | "breached" | "paid_out" | "suspended" | "closed";
+  plan?: string;
+  challengeStatus?: "active" | "passed" | "failed" | "breached" | "paid_out";
+  metrics?: {
+    dailyDrawdownPct: number;
+    maxDrawdownPct: number;
+    profitTargetPct: number;
+    profitPct: number;
+    tradingDays: number;
+    minTradingDays: number;
+  };
+  rules?: {
+    startingBalance: number;
+    profitTargetPct: number;
+    dailyLossPct: number;
+    maxLossPct: number;
+    minTradingDays: number;
+  };
 }
 
 // ── Rules / Audit ─────────────────────────────────────────

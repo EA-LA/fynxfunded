@@ -62,12 +62,13 @@ async function createOrUpdateFirestoreUser(
       nickname: "",
       country: "",
       createdAt: serverTimestamp(),
+      role: "user",
     });
   }
 }
 
 /** Read Firestore user doc to hydrate fields not in Firebase Auth */
-async function getFirestoreUserData(uid: string): Promise<{ displayName?: string; nickname?: string; country?: string; provider?: string } | null> {
+async function getFirestoreUserData(uid: string): Promise<{ displayName?: string; nickname?: string; country?: string; provider?: string; role?: "admin" | "user" } | null> {
   if (!firebaseDb) return null;
   try {
     const snap = await getDoc(doc(firebaseDb, "users", uid));
@@ -99,6 +100,7 @@ function firebaseUserToUser(fbUser: import("firebase/auth").User): User {
     emailVerified: fbUser.emailVerified,
     kycStatus: "not_started",
     provider: getProviderType(fbUser),
+    role: "user",
   };
 }
 
@@ -124,6 +126,7 @@ class FirebaseAuthService implements AuthService {
       if (!user.fullName && fsData.displayName) user.fullName = fsData.displayName;
       if (fsData.nickname) user.nickname = fsData.nickname;
       if (fsData.country) user.country = fsData.country;
+      if (fsData.role) user.role = fsData.role;
     }
     return user;
   }

@@ -1,0 +1,2 @@
+import { useEffect, useState } from "react";import { getAdminOverview } from "@/services/admin";
+export default function AdminViolations(){const [rows,setRows]=useState<any[]>([]);useEffect(()=>{getAdminOverview().then(d=>setRows(d.violations||[]));},[]);return <div className='premium-card'>{rows.map((r:any,i:number)=><div className='text-sm py-2 border-b border-border' key={i}>{r.userId||'-'} | {r.accountId} | {r.rule} | {r.timestamp} | {r.actionTaken}</div>)}</div>}

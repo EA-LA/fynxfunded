@@ -34,7 +34,13 @@ import DashboardSettings from "./pages/dashboard/DashboardSettings";
 import Support from "./pages/dashboard/Support";
 import ChallengeBuilder from "./pages/ChallengeBuilder";
 import AmlKyc from "./pages/AmlKyc";
-import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import AdminRoute from "./components/AdminRoute";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboardHome from "./pages/admin/AdminDashboardHome";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminChallenges from "./pages/admin/AdminChallenges";
+import AdminViolations from "./pages/admin/AdminViolations";
+import AdminPayouts from "./pages/admin/AdminPayouts";
 import NotFound from "./pages/NotFound";
 import Checkout from "./pages/Checkout";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
@@ -76,7 +82,7 @@ const App = () => (
                 <Route path="/order-status" element={<OrderStatus />} />
 
                 {/* Protected routes */}
-                <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}><Route index element={<AdminDashboardHome />} /><Route path="users" element={<AdminUsers />} /><Route path="challenges" element={<AdminChallenges />} /><Route path="violations" element={<AdminViolations />} /><Route path="payouts" element={<AdminPayouts />} /></Route>
                 <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                   <Route index element={<DashboardOverview />} />
                   <Route path="accounts" element={<MyAccounts />} />

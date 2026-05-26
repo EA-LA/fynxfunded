@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { dataService } from "@/services/database";
 import { downloadReceipt } from "@/services/payments";
 import type { Order } from "@/services/types";
+import { createAccountFromOrder } from "@/services/account-lifecycle";
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
@@ -34,7 +35,9 @@ export default function CheckoutSuccess() {
             if (data.verified && data.status === "paid") {
               setVerified(true);
               if (data.order) {
-                setOrder(data.order as Order);
+                const paidOrder = data.order as Order;
+                setOrder(paidOrder);
+                await createAccountFromOrder(paidOrder);
               }
             }
           }
@@ -50,6 +53,7 @@ export default function CheckoutSuccess() {
           if (found && found.status === "paid") {
             setOrder(found);
             setVerified(true);
+            await createAccountFromOrder(found);
           }
         } catch (err) {
           console.error("[CheckoutSuccess] Firestore order lookup failed:", err);
