@@ -12,10 +12,15 @@ export interface User {
   createdAt: string;
   emailVerified: boolean;
   kycStatus: KycStatus;
+  kycProvider?: string;
+  kycSessionId?: string;
+  kycSubmittedAt?: string;
+  kycVerifiedAt?: string;
+  kycRejectionReason?: string;
   provider: "email" | "google" | "apple" | "oauth";
 }
 
-export type KycStatus = "not_started" | "pending" | "verified" | "failed";
+export type KycStatus = "not_started" | "pending" | "verified" | "rejected";
 
 // ── Orders ────────────────────────────────────────────────
 export interface Order {

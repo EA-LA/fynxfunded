@@ -80,6 +80,11 @@ class FirestoreDataService implements DataService {
       createdAt: tsToString(d.createdAt),
       emailVerified: d.emailVerified ?? false,
       kycStatus: d.kycStatus || "not_started",
+      kycProvider: d.kycProvider || "",
+      kycSessionId: d.kycSessionId || "",
+      kycSubmittedAt: tsToString(d.kycSubmittedAt),
+      kycVerifiedAt: d.kycVerifiedAt ? tsToString(d.kycVerifiedAt) : "",
+      kycRejectionReason: d.kycRejectionReason || "",
       provider: d.provider || "email",
     } as User;
   }
