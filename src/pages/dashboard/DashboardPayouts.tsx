@@ -27,7 +27,7 @@ export default function DashboardPayouts() {
     }
   }, [user?.userId, user?.emailVerified]);
 
-  const isVerified = kycAllowed;
+  const isVerified = user?.kycStatus === "verified" && kycAllowed;
 
   const handleRequestPayout = async () => {
     if (!user?.userId || !payoutAmount) return;
@@ -128,7 +128,7 @@ export default function DashboardPayouts() {
                 {kycReason || "Complete identity verification in Settings before requesting a payout."}
               </p>
             </div>
-            <a href="/dashboard/settings" className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-xs font-medium hover:bg-primary/90 transition-colors shrink-0">
+            <a href="/verification" className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-xs font-medium hover:bg-primary/90 transition-colors shrink-0">
               Verify Now
             </a>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Shield, ShieldCheck, ShieldAlert, Mail, Smartphone, Monitor, Key, CheckCircle2, AlertTriangle, Globe2, Trash2, LogOut } from "lucide-react";
 import { countries } from "@/lib/countries";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,7 +41,10 @@ export default function DashboardSettings() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
   // KYC status
-  const isVerified = user?.kycStatus === "verified";
+  const kycStatus = user?.kycStatus || "not_started";
+  const isVerified = kycStatus === "verified";
+  const isPending = kycStatus === "pending";
+  const isRejected = kycStatus === "rejected";
 
   // Sync nickname/country from user context
   useEffect(() => {
@@ -211,10 +215,12 @@ export default function DashboardSettings() {
               </p>
             </div>
           </div>
-          {!isVerified && (
-            <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-xs font-medium hover:bg-primary/90 transition-colors shrink-0">
-              Start Verification
-            </button>
+          {isVerified ? (
+            <span className="inline-flex items-center gap-2 bg-emerald-500/15 text-emerald-400 px-3 py-2 rounded-md text-xs font-medium">Verified Account</span>
+          ) : (
+            <Link to="/verification" className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-xs font-medium hover:bg-primary/90 transition-colors shrink-0">
+              {isPending ? "Verification Pending" : isRejected ? "Verification Failed — Retry" : "Start Verification"}
+            </Link>
           )}
         </div>
       </div>
