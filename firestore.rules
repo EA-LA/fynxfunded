@@ -4,16 +4,45 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
     function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function verifiedForPayout(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.kycStatus == "verified";
+    }
+    function kycFields() {
+      return [
+        "kycStatus",
+        "kycProvider",
+        "kycSessionId",
+        "kycSubmittedAt",
+        "kycVerifiedAt",
+        "kycRejectionReason"
+      ];
+    }
+    function userKycFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(kycFields());
+    }
+    function userCreateDoesNotSelfVerify() {
+      return !(request.resource.data.keys().hasAny(kycFields()))
+        || request.resource.data.kycStatus == "not_started";
+    }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && userCreateDoesNotSelfVerify();
+      allow update: if isAdmin() || (isOwner(userId) && userKycFieldsUnchanged());
     }
 
     match /kyc_profiles/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if isOwner(userId) || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /payouts/{payoutId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "requested"
+        && verifiedForPayout(request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     match /{document=**} {

@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.handleRedirectResult().then((redirectUser) => {
       if (!cancelled && redirectUser) {
         setUser(redirectUser);
-        navigate(isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard", { replace: true });
+        navigate(isOwnerAdminEmail(redirectUser.email) ? "/admin" : "/dashboard", { replace: true });
       }
     });
     return () => { cancelled = true; };
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!loading && user) {
       const path = location.pathname;
       if (AUTH_PAGES.some((p) => path.includes(p))) {
-        navigate(isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard", { replace: true });
+        navigate(isOwnerAdminEmail(redirectUser.email) ? "/admin" : "/dashboard", { replace: true });
       }
     }
   }, [loading, user, location.pathname, navigate]);

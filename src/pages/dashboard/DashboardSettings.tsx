@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ElementType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Shield, ShieldCheck, ShieldAlert, Mail, Smartphone, Monitor, Key, CheckCircle2, AlertTriangle, Globe2, Trash2, LogOut } from "lucide-react";
 import { countries } from "@/lib/countries";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserSessions, revokeSession, revokeAllSessions, type LoginSession } from "@/services/session-tracker";
+import { watchCurrentUserKyc, type KycStatus } from "@/services/kyc";
 import { doc, updateDoc } from "firebase/firestore";
 import { db as firebaseDb } from "@/lib/firebase";
 
@@ -24,6 +25,7 @@ export default function DashboardSettings() {
   const [pwMessage, setPwMessage] = useState("");
   const [pwError, setPwError] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [liveKycStatus, setLiveKycStatus] = useState<KycStatus | null>(null);
 
   // Security toggles
   const [twoFA, setTwoFA] = useState(false);
@@ -41,10 +43,18 @@ export default function DashboardSettings() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
   // KYC status
-  const kycStatus = user?.kycStatus || "not_started";
+  const kycStatus = liveKycStatus || user?.kycStatus || "not_started";
   const isVerified = kycStatus === "verified";
   const isPending = kycStatus === "pending";
   const isRejected = kycStatus === "rejected";
+
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    return watchCurrentUserKyc(user.userId, (kyc) => {
+      if (kyc.kycStatus) setLiveKycStatus(kyc.kycStatus);
+    });
+  }, [user?.userId]);
 
   // Sync nickname/country from user context
   useEffect(() => {
@@ -153,12 +163,12 @@ export default function DashboardSettings() {
     onToggle,
     badge,
   }: {
-    icon: React.ElementType;
+    icon: ElementType;
     title: string;
     description: string;
     enabled: boolean;
     onToggle: () => void;
-    badge?: React.ReactNode;
+    badge?: ReactNode;
   }) => (
     <div className="flex items-center justify-between gap-4 py-3">
       <div className="flex items-start gap-3">
