@@ -1,16 +1,28 @@
 import { httpsCallable } from "firebase/functions";
-import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, type Unsubscribe } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+  type Unsubscribe,
+} from "firebase/firestore";
 import { db, functions, isFirebaseConfigured } from "@/lib/firebase";
 
 export type KycStatus = "not_started" | "pending" | "verified" | "rejected";
 export type KycProvider = "stripe_identity" | "sumsub" | "persona" | "veriff" | "onfido";
+
+export type KycDocumentType = "passport" | "drivers_license" | "national_id";
 
 export interface KycProfileInput {
   legalFullName: string;
   dateOfBirth: string;
   countryOfResidence: string;
   address: string;
-  documentType: "passport" | "drivers_license" | "national_id";
+  documentType: KycDocumentType;
 }
 
 export interface KycRecord extends KycProfileInput {
@@ -26,50 +38,64 @@ export interface KycRecord extends KycProfileInput {
   updatedAt?: string;
 }
 
+export interface KycSessionResult {
+  sessionId: string;
+  provider: KycProvider;
+  redirectUrl?: string;
+  clientSecret?: string;
+}
+
+interface KycProviderAdapter {
+  provider: KycProvider;
+  createSession(input: KycProfileInput & { userId: string; email?: string }): Promise<KycSessionResult>;
+}
+
+class StripeIdentityAdapter implements KycProviderAdapter {
+  provider: KycProvider = "stripe_identity";
+
+  async createSession(input: KycProfileInput & { userId: string; email?: string }): Promise<KycSessionResult> {
+    if (!isFirebaseConfigured || !functions) {
+      throw new Error("Firebase Functions must be configured before starting identity verification.");
+    }
+
+    const createSession = httpsCallable(functions, "createKycSession");
+    const result = await createSession({ provider: this.provider, ...input });
+    const data = result.data as Partial<KycSessionResult>;
+
+    if (!data.sessionId) {
+      throw new Error("KYC provider did not return a verification session.");
+    }
+
+    return {
+      sessionId: data.sessionId,
+      provider: (data.provider as KycProvider) || this.provider,
+      redirectUrl: data.redirectUrl,
+      clientSecret: data.clientSecret,
+    };
+  }
+}
+
+class UnsupportedProviderAdapter implements KycProviderAdapter {
+  constructor(public provider: KycProvider) {}
+
+  async createSession(): Promise<KycSessionResult> {
+    throw new Error(`${this.provider} KYC adapter is not enabled yet.`);
+  }
+}
+
+const providers: Record<KycProvider, KycProviderAdapter> = {
+  stripe_identity: new StripeIdentityAdapter(),
+  sumsub: new UnsupportedProviderAdapter("sumsub"),
+  persona: new UnsupportedProviderAdapter("persona"),
+  veriff: new UnsupportedProviderAdapter("veriff"),
+  onfido: new UnsupportedProviderAdapter("onfido"),
+};
+
 const DEFAULT_PROVIDER: KycProvider = "stripe_identity";
 
 export async function submitKycProfile(userId: string, email: string | undefined, payload: KycProfileInput) {
-  if (!db) throw new Error("Firestore not configured");
-  const kycRef = doc(db, "kyc_profiles", userId);
-  const nowIso = new Date().toISOString();
-
-  await setDoc(kycRef, {
-    ...payload,
-    userId,
-    email: email || "",
-    kycStatus: "pending",
-    kycProvider: DEFAULT_PROVIDER,
-    kycSubmittedAt: nowIso,
-    updatedAt: serverTimestamp(),
-    createdAt: serverTimestamp(),
-  }, { merge: true });
-
-  let kycSessionId = `local_${Date.now()}`;
-
-  if (isFirebaseConfigured && functions) {
-    try {
-      const createSession = httpsCallable(functions, "createKycSession");
-      const result = await createSession({ userId, provider: DEFAULT_PROVIDER, ...payload }) as any;
-      if (result?.data?.sessionId) {
-        kycSessionId = result.data.sessionId;
-      }
-    } catch (error) {
-      console.error("[KYC] createKycSession failed, falling back to placeholder", error);
-    }
-  }
-
-  await updateDoc(doc(db, "users", userId), {
-    kycStatus: "pending",
-    kycProvider: DEFAULT_PROVIDER,
-    kycSessionId,
-    kycSubmittedAt: nowIso,
-    kycVerifiedAt: null,
-    kycRejectionReason: null,
-    updatedAt: serverTimestamp(),
-  });
-
-  await setDoc(kycRef, { kycSessionId }, { merge: true });
-  return { kycSessionId };
+  const adapter = providers[DEFAULT_PROVIDER];
+  return adapter.createSession({ userId, email, ...payload });
 }
 
 export function watchCurrentUserKyc(userId: string, cb: (kyc: Partial<KycRecord>) => void): Unsubscribe {

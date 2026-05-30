@@ -62,12 +62,18 @@ async function createOrUpdateFirestoreUser(
       nickname: "",
       country: "",
       createdAt: serverTimestamp(),
+      kycStatus: "not_started",
+      kycProvider: "",
+      kycSessionId: "",
+      kycSubmittedAt: null,
+      kycVerifiedAt: null,
+      kycRejectionReason: "",
     });
   }
 }
 
 /** Read Firestore user doc to hydrate fields not in Firebase Auth */
-async function getFirestoreUserData(uid: string): Promise<{ displayName?: string; nickname?: string; country?: string; provider?: string } | null> {
+async function getFirestoreUserData(uid: string): Promise<Partial<User> & { displayName?: string } | null> {
   if (!firebaseDb) return null;
   try {
     const snap = await getDoc(doc(firebaseDb, "users", uid));
@@ -76,6 +82,16 @@ async function getFirestoreUserData(uid: string): Promise<{ displayName?: string
     console.error("[AuthService] Failed to read Firestore user doc:", e);
   }
   return null;
+}
+
+
+function firestoreDateToString(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && "toDate" in value && typeof (value as { toDate: () => Date }).toDate === "function") {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  return "";
 }
 
 // ── Map Firebase user → app User ─────────────────────────
@@ -124,6 +140,12 @@ class FirebaseAuthService implements AuthService {
       if (!user.fullName && fsData.displayName) user.fullName = fsData.displayName;
       if (fsData.nickname) user.nickname = fsData.nickname;
       if (fsData.country) user.country = fsData.country;
+      user.kycStatus = fsData.kycStatus || "not_started";
+      user.kycProvider = fsData.kycProvider || "";
+      user.kycSessionId = fsData.kycSessionId || "";
+      user.kycSubmittedAt = firestoreDateToString(fsData.kycSubmittedAt);
+      user.kycVerifiedAt = firestoreDateToString(fsData.kycVerifiedAt);
+      user.kycRejectionReason = fsData.kycRejectionReason || "";
     }
     return user;
   }
