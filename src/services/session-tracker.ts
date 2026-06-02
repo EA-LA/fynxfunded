@@ -9,13 +9,12 @@ import {
   deleteDoc,
   doc,
   query,
-  where,
   orderBy,
   serverTimestamp,
-  updateDoc,
   limit,
 } from "firebase/firestore";
 import { db as firebaseDb, isFirebaseConfigured } from "@/lib/firebase";
+import { maybeSendLoginAlert, setActiveSessionCount } from "@/services/security";
 
 export interface LoginSession {
   id?: string;
@@ -47,13 +46,22 @@ function getDeviceInfo(): { device: string; browser: string } {
   return { device: `${device} (${os})`, browser };
 }
 
-async function fetchIP(): Promise<string> {
+async function fetchNetworkInfo(): Promise<{ ip: string; location: string }> {
   try {
-    const res = await fetch("https://api.ipify.org?format=json");
+    const res = await fetch("https://ipapi.co/json/");
     const data = await res.json();
-    return data.ip || "Unknown";
+    return {
+      ip: data.ip || "Unknown",
+      location: [data.city, data.region, data.country_name].filter(Boolean).join(", "),
+    };
   } catch {
-    return "Unknown";
+    try {
+      const res = await fetch("https://api.ipify.org?format=json");
+      const data = await res.json();
+      return { ip: data.ip || "Unknown", location: "" };
+    } catch {
+      return { ip: "Unknown", location: "" };
+    }
   }
 }
 
@@ -63,7 +71,7 @@ export async function recordLoginSession(userId: string): Promise<void> {
   if (!isFirebaseConfigured || !firebaseDb) return;
 
   const { device, browser } = getDeviceInfo();
-  const ip = await fetchIP();
+  const { ip, location } = await fetchNetworkInfo();
 
   try {
     const sessionsRef = collection(firebaseDb, "users", userId, "sessions");
@@ -72,13 +80,26 @@ export async function recordLoginSession(userId: string): Promise<void> {
       device,
       browser,
       ip,
-      location: "",
+      location,
       createdAt: serverTimestamp(),
       lastActive: serverTimestamp(),
       isCurrent: true,
     });
+    const session: LoginSession = {
+      id: docRef.id,
+      userId,
+      device,
+      browser,
+      ip,
+      location,
+      createdAt: new Date().toISOString(),
+      lastActive: new Date().toISOString(),
+      isCurrent: true,
+    };
     // Store session doc ID locally to identify current session
     localStorage.setItem(SESSION_KEY, docRef.id);
+    setActiveSessionCount(userId).catch(console.error);
+    maybeSendLoginAlert(userId, session).catch(console.error);
   } catch (err) {
     console.error("[SessionTracker] Failed to record session:", err);
   }
@@ -117,6 +138,7 @@ export async function revokeSession(userId: string, sessionId: string): Promise<
   if (!isFirebaseConfigured || !firebaseDb) return;
   try {
     await deleteDoc(doc(firebaseDb, "users", userId, "sessions", sessionId));
+    setActiveSessionCount(userId).catch(console.error);
   } catch (err) {
     console.error("[SessionTracker] Failed to revoke session:", err);
   }
@@ -132,6 +154,7 @@ export async function revokeAllSessions(userId: string): Promise<void> {
       .filter((d) => d.id !== currentSessionId)
       .map((d) => deleteDoc(d.ref));
     await Promise.all(deletes);
+    setActiveSessionCount(userId).catch(console.error);
   } catch (err) {
     console.error("[SessionTracker] Failed to revoke all sessions:", err);
   }

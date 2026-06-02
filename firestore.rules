@@ -29,6 +29,39 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && userCreateDoesNotSelfVerify();
       allow update: if isAdmin() || (isOwner(userId) && userKycFieldsUnchanged());
+
+      match /security/{documentId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId)
+          && documentId == "settings"
+          && request.resource.data.keys().hasOnly([
+            "twoFactorEnabled",
+            "twoFactorSecret",
+            "loginAlertsEnabled",
+            "backupCodesGeneratedAt",
+            "backupCodeHashes",
+            "activeSessions",
+            "lastSecurityUpdate",
+            "createdAt"
+          ])
+          && request.resource.data.twoFactorEnabled is bool
+          && request.resource.data.loginAlertsEnabled is bool;
+        allow delete: if false;
+      }
+
+      match /sessions/{sessionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.keys().hasOnly(["userId", "device", "browser", "ip", "location", "createdAt", "lastActive", "isCurrent"]);
+        allow update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /securityEvents/{eventId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if isAdmin();
+      }
     }
 
     match /kyc_profiles/{userId} {

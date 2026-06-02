@@ -7,3 +7,5 @@ export { stripeWebhook } from "./stripe/webhook";
 export { verifySession } from "./stripe/verifySession";
 
 export { createKycSession, stripeIdentityWebhook } from "./kyc";
+
+export { sendLoginAlert } from "./security";

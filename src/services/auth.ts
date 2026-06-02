@@ -27,11 +27,12 @@ import {
 } from "firebase/firestore";
 import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from "@/lib/firebase";
 import { recordLoginSession } from "@/services/session-tracker";
+import { getSecuritySettings, verifySignInTwoFactor } from "@/services/security";
 import type { User } from "./types";
 
 export interface AuthService {
   signUp(email: string, password: string, fullName: string): Promise<User>;
-  signIn(email: string, password: string): Promise<User>;
+  signIn(email: string, password: string, twoFactorCode?: string): Promise<User>;
   signInWithGoogle(): Promise<User>;
   signInWithApple(): Promise<User>;
   signOut(): Promise<void>;
@@ -68,6 +69,20 @@ async function createOrUpdateFirestoreUser(
       kycSubmittedAt: null,
       kycVerifiedAt: null,
       kycRejectionReason: "",
+      twoFactorEnabled: false,
+      loginAlertsEnabled: false,
+      backupCodesGeneratedAt: null,
+      activeSessions: 0,
+      lastSecurityUpdate: serverTimestamp(),
+    });
+    await setDoc(doc(firebaseDb, "users", uid, "security", "settings"), {
+      twoFactorEnabled: false,
+      twoFactorSecret: "",
+      loginAlertsEnabled: false,
+      backupCodesGeneratedAt: null,
+      activeSessions: 0,
+      lastSecurityUpdate: serverTimestamp(),
+      createdAt: serverTimestamp(),
     });
   }
 }
@@ -146,6 +161,11 @@ class FirebaseAuthService implements AuthService {
       user.kycSubmittedAt = firestoreDateToString(fsData.kycSubmittedAt);
       user.kycVerifiedAt = firestoreDateToString(fsData.kycVerifiedAt);
       user.kycRejectionReason = fsData.kycRejectionReason || "";
+      user.twoFactorEnabled = !!fsData.twoFactorEnabled;
+      user.loginAlertsEnabled = !!fsData.loginAlertsEnabled;
+      user.backupCodesGeneratedAt = firestoreDateToString(fsData.backupCodesGeneratedAt);
+      user.activeSessions = Number(fsData.activeSessions || 0);
+      user.lastSecurityUpdate = firestoreDateToString(fsData.lastSecurityUpdate);
     }
     return user;
   }
@@ -172,7 +192,7 @@ class FirebaseAuthService implements AuthService {
     return user;
   }
 
-  async signIn(email: string, password: string): Promise<User> {
+  async signIn(email: string, password: string, twoFactorCode?: string): Promise<User> {
     const cred = await signInWithEmailAndPassword(this.getAuth(), email, password);
 
     // Block login if email is not verified
@@ -182,6 +202,21 @@ class FirebaseAuthService implements AuthService {
     }
 
     const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
+    const security = await getSecuritySettings(user.userId);
+    if (security.twoFactorEnabled) {
+      if (!twoFactorCode) {
+        await firebaseSignOut(this.getAuth());
+        const err = new Error("Enter your 6-digit authenticator code to continue.") as Error & { code?: string };
+        err.code = "auth/two-factor-required";
+        throw err;
+      }
+      try {
+        await verifySignInTwoFactor(user.userId, twoFactorCode);
+      } catch (err) {
+        await firebaseSignOut(this.getAuth());
+        throw err;
+      }
+    }
     this.currentUser = user;
 
     recordLoginSession(user.userId).catch(console.error);
@@ -334,7 +369,7 @@ class LocalAuthService implements AuthService {
     return user;
   }
 
-  async signIn(email: string, _password: string): Promise<User> {
+  async signIn(email: string, _password: string, _twoFactorCode?: string): Promise<User> {
     const user: User = {
       userId: `usr_${Date.now().toString(36)}`, email,
       fullName: localStorage.getItem("fynx_user_name") || "Trader",
