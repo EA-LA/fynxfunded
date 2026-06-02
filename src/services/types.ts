@@ -17,6 +17,11 @@ export interface User {
   kycSubmittedAt?: string;
   kycVerifiedAt?: string;
   kycRejectionReason?: string;
+  twoFactorEnabled?: boolean;
+  loginAlertsEnabled?: boolean;
+  backupCodesGeneratedAt?: string;
+  activeSessions?: number;
+  lastSecurityUpdate?: string;
   provider: "email" | "google" | "apple" | "oauth";
 }
 

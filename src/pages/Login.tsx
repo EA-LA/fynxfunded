@@ -9,6 +9,8 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
@@ -30,9 +32,14 @@ export default function Login() {
     e.preventDefault();
     setError("");
     try {
-      await signIn(email, password);
+      await signIn(email, password, twoFactorRequired ? twoFactorCode : undefined);
       navigate(isOwnerAdminEmail(email) ? "/admin" : "/dashboard");
     } catch (err: any) {
+      if (err?.code === "auth/two-factor-required") {
+        setTwoFactorRequired(true);
+        setError(err.message);
+        return;
+      }
       setError(mapFirebaseError(err));
     }
   };
@@ -83,6 +90,23 @@ export default function Login() {
               </button>
             </div>
           </div>
+
+          {twoFactorRequired && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Authenticator Code</label>
+              <input
+                inputMode="numeric"
+                maxLength={6}
+                pattern="[0-9]{6}"
+                value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm tracking-[0.35em] text-center focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
+                placeholder="000000"
+                required
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Open your authenticator app and enter the current 6-digit code.</p>
+            </div>
+          )}
           <div className="flex justify-end">
             <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               Forgot password?
@@ -92,7 +116,7 @@ export default function Login() {
             type="submit"
             className="w-full bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors"
           >
-            Log In
+            {twoFactorRequired ? "Verify & Log In" : "Log In"}
           </button>
         </form>
 

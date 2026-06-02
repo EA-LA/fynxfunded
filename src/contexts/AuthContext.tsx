@@ -12,7 +12,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, twoFactorCode?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!loading && user) {
       const path = location.pathname;
       if (AUTH_PAGES.some((p) => path.includes(p))) {
-        navigate(isOwnerAdminEmail(redirectUser.email) ? "/admin" : "/dashboard", { replace: true });
+        navigate(isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard", { replace: true });
       }
     }
   }, [loading, user, location.pathname, navigate]);
@@ -66,8 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authService.signUp(email, password, fullName);
   };
 
-  const signIn = async (email: string, password: string) => {
-    await authService.signIn(email, password);
+  const signIn = async (email: string, password: string, twoFactorCode?: string) => {
+    await authService.signIn(email, password, twoFactorCode);
   };
 
   const signInWithGoogle = async () => {
