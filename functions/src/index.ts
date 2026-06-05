@@ -9,3 +9,5 @@ export { verifySession } from "./stripe/verifySession";
 export { createKycSession, stripeIdentityWebhook } from "./kyc";
 
 export { sendLoginAlert } from "./security";
+
+export { generateCertificatesOnChallengeWrite, generateCertificatesOnAccountWrite, generateCertificatesOnPayoutWrite, adminRegenerateCertificate } from "./certificates";

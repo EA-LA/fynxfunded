@@ -9,7 +9,7 @@ import {
 import { db as firebaseDb, isFirebaseConfigured } from "@/lib/firebase";
 import type {
   User, Order, Challenge, TradingAccount,
-  Ticket, TicketMessage, PayoutRequest, AuditLog, RuleEvaluation,
+  Ticket, TicketMessage, PayoutRequest, AuditLog, RuleEvaluation, Certificate,
 } from "./types";
 
 export interface DataService {
@@ -44,6 +44,10 @@ export interface DataService {
   createPayout(payout: Omit<PayoutRequest, "payoutId">): Promise<PayoutRequest>;
   updatePayoutStatus(payoutId: string, status: PayoutRequest["status"]): Promise<void>;
   blockPayout(payoutId: string, reason: string, blockedBy: string): Promise<void>;
+
+  // Certificates
+  getCertificates(userId: string): Promise<Certificate[]>;
+  getCertificate(certificateId: string): Promise<Certificate | null>;
 
   // Rules / Audit
   getAuditLogs(accountId: string): Promise<AuditLog[]>;
@@ -215,6 +219,19 @@ class FirestoreDataService implements DataService {
     });
   }
 
+  // ── Certificates ──
+  async getCertificates(userId: string) {
+    const q = query(collection(getDb(), "certificates"), where("userId", "==", userId));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ ...d.data(), certificateId: d.id } as Certificate));
+  }
+
+  async getCertificate(certificateId: string) {
+    const snap = await getDoc(doc(getDb(), "certificates", certificateId));
+    if (!snap.exists()) return null;
+    return { ...snap.data(), certificateId: snap.id } as Certificate;
+  }
+
   // ── Audit ──
   async getAuditLogs(accountId: string) {
     const q = query(collection(getDb(), "audit_logs"), where("accountId", "==", accountId));
@@ -266,6 +283,8 @@ class LocalDataService implements DataService {
   async createPayout(payout: Omit<PayoutRequest, "payoutId">) { const f: PayoutRequest = { ...payout, payoutId: generateId("pay") }; const l = getCollection<PayoutRequest>("fynx_db_payouts"); l.push(f); setCollection("fynx_db_payouts", l); return f; }
   async updatePayoutStatus(payoutId: string, status: PayoutRequest["status"]) { const l = getCollection<PayoutRequest>("fynx_db_payouts"); const i = l.findIndex((p) => p.payoutId === payoutId); if (i >= 0) { l[i].status = status; l[i].processedAt = new Date().toISOString(); setCollection("fynx_db_payouts", l); } }
   async blockPayout(payoutId: string, reason: string, blockedBy: string) { const l = getCollection<PayoutRequest>("fynx_db_payouts"); const i = l.findIndex((p) => p.payoutId === payoutId); if (i >= 0) { l[i].status = "blocked"; l[i].blockedReason = reason; l[i].blockedBy = blockedBy; l[i].blockedAt = new Date().toISOString(); setCollection("fynx_db_payouts", l); } }
+  async getCertificates(userId: string) { return getCollection<Certificate>("fynx_db_certificates").filter((c) => c.userId === userId); }
+  async getCertificate(certificateId: string) { return getCollection<Certificate>("fynx_db_certificates").find((c) => c.certificateId === certificateId || c.publicVerificationId === certificateId) || null; }
   async getAuditLogs(accountId: string) { return getCollection<AuditLog>("fynx_db_audit").filter((l) => l.accountId === accountId); }
   async addAuditLog(log: Omit<AuditLog, "id">) { const l = getCollection<AuditLog>("fynx_db_audit"); l.push({ ...log, id: generateId("aud") }); setCollection("fynx_db_audit", l); }
   async getRuleEvaluations(accountId: string) { return getCollection<RuleEvaluation>("fynx_db_rules").filter((r) => r.accountId === accountId); }
