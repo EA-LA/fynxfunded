@@ -139,6 +139,64 @@ export interface PayoutRequest {
 
 export type PayoutStatus = "requested" | "approved" | "paid" | "denied" | "blocked";
 
+
+// ── Certificates ─────────────────────────────────────────
+export type CertificateType =
+  | "challenge_passed"
+  | "verification_passed"
+  | "funded_trader"
+  | "first_payout"
+  | "milestone"
+  | "consistency"
+  | "top_trader"
+  | "scaling_plan"
+  | "profit_split"
+  | "account_completion";
+
+export type CertificateStatus = "issued" | "pending_approval" | "approved" | "revoked";
+
+export interface CertificateRulesSnapshot {
+  profitTargets: string[];
+  dailyLoss: string;
+  maxLoss: string;
+  minDays: number;
+  profitSplit: string;
+}
+
+export interface Certificate {
+  certificateId: string;
+  publicVerificationId: string;
+  type: CertificateType;
+  status: CertificateStatus;
+  userId: string;
+  traderName: string;
+  accountId: string;
+  challengeId?: string;
+  orderId?: string;
+  payoutId?: string;
+  challengeType: string;
+  accountSize: number;
+  phase: string;
+  passedDate?: string;
+  fundedDate?: string;
+  issuedAt: string;
+  approvedAt?: string;
+  revokedAt?: string;
+  revokedReason?: string;
+  regeneratedAt?: string;
+  profitSplit?: string;
+  payoutAmount?: number;
+  milestoneName?: string;
+  rulesSnapshot?: CertificateRulesSnapshot;
+  verificationUrl: string;
+  generatedFrom?: {
+    challengeStatus?: string;
+    accountStatus?: string;
+    payoutStatus?: string;
+    source: "backend_trigger" | "admin_regeneration" | "local_readonly_preview";
+  };
+}
+
 // ── Async state wrapper ───────────────────────────────────
 export interface AsyncState<T> {
   data: T | null;

@@ -41,6 +41,7 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutFailure from "./pages/CheckoutFailure";
 import OrderStatus from "./pages/OrderStatus";
 import Verification from "./pages/Verification";
+import CertificateVerification from "./pages/CertificateVerification";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,7 @@ const App = () => (
                 <Route path="/checkout/failure" element={<CheckoutFailure />} />
                 <Route path="/order-status" element={<OrderStatus />} />
                 <Route path="/verification" element={<ProtectedRoute><Verification /></ProtectedRoute>} />
+                <Route path="/certificates/verify/:certificateId" element={<CertificateVerification />} />
 
                 {/* Protected routes */}
                 <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
