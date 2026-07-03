@@ -79,6 +79,7 @@ The public site is currently locked to a waitlist landing page while the funded 
 To preview the full platform privately:
 
 1. Set `VITE_PLATFORM_PREVIEW_KEY` in your deployment environment if you want a custom preview key. If it is not set, the default development key is `fynx-preview`.
-2. Open `/fynx-prime/?preview=<your-preview-key>` in the browser.
-3. Click **Enable admin platform preview**. The browser stores `fynx-platform-preview=enabled` in local storage and the full platform routes become available in that browser.
-4. To return that browser to public waitlist mode, remove the `fynx-platform-preview` local storage item.
+2. Leave `VITE_BASE_PATH` unset for a root-domain Vercel deployment such as `https://fynxfunded.com`. Only set it for subpath hosting, for example `/fynx-prime/`.
+3. Open `/?preview=<your-preview-key>` on the production domain. If using a subpath base, open that base path with the same preview query.
+4. Click **Enable admin platform preview**. The browser stores `fynx-platform-preview=enabled` in local storage and the full platform routes become available in that browser.
+5. To return that browser to public waitlist mode, remove the `fynx-platform-preview` local storage item.

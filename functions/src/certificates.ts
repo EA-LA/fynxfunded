@@ -143,7 +143,7 @@ async function generatePayoutCertificates(payout: FirebaseFirestore.DocumentData
 async function upsertCertificate(type: CertificateType, base: FirebaseFirestore.DocumentData) {
   const seed = `${type}:${base.userId}:${base.challengeId || base.accountId}:${base.payoutId || base.milestoneName || "primary"}`;
   const certificateId = stableId(seed);
-  const verificationUrl = `https://www.fynxfunded.com/fynx-prime/certificates/verify/${certificateId}`;
+  const verificationUrl = `https://fynxfunded.com/certificates/verify/${certificateId}`;
   const ref = admin.firestore().collection("certificates").doc(certificateId);
   const existing = await ref.get();
   const existingStatus = existing.exists ? existing.data()?.status : null;

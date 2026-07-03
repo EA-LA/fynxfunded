@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CreditCard, Wallet, Apple, Globe2, Lock, Shield } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import type { PaymentMethodType } from "@/services/types";
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 const cryptoOptions = [
   { id: "btc", label: "Bitcoin (BTC)" },
@@ -32,7 +31,6 @@ function phaseToNumber(phase: string): string {
 }
 
 export default function Checkout() {
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [method, setMethod] = useState<PaymentMethodType>("card");
   const [processing, setProcessing] = useState(false);
@@ -46,103 +44,9 @@ export default function Checkout() {
 
   const config = challengeConfigs[sizeIdx] || challengeConfigs[1];
   const phaseConfig = config.phases[phase];
-
-  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID as string | undefined;
-
   const apiBase =
     (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
     (typeof window !== "undefined" ? window.location.origin : "");
-
-  const paypalOptions = useMemo(() => {
-    return {
-      clientId: paypalClientId || "",
-      currency,
-      intent: "capture" as const,
-      components: "buttons",
-    };
-  }, [paypalClientId, currency]);
-
-  /** Finalize order in Firestore after PayPal payment */
-  const finalizeOrder = async (paymentMethod: PaymentMethodType, externalRef?: string) => {
-    if (!user) throw new Error("Not authenticated");
-
-    const { dataService } = await import("@/services/database");
-
-    const order = await dataService.createOrder({
-      userId: user.userId,
-      challengeId: "",
-      amount: phaseConfig.price,
-      currency,
-      paymentMethod,
-      status: "paid",
-      createdAt: new Date().toISOString(),
-      paidAt: new Date().toISOString(),
-      challenge: `${config.label} ${phase.replace("-", " ")}`,
-      accountSize: config.accountSize,
-      phase,
-      style,
-    });
-
-    await dataService.createChallenge({
-      userId: user.userId,
-      orderId: order.orderId,
-      name: `${config.label} ${phase.replace("-", " ")}`,
-      phase,
-      accountSize: config.accountSize,
-      style,
-      status: "active",
-      startDate: new Date().toISOString(),
-      brokerAccountId: null,
-      currency,
-    });
-
-    return order;
-  };
-
-  /** PayPal: create order on backend */
-  const createPayPalOrder = async () => {
-    const res = await fetch(`${apiBase}/api/paypal/create-order`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: phaseConfig.price,
-        currency,
-        orderData: {
-          userId: user?.userId || "",
-          challenge: `${config.label} ${phase.replace("-", " ")}`,
-          accountSize: config.accountSize,
-          phase,
-          style,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(`PayPal create-order failed (${res.status}): ${txt}`);
-    }
-
-    const data = (await res.json().catch(() => ({}))) as any;
-    const orderId = data?.id || data?.orderID || data?.orderId;
-    if (!orderId) throw new Error("PayPal create-order did not return an order id.");
-    return orderId as string;
-  };
-
-  /** PayPal: capture order on backend */
-  const capturePayPalOrder = async (paypalOrderId: string) => {
-    const res = await fetch(`${apiBase}/api/paypal/capture-order`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paypalOrderId }),
-    });
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(`PayPal capture-order failed (${res.status}): ${txt}`);
-    }
-
-    return (await res.json().catch(() => ({}))) as any;
-  };
 
   /** Stripe: create checkout session and redirect */
   const handleStripeCheckout = async () => {
@@ -194,7 +98,7 @@ export default function Checkout() {
     }
 
     // Apple Pay and Crypto are not connected yet
-    alert(`${method === "apple" ? "Apple Pay" : "Crypto"} payment gateway is not connected yet. Please use Card or PayPal.`);
+    alert(`${method === "apple" ? "Apple Pay" : method === "paypal" ? "PayPal" : "Crypto"} payment gateway is not connected yet. Please use Card.`);
   };
 
   const methods: { id: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
@@ -263,54 +167,10 @@ export default function Checkout() {
             )}
 
             {method === "paypal" && (
-              <div className="premium-card animate-fade-in">
-                <div className="text-center py-4">
-                  <Globe2 size={32} className="mx-auto text-muted-foreground mb-3" />
-                  <p className="text-sm font-medium mb-1">PayPal</p>
-                  <p className="text-xs text-muted-foreground mb-5">Complete payment using PayPal securely.</p>
-
-                  {!paypalClientId ? (
-                    <p className="text-xs text-muted-foreground">PayPal is not configured. Please contact support.</p>
-                  ) : (
-                    <div className="max-w-sm mx-auto">
-                      <PayPalScriptProvider options={paypalOptions}>
-                        <PayPalButtons
-                          style={{ layout: "vertical" }}
-                          disabled={processing}
-                          forceReRender={[phaseConfig.price, currency]}
-                          createOrder={async () => {
-                            setProcessing(true);
-                            try {
-                              return await createPayPalOrder();
-                            } finally {
-                              setProcessing(false);
-                            }
-                          }}
-                          onApprove={async (data) => {
-                            setProcessing(true);
-                            try {
-                              const paypalOrderId = (data as any)?.orderID as string;
-                              await capturePayPalOrder(paypalOrderId);
-                              const order = await finalizeOrder("paypal", paypalOrderId);
-                              localStorage.setItem("fynx_last_order_id", order.orderId);
-                              navigate("/checkout/success");
-                            } catch (err) {
-                              console.error("[Checkout] PayPal approval failed:", err);
-                              navigate("/checkout/failure");
-                            } finally {
-                              setProcessing(false);
-                            }
-                          }}
-                          onError={(err) => {
-                            console.error("[Checkout] PayPal error:", err);
-                            navigate("/checkout/failure");
-                          }}
-                          onCancel={() => {}}
-                        />
-                      </PayPalScriptProvider>
-                    </div>
-                  )}
-                </div>
+              <div className="premium-card animate-fade-in text-center py-8">
+                <Globe2 size={32} className="mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm font-medium mb-1">PayPal</p>
+                <p className="text-xs text-muted-foreground">PayPal checkout is temporarily disabled while the public platform is in private build mode. Please use Card in preview testing.</p>
               </div>
             )}
 
@@ -318,7 +178,7 @@ export default function Checkout() {
               <div className="premium-card animate-fade-in text-center py-8">
                 <Apple size={32} className="mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm font-medium mb-1">Apple Pay</p>
-                <p className="text-xs text-muted-foreground">Apple Pay gateway is not connected yet. Please use Card or PayPal.</p>
+                <p className="text-xs text-muted-foreground">Apple Pay gateway is not connected yet. Please use Card.</p>
               </div>
             )}
 
@@ -340,30 +200,28 @@ export default function Checkout() {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-4">Crypto payment gateway is not connected yet. Please use Card or PayPal.</p>
+                <p className="text-xs text-muted-foreground mt-4">Crypto payment gateway is not connected yet. Please use Card.</p>
               </div>
             )}
 
-            {/* Pay button — for non-PayPal methods */}
-            {method !== "paypal" && (
-              <button
-                onClick={handlePay}
-                disabled={processing}
-                className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {processing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Lock size={14} />
-                    Pay ${phaseConfig.price}
-                  </>
-                )}
-              </button>
-            )}
+            {/* Pay button */}
+            <button
+              onClick={handlePay}
+              disabled={processing}
+              className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {processing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Lock size={14} />
+                  Pay ${phaseConfig.price}
+                </>
+              )}
+            </button>
 
             <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Shield size={12} /> Secure Payment</span>

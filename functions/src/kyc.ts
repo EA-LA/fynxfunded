@@ -6,7 +6,7 @@ import Stripe from "stripe";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || functions.config().stripe?.secret_key || "";
 const stripeIdentityWebhookSecret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET || functions.config().stripe?.identity_webhook_secret || "";
-const appBaseUrl = process.env.APP_BASE_URL || functions.config().app?.base_url || "https://elhamamini.cc/fynx-prime";
+const appBaseUrl = process.env.APP_BASE_URL || functions.config().app?.base_url || "https://fynxfunded.com";
 
 const stripe = new Stripe(stripeSecretKey || "sk_missing", {
   apiVersion: "2023-10-16" as any,

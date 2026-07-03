@@ -47,6 +47,7 @@ import WaitlistLanding from "./pages/WaitlistLanding";
 const queryClient = new QueryClient();
 
 const platformPreviewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY ?? "fynx-preview";
+const routerBasename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const isPlatformPreviewEnabled = () => {
   if (typeof window === "undefined") {
@@ -67,7 +68,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter basename="/fynx-prime">
+          <BrowserRouter basename={routerBasename}>
             <AuthProvider>
               {isPlatformPreviewEnabled() ? (
                 <Routes>

@@ -5,7 +5,7 @@ const previewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY ?? "fynx-preview";
 
 function enablePlatformPreview() {
   window.localStorage.setItem("fynx-platform-preview", "enabled");
-  window.location.href = "/fynx-prime/";
+  window.location.href = import.meta.env.BASE_URL || "/";
 }
 
 export default function WaitlistLanding() {
