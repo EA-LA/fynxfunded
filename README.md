@@ -71,3 +71,14 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Public waitlist mode and private platform preview
+
+The public site is currently locked to a waitlist landing page while the funded platform remains under active development. All public routes render the waitlist unless preview mode is enabled in the browser.
+
+To preview the full platform privately:
+
+1. Set `VITE_PLATFORM_PREVIEW_KEY` in your deployment environment if you want a custom preview key. If it is not set, the default development key is `fynx-preview`.
+2. Open `/fynx-prime/?preview=<your-preview-key>` in the browser.
+3. Click **Enable admin platform preview**. The browser stores `fynx-platform-preview=enabled` in local storage and the full platform routes become available in that browser.
+4. To return that browser to public waitlist mode, remove the `fynx-platform-preview` local storage item.
