@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2, LockKeyhole, Sparkles } from "lucide-react";
 
-const previewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY ?? "fynx-preview";
+const previewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY || (import.meta.env.DEV ? "fynx-preview" : "");
 
 function enablePlatformPreview() {
   window.sessionStorage.setItem("fynx-platform-preview", "enabled");
@@ -13,7 +13,7 @@ export default function WaitlistLanding() {
   const [email, setEmail] = useState("");
   const [joined, setJoined] = useState(false);
   const params = new URLSearchParams(window.location.search);
-  const canEnablePreview = params.get("preview") === previewKey;
+  const canEnablePreview = Boolean(previewKey) && params.get("preview") === previewKey;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

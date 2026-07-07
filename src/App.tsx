@@ -46,7 +46,7 @@ import WaitlistLanding from "./pages/WaitlistLanding";
 
 const queryClient = new QueryClient();
 
-const platformPreviewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY ?? "fynx-preview";
+const platformPreviewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY || (import.meta.env.DEV ? "fynx-preview" : "");
 const publicSiteMode = import.meta.env.VITE_PUBLIC_SITE_MODE ?? "waitlist";
 const routerBasename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -61,7 +61,7 @@ const isPlatformPreviewEnabled = () => {
 
   const params = new URLSearchParams(window.location.search);
   return (
-    params.get("preview") === platformPreviewKey ||
+    (Boolean(platformPreviewKey) && params.get("preview") === platformPreviewKey) ||
     window.sessionStorage.getItem("fynx-platform-preview") === "enabled"
   );
 };
