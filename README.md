@@ -74,12 +74,13 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/c
 
 ## Public waitlist mode and private platform preview
 
-The public site is currently locked to a waitlist landing page while the funded platform remains under active development. All public routes render the waitlist unless preview mode is enabled in the browser.
+The public site is currently locked to a waitlist landing page while the funded platform remains under active development. All public routes render the waitlist unless preview mode is enabled for the current browser session or `VITE_PUBLIC_SITE_MODE=platform` is intentionally set at launch.
 
 To preview the full platform privately:
 
-1. Set `VITE_PLATFORM_PREVIEW_KEY` in your deployment environment if you want a custom preview key. If it is not set, the default development key is `fynx-preview`.
-2. Leave `VITE_BASE_PATH` unset for a root-domain Vercel deployment such as `https://fynxfunded.com`. Only set it for subpath hosting, for example `/fynx-prime/`.
-3. Open `/?preview=<your-preview-key>` on the production domain. If using a subpath base, open that base path with the same preview query.
-4. Click **Enable admin platform preview**. The browser stores `fynx-platform-preview=enabled` in local storage and the full platform routes become available in that browser.
-5. To return that browser to public waitlist mode, remove the `fynx-platform-preview` local storage item.
+1. Keep `VITE_PUBLIC_SITE_MODE` unset or set to `waitlist` in Production until launch. Setting it to `platform` launches the full platform publicly.
+2. Set `VITE_PLATFORM_PREVIEW_KEY` in your deployment environment if you want a custom preview key. If it is not set, the default development key is `fynx-preview`.
+3. Leave `VITE_BASE_PATH` unset for a root-domain Vercel deployment such as `https://fynxfunded.com`. Only set it for subpath hosting, for example `/fynx-prime/`.
+4. Open `/?preview=<your-preview-key>` on the production domain. If using a subpath base, open that base path with the same preview query.
+5. Click **Enable admin platform preview**. The browser stores `fynx-platform-preview=enabled` in session storage and the full platform routes become available for that tab session.
+6. To return that browser to public waitlist mode, close the tab/session or remove the `fynx-platform-preview` session storage item.
