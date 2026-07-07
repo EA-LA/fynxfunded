@@ -42,8 +42,29 @@ import CheckoutFailure from "./pages/CheckoutFailure";
 import OrderStatus from "./pages/OrderStatus";
 import Verification from "./pages/Verification";
 import CertificateVerification from "./pages/CertificateVerification";
+import WaitlistLanding from "./pages/WaitlistLanding";
 
 const queryClient = new QueryClient();
+
+const platformPreviewKey = import.meta.env.VITE_PLATFORM_PREVIEW_KEY ?? "fynx-preview";
+const publicSiteMode = import.meta.env.VITE_PUBLIC_SITE_MODE ?? "waitlist";
+const routerBasename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const isPlatformPreviewEnabled = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  if (publicSiteMode === "platform") {
+    return true;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get("preview") === platformPreviewKey ||
+    window.sessionStorage.getItem("fynx-platform-preview") === "enabled"
+  );
+};
 
 const App = () => (
   <ThemeProvider>
@@ -52,11 +73,12 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter basename="/fynx-prime">
+          <BrowserRouter basename={routerBasename}>
             <AuthProvider>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/" element={<Index />} />
+              {isPlatformPreviewEnabled() ? (
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/" element={<Index />} />
                 <Route path="/how-it-works" element={<HowItWorks />} />
                 <Route path="/challenges" element={<ChallengesPricing />} />
                 <Route path="/rules" element={<RulesPage />} />
@@ -93,8 +115,13 @@ const App = () => (
                   <Route path="settings" element={<DashboardSettings />} />
                   <Route path="support" element={<Support />} />
                 </Route>
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              ) : (
+                <Routes>
+                  <Route path="*" element={<WaitlistLanding />} />
+                </Routes>
+              )}
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
