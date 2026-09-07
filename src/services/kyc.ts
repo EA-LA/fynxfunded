@@ -98,6 +98,13 @@ export async function submitKycProfile(userId: string, email: string | undefined
   return adapter.createSession({ userId, email, ...payload });
 }
 
+export async function refreshKycStatus(): Promise<{ status: string; reason?: string | null }> {
+  if (!isFirebaseConfigured || !functions) throw new Error("Firebase Functions is not configured.");
+  const refresh = httpsCallable(functions, "refreshKycStatus");
+  const result = await refresh();
+  return result.data as { status: string; reason?: string | null };
+}
+
 export function watchCurrentUserKyc(userId: string, cb: (kyc: Partial<KycRecord>) => void): Unsubscribe {
   if (!db) return () => undefined;
   return onSnapshot(doc(db, "users", userId), (snap) => cb((snap.data() || {}) as Partial<KycRecord>));

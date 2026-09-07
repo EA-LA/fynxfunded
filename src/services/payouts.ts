@@ -12,11 +12,6 @@ export async function getKycStatus(userId: string): Promise<KycStatus> {
   return user?.kycStatus || "not_started";
 }
 
-export async function updateKycStatus(userId: string, status: KycStatus): Promise<void> {
-  // 🔌 Replace with: KYC provider webhook handler
-  await dataService.updateUser(userId, { kycStatus: status });
-}
-
 export async function canRequestPayout(userId: string, emailVerified?: boolean): Promise<{ allowed: boolean; reason?: string }> {
   if (emailVerified === false) {
     return { allowed: false, reason: "Email verification is required before requesting a payout." };

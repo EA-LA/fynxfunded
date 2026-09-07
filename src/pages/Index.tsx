@@ -40,8 +40,8 @@ export default function Index() {
     <MarketingLayout>
       <CinematicBackground />
       {/* Hero */}
-      <section className="relative dot-grid">
-        <div className="max-w-7xl mx-auto px-6 py-32 md:py-44">
+      <section className="relative dot-grid overflow-hidden">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-32 md:py-44">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] animate-fade-up">
               Get Funded.

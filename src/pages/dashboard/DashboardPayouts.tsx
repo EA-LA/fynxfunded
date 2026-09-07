@@ -3,6 +3,7 @@ import { useTradingData } from "@/hooks/use-trading-data";
 import { CreditCard, Wallet, ShieldAlert, CheckCircle2, Clock, BookOpen } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { watchCurrentUserKyc } from "@/services/kyc";
 import { canRequestPayout, getUserPayouts, requestPayout } from "@/services/payouts";
 import type { PayoutRequest } from "@/services/types";
 
@@ -24,6 +25,11 @@ export default function DashboardPayouts() {
       }).catch(console.error);
 
       getUserPayouts(user.userId).then(setPayoutHistory).catch(console.error);
+      return watchCurrentUserKyc(user.userId, (record) => {
+        const verified = record.kycStatus === "verified";
+        setKycAllowed(verified && user.emailVerified);
+        setKycReason(verified ? (user.emailVerified ? "" : "Email verification is required before requesting a payout.") : "Identity verification must be completed before requesting a payout.");
+      });
     }
   }, [user?.userId, user?.emailVerified]);
 

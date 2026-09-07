@@ -1,9 +1,9 @@
-import { useMemo, useState, type ElementType, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { ArrowLeft, BadgeCheck, CheckCircle2, FileBadge, LockKeyhole, ShieldCheck, UploadCloud } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { countries } from "@/lib/countries";
-import { submitKycProfile, type KycDocumentType } from "@/services/kyc";
+import { refreshKycStatus, submitKycProfile, watchCurrentUserKyc, type KycDocumentType, type KycStatus } from "@/services/kyc";
 
 const documentTypes: Array<{ value: KycDocumentType; label: string }> = [
   { value: "passport", label: "Passport" },
@@ -23,11 +23,28 @@ export default function Verification() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  const [liveStatus, setLiveStatus] = useState<KycStatus | null>(null);
+  const [checking, setChecking] = useState(false);
 
-  const kycStatus = user?.kycStatus || "not_started";
+  const kycStatus = liveStatus || user?.kycStatus || "not_started";
   const isVerified = kycStatus === "verified";
   const isPending = kycStatus === "pending";
   const countryOptions = useMemo(() => [...countries], []);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    const unsubscribe = watchCurrentUserKyc(user.userId, (record) => {
+      if (record.kycStatus) setLiveStatus(record.kycStatus);
+    });
+    if (new URLSearchParams(window.location.search).has("verification-return")) {
+      setChecking(true);
+      refreshKycStatus()
+        .then((result) => setOk(result.status === "verified" ? "Identity verified. Your account is now payout eligible." : "Your documents were submitted and are being reviewed."))
+        .catch((e) => setError(e?.message || "Could not refresh verification status."))
+        .finally(() => setChecking(false));
+    }
+    return unsubscribe;
+  }, [user?.userId]);
 
   if (!user?.userId) return <Navigate to="/login" replace />;
 
@@ -123,7 +140,7 @@ export default function Verification() {
             {ok && <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-500">{ok}</p>}
 
             <button onClick={submit} disabled={submitting || isVerified} className="mt-6 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
-              <ShieldCheck size={16} /> {isVerified ? "Already Verified" : submitting ? "Creating Secure Session..." : isPending ? "Resume / Retry Verification" : "Start Verification"}
+              <ShieldCheck size={16} /> {isVerified ? "Verified" : checking ? "Checking Status..." : submitting ? "Creating Secure Session..." : isPending ? "Resume Verification" : "Start Verification"}
             </button>
           </div>
 

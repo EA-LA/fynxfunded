@@ -16,8 +16,6 @@ type SupportedProvider = "stripe_identity" | "sumsub" | "persona" | "veriff" | "
 
 type KycSessionRequest = {
   provider?: SupportedProvider;
-  userId: string;
-  email?: string;
   legalFullName: string;
   dateOfBirth: string;
   countryOfResidence: string;
@@ -32,7 +30,7 @@ function assertStripeConfigured() {
 }
 
 function validateKycPayload(data: Partial<KycSessionRequest>) {
-  const required: Array<keyof KycSessionRequest> = ["userId", "legalFullName", "dateOfBirth", "countryOfResidence", "address", "documentType"];
+  const required: Array<keyof KycSessionRequest> = ["legalFullName", "dateOfBirth", "countryOfResidence", "address", "documentType"];
   for (const key of required) {
     if (!data[key]) throw new HttpsError("invalid-argument", `Missing required KYC field: ${key}`);
   }
@@ -43,7 +41,8 @@ export const createKycSession = onCall(async (request) => {
 
   const data = request.data as KycSessionRequest;
   validateKycPayload(data);
-  if (request.auth.uid !== data.userId) throw new HttpsError("permission-denied", "Invalid user");
+  const userId = request.auth.uid;
+  const email = typeof request.auth.token.email === "string" ? request.auth.token.email : "";
 
   const provider = data.provider || "stripe_identity";
   if (provider !== "stripe_identity") {
@@ -52,30 +51,38 @@ export const createKycSession = onCall(async (request) => {
 
   assertStripeConfigured();
 
+  const profileRef = admin.firestore().collection("kyc_profiles").doc(userId);
+  const existing = await profileRef.get();
+  const existingSessionId = existing.data()?.kycSessionId as string | undefined;
+  if (existingSessionId) {
+    const previous = await stripe.identity.verificationSessions.retrieve(existingSessionId);
+    if (previous.status === "verified") {
+      await syncVerificationSession(previous, "identity.verification_session.verified");
+      return { sessionId: previous.id, provider, status: "verified" };
+    }
+    if (previous.status === "requires_input" && previous.url) {
+      return { sessionId: previous.id, provider, redirectUrl: previous.url, status: previous.status };
+    }
+  }
+
   const session = await stripe.identity.verificationSessions.create({
     type: "document",
     provided_details: {
-      email: data.email,
+      email,
     },
     metadata: {
-      userId: data.userId,
-      email: data.email || "",
-      legalFullName: data.legalFullName,
-      dateOfBirth: data.dateOfBirth,
+      userId,
       countryOfResidence: data.countryOfResidence,
       documentType: data.documentType,
     },
-    return_url: `${appBaseUrl}/verification`,
-  } as any);
+    return_url: `${appBaseUrl}/verification?verification-return=1`,
+  } as any, { idempotencyKey: `identity-${userId}-${new Date().toISOString().slice(0, 10)}` });
 
   const now = admin.firestore.FieldValue.serverTimestamp();
   const profilePayload = {
-    userId: data.userId,
-    email: data.email || request.auth.token.email || "",
-    legalFullName: data.legalFullName,
-    dateOfBirth: data.dateOfBirth,
+    userId,
+    email,
     countryOfResidence: data.countryOfResidence,
-    address: data.address,
     documentType: data.documentType,
     kycStatus: "pending",
     kycProvider: provider,
@@ -87,8 +94,8 @@ export const createKycSession = onCall(async (request) => {
     createdAt: now,
   };
 
-  await admin.firestore().collection("kyc_profiles").doc(data.userId).set(profilePayload, { merge: true });
-  await admin.firestore().collection("users").doc(data.userId).set({
+  await profileRef.set(profilePayload, { merge: true });
+  await admin.firestore().collection("users").doc(userId).set({
     kycStatus: "pending",
     kycProvider: provider,
     kycSessionId: session.id,
@@ -104,6 +111,25 @@ export const createKycSession = onCall(async (request) => {
     redirectUrl: (session as any).url,
     clientSecret: session.client_secret,
   };
+});
+
+export const refreshKycStatus = onCall(async (request) => {
+  if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Auth required");
+  assertStripeConfigured();
+
+  const userId = request.auth.uid;
+  const profile = await admin.firestore().collection("kyc_profiles").doc(userId).get();
+  const sessionId = profile.data()?.kycSessionId as string | undefined;
+  if (!sessionId) return { status: "not_started" };
+
+  const session = await stripe.identity.verificationSessions.retrieve(sessionId);
+  const eventType = session.status === "verified"
+    ? "identity.verification_session.verified"
+    : session.status === "requires_input"
+      ? "identity.verification_session.requires_input"
+      : "identity.verification_session.processing";
+  await syncVerificationSession(session, eventType);
+  return { status: session.status, reason: session.last_error?.reason || null };
 });
 
 export const stripeIdentityWebhook = onRequest(async (req, res) => {

@@ -6,7 +6,7 @@ export { createCheckoutSession } from "./stripe/createCheckoutSession";
 export { stripeWebhook } from "./stripe/webhook";
 export { verifySession } from "./stripe/verifySession";
 
-export { createKycSession, stripeIdentityWebhook } from "./kyc";
+export { createKycSession, refreshKycStatus, stripeIdentityWebhook } from "./kyc";
 
 export { sendLoginAlert } from "./security";
 
