@@ -4,13 +4,13 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || undefined,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBqBeQVVd46uUaYDZf9EX-VyIpQpYIm7aI",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "fynx-c7a28.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "fynx-c7a28",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "fynx-c7a28.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1011050657868",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1011050657868:web:2a2577bc5373307eb05ce9",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-BNE825NW8E",
 };
 
 export const isFirebaseConfigured =
