@@ -11,6 +11,9 @@ const errorMap: Record<string, string> = {
   "auth/network-request-failed": "Network error. Please check your connection.",
   "auth/popup-closed-by-user": "Sign-in popup was closed. Please try again.",
   "auth/operation-not-allowed": "This sign-in method is not enabled.",
+  "auth/internal-error": "Authentication could not connect to Firebase. Please contact support.",
+  "auth/unauthorized-domain": "This website domain is not authorized in Firebase Authentication.",
+  "auth/invalid-api-key": "Firebase Authentication is not configured correctly. Please contact support.",
   "auth/expired-action-code": "This link has expired. Please request a new one.",
   "auth/invalid-action-code": "This link is invalid or has already been used.",
 };
@@ -23,7 +26,10 @@ export function mapFirebaseError(error: unknown): string {
   if (error instanceof Error) {
     // Strip "Firebase: " prefix if present
     const msg = error.message.replace(/^Firebase:\s*/i, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "");
-    return msg || "An unexpected error occurred.";
+    if (/api key not valid|api_key_invalid/i.test(msg)) {
+      return "Firebase Authentication is not configured correctly. Please contact support.";
+    }
+    return msg && msg.toLowerCase() !== "error" ? msg : "Authentication failed. Please try again or contact support.";
   }
   return "An unexpected error occurred.";
 }
