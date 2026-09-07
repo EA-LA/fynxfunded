@@ -402,6 +402,28 @@ class LocalAuthService implements AuthService {
   async refreshCurrentUser(): Promise<User | null> { return this.currentUser; }
 }
 
+/** Keeps public pages available without silently enabling insecure local auth. */
+class UnconfiguredAuthService implements AuthService {
+  private unavailable(): never {
+    throw new Error("Account services are temporarily unavailable because Firebase is not configured.");
+  }
+  async signUp(): Promise<User> { return this.unavailable(); }
+  async signIn(): Promise<User> { return this.unavailable(); }
+  async signInWithGoogle(): Promise<User> { return this.unavailable(); }
+  async signInWithApple(): Promise<User> { return this.unavailable(); }
+  async signOut(): Promise<void> { return; }
+  async resetPassword(): Promise<void> { return this.unavailable(); }
+  getCurrentUser(): User | null { return null; }
+  onAuthStateChange(callback: (user: User | null) => void): () => void {
+    callback(null);
+    return () => undefined;
+  }
+  async updatePassword(): Promise<void> { return this.unavailable(); }
+  async sendEmailVerification(): Promise<void> { return this.unavailable(); }
+  async handleRedirectResult(): Promise<User | null> { return null; }
+  async refreshCurrentUser(): Promise<User | null> { return null; }
+}
+
 // In production, LocalAuth is NEVER allowed — Firebase must be configured.
 // In dev, LocalAuth is only allowed if VITE_ALLOW_LOCAL_AUTH=true.
 const allowLocalFallback =
@@ -411,11 +433,4 @@ export const authService: AuthService = isFirebaseConfigured
   ? new FirebaseAuthService()
   : allowLocalFallback
     ? new LocalAuthService()
-    : (() => {
-        const msg = "Firebase is not configured. Set VITE_FIREBASE_* environment variables.";
-        if (!import.meta.env.DEV) {
-          throw new Error(msg);
-        }
-        console.error("[AuthService]", msg, "Using LocalAuthService as fallback (dev only).");
-        return new LocalAuthService();
-      })();
+    : new UnconfiguredAuthService();
