@@ -4,6 +4,7 @@ import { ArrowLeft, CreditCard, Wallet, Apple, Globe2, Lock, Shield } from "luci
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { useAuth } from "@/contexts/AuthContext";
 import type { PaymentMethodType } from "@/services/types";
+import { auth as firebaseAuth } from "@/lib/firebase";
 
 const cryptoOptions = [
   { id: "btc", label: "Bitcoin (BTC)" },
@@ -44,9 +45,8 @@ export default function Checkout() {
 
   const config = challengeConfigs[sizeIdx] || challengeConfigs[1];
   const phaseConfig = config.phases[phase];
-  const apiBase =
-    (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-    (typeof window !== "undefined" ? window.location.origin : "");
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+    "https://us-central1-fynx-c7a28.cloudfunctions.net";
 
   /** Stripe: create checkout session and redirect */
   const handleStripeCheckout = async () => {
@@ -56,13 +56,14 @@ export default function Checkout() {
       const sizeKey = accountSizeToKey(config.accountSize);
       const phaseNum = phaseToNumber(phase);
 
-      const res = await fetch(`${apiBase}/api/stripe/create-checkout-session`, {
+      const idToken = await firebaseAuth?.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Please sign in again before checking out.");
+      const res = await fetch(`${apiBase}/createCheckoutSession`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
           accountSize: sizeKey,
           phase: phaseNum,
-          email: user.email,
           style,
           currency,
         }),

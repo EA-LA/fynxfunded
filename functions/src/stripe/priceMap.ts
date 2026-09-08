@@ -1,30 +1,19 @@
-/**
- * Stripe Price ID mapping.
- * Key format: "{accountSizeK}_{phaseNumber}"
- * e.g. "100k_1" = $100K 1-phase challenge
- */
-export const PRICE_MAP: Record<string, string> = {
-  "5k_1": "price_1T7InPKF1DV2t1wMV678orSg",
-  "5k_2": "price_1T7IqFKF1DV2t1wMOyPUJr62",
-  "5k_3": "price_1T7Ir1KF1DV2t1wMUevB22xG",
+export type Plan = { accountSize: number; phase: "1" | "2" | "3"; amountCents: number; label: string };
 
-  "10k_1": "price_1T7IvUKF1DV2t1wMnPW0P4Kk",
-  "10k_2": "price_1T7IxPKF1DV2t1wMnC0HGzgP",
-  "10k_3": "price_1T7IzyKF1DV2t1wMt83rbhMD",
-
-  "25k_1": "price_1T7J2AKF1DV2t1wMrsFshawf",
-  "25k_2": "price_1T7JCuKF1DV2t1wMoUVSVUVE",
-  "25k_3": "price_1T7JDPKF1DV2t1wMr71qLkm4",
-
-  "50k_1": "price_1T7JF4KF1DV2t1wMnIKlooij",
-  "50k_2": "price_1T7JGEKF1DV2t1wMhM2r7nXw",
-  "50k_3": "price_1T7JGkKF1DV2t1wMSMXD6aEY",
-
-  "100k_1": "price_1T7JIBKF1DV2t1wMTN1FZ6hW",
-  "100k_2": "price_1T7JIkKF1DV2t1wMs4vXxDKX",
-  "100k_3": "price_1T7JJAKF1DV2t1wMq5v5kHLD",
-
-  "200k_1": "price_1T7JL2KF1DV2t1wMwnU5HBA7",
-  "200k_2": "price_1T7JLbKF1DV2t1wMbM6kMC5m",
-  "200k_3": "price_1T7JM3KF1DV2t1wM7u3Eusj0",
+const prices: Record<string, number> = {
+  "5k_1": 4900, "5k_2": 3900, "5k_3": 2900,
+  "10k_1": 9900, "10k_2": 7900, "10k_3": 5900,
+  "25k_1": 22900, "25k_2": 19900, "25k_3": 14900,
+  "50k_1": 39900, "50k_2": 34900, "50k_3": 27900,
+  "100k_1": 69900, "100k_2": 54900, "100k_3": 44900,
+  "200k_1": 119900, "200k_2": 99900, "200k_3": 79900,
 };
+const sizes: Record<string, number> = { "5k": 5000, "10k": 10000, "25k": 25000, "50k": 50000, "100k": 100000, "200k": 200000 };
+
+export function getPlan(accountSize: unknown, phase: unknown): Plan | null {
+  if (typeof accountSize !== "string" || typeof phase !== "string") return null;
+  const amountCents = prices[`${accountSize}_${phase}`];
+  const numericSize = sizes[accountSize];
+  if (!amountCents || !numericSize || !["1", "2", "3"].includes(phase)) return null;
+  return { accountSize: numericSize, phase: phase as Plan["phase"], amountCents, label: `$${accountSize.toUpperCase()} ${phase}-phase challenge` };
+}

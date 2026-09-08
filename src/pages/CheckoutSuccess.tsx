@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { dataService } from "@/services/database";
 import { downloadReceipt } from "@/services/payments";
 import type { Order } from "@/services/types";
+import { auth as firebaseAuth } from "@/lib/firebase";
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
@@ -21,11 +22,14 @@ export default function CheckoutSuccess() {
         try {
           const apiBase =
             (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-            (typeof window !== "undefined" ? window.location.origin : "");
+            "https://us-central1-fynx-c7a28.cloudfunctions.net";
 
-          const res = await fetch(`${apiBase}/api/stripe/verify-session`, {
+          const idToken = await firebaseAuth?.currentUser?.getIdToken();
+          if (!idToken) throw new Error("Authentication required to verify payment.");
+
+          const res = await fetch(`${apiBase}/verifySession`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
             body: JSON.stringify({ sessionId }),
           });
 
