@@ -2,11 +2,11 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || functions.config().stripe?.secret_key || "", {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_missing", {
   apiVersion: "2023-10-16" as any,
 });
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || functions.config().stripe?.webhook_secret || "";
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 /**
  * POST /api/stripe/webhook

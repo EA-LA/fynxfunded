@@ -1,12 +1,11 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
 import Stripe from "stripe";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || functions.config().stripe?.secret_key || "";
-const stripeIdentityWebhookSecret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET || functions.config().stripe?.identity_webhook_secret || "";
-const appBaseUrl = process.env.APP_BASE_URL || functions.config().app?.base_url || "https://fynxfunded.com";
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "";
+const stripeIdentityWebhookSecret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET || "";
+const appBaseUrl = process.env.APP_BASE_URL || "https://fynxfunded.com";
 
 const stripe = new Stripe(stripeSecretKey || "sk_missing", {
   apiVersion: "2023-10-16" as any,
