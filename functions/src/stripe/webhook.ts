@@ -90,5 +90,20 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
       stripeSessionId: session.id,
       processedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    if (session.customer_details?.email || session.customer_email) {
+      const email = session.customer_details?.email || session.customer_email;
+      transaction.set(db.collection("mail").doc(`purchase-${session.id}`), {
+        to: email,
+        message: {
+          subject: "Thank you for your FYNX Funded purchase",
+          text: `Thank you for your purchase. Your ${challengeName} order is confirmed. We will email your trading account credentials separately as soon as your account is ready. Order reference: ${session.id}`,
+          html: `<h2>Thank you for your purchase</h2><p>Your <strong>${challengeName}</strong> order is confirmed.</p><p>We will email your trading account credentials separately as soon as your account is ready.</p><p>Order reference: ${session.id}</p>`,
+        },
+        metadata: { type: "purchase_confirmation", userId, stripeSessionId: session.id },
+        status: "queued",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
   });
 }

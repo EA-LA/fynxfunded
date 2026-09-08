@@ -97,7 +97,9 @@ export default function CheckoutSuccess() {
             <CheckCircle2 size={32} className="text-foreground" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Thank you for your purchase</h1>
-          <p className="text-sm text-muted-foreground mt-2">Your challenge has been created successfully.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Your payment was confirmed and your challenge order has been created.
+          </p>
         </div>
 
         {order && (
@@ -132,7 +134,7 @@ export default function CheckoutSuccess() {
           <div className="flex items-start gap-2">
             <FileText size={14} className="text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-xs text-muted-foreground">
-              A confirmation has been sent to your email. Your trading account credentials will be available in your dashboard once broker integration is activated.
+              We will email your purchase confirmation separately. Your trading account credentials will be delivered by email and shown in your dashboard as soon as your trading account is ready.
             </p>
           </div>
         </div>

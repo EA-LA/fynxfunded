@@ -66,6 +66,11 @@ const isPlatformPreviewEnabled = () => {
   );
 };
 
+const isCheckoutReturn = () => {
+  if (typeof window === "undefined" || window.location.pathname !== "/checkout/success") return false;
+  return new URLSearchParams(window.location.search).get("session_id")?.startsWith("cs_") === true;
+};
+
 const App = () => (
   <ThemeProvider>
     <I18nProvider>
@@ -75,7 +80,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter basename={routerBasename}>
             <AuthProvider>
-              {isPlatformPreviewEnabled() ? (
+              {isPlatformPreviewEnabled() || isCheckoutReturn() ? (
                 <Routes>
                   {/* Public routes */}
                   <Route path="/" element={<Index />} />
