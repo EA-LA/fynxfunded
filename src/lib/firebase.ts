@@ -4,7 +4,7 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBqBeQVVd46uUaYDZf9EX-VyIpQpYIm7aI",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBqBeQVVD46uUaYDZf9EX-VyTpQpYIm7aI",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "fynx-c7a28.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "fynx-c7a28",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "fynx-c7a28.firebasestorage.app",
