@@ -21,7 +21,7 @@ async function authenticatedUser(authorization: unknown) {
 }
 
 export const createCheckoutSession = onRequest(
-  { region: "us-central1", secrets: [stripeSecretKey], cors: false },
+  { region: "us-central1", secrets: [stripeSecretKey], cors: false, invoker: "public" },
   async (req, res) => {
     applyCors(req, res);
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }

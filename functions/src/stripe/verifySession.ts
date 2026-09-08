@@ -7,7 +7,7 @@ const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const allowedOrigins = new Set(["https://fynxfunded.com", "https://www.fynxfunded.com", "https://fynxfunded.vercel.app"]);
 
 export const verifySession = onRequest(
-  { region: "us-central1", secrets: [stripeSecretKey], cors: false },
+  { region: "us-central1", secrets: [stripeSecretKey], cors: false, invoker: "public" },
   async (req, res) => {
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
     if (allowedOrigins.has(origin)) res.set("Access-Control-Allow-Origin", origin);
