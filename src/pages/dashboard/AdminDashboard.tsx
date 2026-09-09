@@ -1,170 +1,56 @@
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Award, ExternalLink, RotateCcw, Shield, Target, Wallet } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Activity, AlertTriangle, ArrowLeft, Award, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, Search, Shield, Target, TrendingUp, Wallet } from "lucide-react";
 import { collection, doc, onSnapshot, Timestamp, updateDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions, isFirebaseConfigured } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllKycProfiles, type KycRecord, type KycStatus } from "@/services/kyc";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Tab = "overview" | "purchases" | "users" | "payouts" | "kyc" | "certificates" | "monitoring";
-type KycFilter = KycStatus | "all";
+type Period = "24h" | "7d" | "30d" | "all";
+type Row = Record<string, any> & { id: string };
+const tabs: Array<[Tab,string]> = [["overview","Overview"],["purchases","Purchases"],["users","Traders"],["payouts","Payouts"],["kyc","KYC"],["certificates","Certificates"],["monitoring","Account control"]];
+const periods: Array<[Period,string]> = [["24h","Last 24h"],["7d","7 days"],["30d","30 days"],["all","All time"]];
 
-function toDate(value: unknown): Date | null {
-  if (!value) return null;
-  if (value instanceof Timestamp) return value.toDate();
-  if (typeof value === "string") return new Date(value);
-  if (typeof value === "object" && value !== null && "toDate" in value) return (value as { toDate: () => Date }).toDate();
-  return null;
+function toDate(v: unknown): Date | null { if (!v) return null; if (v instanceof Timestamp) return v.toDate(); if (typeof v === "object" && v !== null && "toDate" in v) return (v as any).toDate(); const d = new Date(String(v)); return Number.isNaN(d.getTime()) ? null : d; }
+function date(v: unknown, time=false) { const d=toDate(v); return d ? d.toLocaleString(undefined,time?{dateStyle:"medium",timeStyle:"short"}:{dateStyle:"medium"}) : "—"; }
+function money(v: unknown, currency="USD") { return new Intl.NumberFormat(undefined,{style:"currency",currency:String(currency||"USD").toUpperCase(),maximumFractionDigits:2}).format(Number(v||0)); }
+function label(v: unknown) { return String(v||"unknown").replace(/_/g," "); }
+function created(r: Row) { return toDate(r.createdAt||r.paidAt||r.requestedAt||r.startDate||r.issuedAt); }
+function within(r: Row,p: Period) { if(p==="all") return true; const d=created(r); const days=p==="24h"?1:p==="7d"?7:30; return !!d&&d.getTime()>=Date.now()-days*86400000; }
+
+export default function AdminDashboard(){
+ const {user}=useAuth(); const [tab,setTab]=useState<Tab>("overview"); const [period,setPeriod]=useState<Period>("7d"); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
+ const [data,setData]=useState<Record<string,Row[]>>({users:[],orders:[],challenges:[],accounts:[],payouts:[],certificates:[]}); const [kyc,setKyc]=useState<KycRecord[]>([]); const [kycFilter,setKycFilter]=useState<KycStatus|"all">("all"); const [selected,setSelected]=useState<{title:string,row:Row}|null>(null);
+ useEffect(()=>{ if(!isFirebaseConfigured||!db){setError("Firebase is not configured.");setLoading(false);return;} const names=["users","orders","challenges","accounts","payouts","certificates"]; const unsubs=names.map(name=>onSnapshot(collection(db!,name),s=>{setData(old=>({...old,[name]:s.docs.map(x=>({id:x.id,...x.data()}))}));setLoading(false);},e=>{setError(e.message);setLoading(false);})); getAllKycProfiles().then(setKyc).catch(e=>setError(e.message)); return()=>unsubs.forEach(u=>u()); },[]);
+ const users=useMemo(()=>Object.fromEntries(data.users.map(u=>[u.uid||u.id,u])),[data.users]); const profiles=useMemo(()=>Object.fromEntries(kyc.map(p=>[p.userId,p])),[kyc]);
+ const orders=useMemo(()=>data.orders.filter(r=>within(r,period)),[data.orders,period]); const payouts=useMemo(()=>data.payouts.filter(r=>within(r,period)),[data.payouts,period]);
+ const kycRows=useMemo(()=>data.users.map(u=>{const id=u.uid||u.id,p:any=profiles[id];return {...u,...p,id,legalFullName:p?.legalFullName||u.displayName||u.fullName||"Unnamed trader",email:p?.email||u.email||"—",countryOfResidence:p?.countryOfResidence||u.country||"—",kycStatus:u.kycStatus||p?.kycStatus||"not_started"};}).filter(r=>kycFilter==="all"||r.kycStatus===kycFilter),[data.users,profiles,kycFilter]);
+ const revenue=orders.filter(o=>o.status==="paid").reduce((s,o)=>s+Number(o.amount||0),0); const active=data.accounts.filter(a=>a.status==="active").length||data.challenges.filter(c=>c.status==="active").length; const pending=payouts.filter(p=>["requested","pending"].includes(p.status)).length;
+ const select=(title:string,row:Row)=>setSelected({title,row}); const payoutAction=(r:Row,status:string)=>db&&updateDoc(doc(db,"payouts",r.id),{status,processedAt:new Date().toISOString(),processedBy:user?.email||"owner"}); const challengeAction=(r:Row,status:string)=>db&&updateDoc(doc(db,"challenges",r.id),{status,reviewedAt:new Date().toISOString(),reviewedBy:user?.email||"owner"}); const toggleMode=(r:Row)=>db&&updateDoc(doc(db,"challenges",r.id),{progressionMode:r.progressionMode==="automatic"?"manual":"automatic",updatedAt:new Date().toISOString()}); const certAction=(r:Row,status:string)=>db&&updateDoc(doc(db,"certificates",r.id),{status,reviewedAt:new Date().toISOString(),reviewedBy:user?.email||"owner"}); const regenerate=async(r:Row)=>functions&&httpsCallable(functions,"adminRegenerateCertificate")({challengeId:r.challengeId,payoutId:r.payoutId});
+ if(loading)return <div className="grid min-h-screen place-items-center bg-[#f6f7f9]"><div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-slate-950"/></div>;
+ return <div className="min-h-screen bg-[#f5f6f8] text-slate-950"><header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4 lg:px-8"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-slate-950 text-xs font-black text-white">FX</div><div><p className="font-semibold">FYNX Operations</p><p className="text-xs text-slate-500">Owner control center</p></div></div><Link to="/dashboard" className="flex items-center gap-2 text-sm text-slate-500"><ArrowLeft size={15}/>Trader dashboard</Link></div></header>
+ <main className="mx-auto max-w-[1500px] px-5 py-7 lg:px-8"><div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-slate-500">Live business workspace</p><h1 className="text-3xl font-bold tracking-tight">Owner Admin Dashboard</h1><p className="mt-2 text-sm text-slate-500">Purchases, traders, compliance, payouts and challenge decisions in one place.</p></div><div className="flex rounded-lg border border-slate-200 bg-white p-1">{periods.map(([k,t])=><button key={k} onClick={()=>setPeriod(k)} className={`rounded-md px-3 py-2 text-xs font-medium ${period===k?"bg-slate-950 text-white":"text-slate-500"}`}>{t}</button>)}</div></div>
+ {error&&<div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}<nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">{tabs.map(([k,t])=><button key={k} onClick={()=>setTab(k)} className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium ${tab===k?"bg-slate-950 text-white shadow-sm":"text-slate-500 hover:bg-slate-100"}`}>{t}</button>)}</nav>
+ {tab==="overview"&&<Overview period={period} orders={orders} payouts={payouts} revenue={revenue} active={active} pending={pending} certificates={data.certificates} challenges={data.challenges} users={users} go={setTab} select={(r:Row)=>select("Transaction details",r)}/>}
+ {tab==="purchases"&&<Table title="Purchases" subtitle={`${orders.length} transactions in selected period`} rows={orders} search={["email","userId","stripeSessionId","challenge","status"]} columns={[C("Customer",r=>users[r.userId]?.email||r.customerEmail||r.userId),C("Challenge",r=>r.challenge||`${money(r.accountSize)} ${r.phase||""}`),C("Amount",r=>money(r.amount,r.currency)),C("Status",r=><Status value={r.status}/>),C("Purchased",r=>date(r.paidAt||r.createdAt,true))]} onRow={r=>select("Purchase details",r)}/>}
+ {tab==="users"&&<Table title="Traders" subtitle={`${data.users.length} registered users`} rows={data.users} search={["displayName","fullName","email","kycStatus"]} columns={[C("Trader",r=><div><p className="font-medium">{r.displayName||r.fullName||"Unnamed trader"}</p><p className="text-xs text-slate-500">{r.email||r.id}</p></div>),C("KYC",r=><Status value={r.kycStatus||"not_started"}/>),C("Email",r=>r.emailVerified?"Verified":"Unverified"),C("Joined",r=>date(r.createdAt))]} onRow={r=>select("Trader profile",r)}/>}
+ {tab==="payouts"&&<Table title="Payout requests" subtitle="Review identity, account and request details before approving" rows={payouts} search={["userId","accountId","status","method"]} columns={[C("Trader",r=>users[r.userId]?.email||r.userId),C("Amount",r=><b>{money(r.amount,r.currency)}</b>),C("Method",r=>label(r.method)),C("KYC",r=><Status value={users[r.userId]?.kycStatus||"unknown"}/>),C("Status",r=><Status value={r.status}/>),C("Requested",r=>date(r.requestedAt||r.createdAt,true)),C("Actions",r=><div className="flex gap-2"><Action onClick={()=>payoutAction(r,"approved")}>Approve</Action><Action muted onClick={()=>payoutAction(r,"denied")}>Reject</Action></div>)]} onRow={r=>select("Payout request",r)}/>}
+ {tab==="kyc"&&<section><Title title="KYC reviews" subtitle="Identity status and submitted profile information"><div className="flex gap-1 rounded-lg border bg-white p-1">{(["all","pending","verified","rejected"] as const).map(x=><button key={x} onClick={()=>setKycFilter(x)} className={`rounded px-3 py-1.5 text-xs capitalize ${kycFilter===x?"bg-slate-950 text-white":"text-slate-500"}`}>{label(x)}</button>)}</div></Title><Table rows={kycRows} search={["legalFullName","email","countryOfResidence","kycStatus"]} columns={[C("Trader",r=><div><p className="font-medium">{r.legalFullName}</p><p className="text-xs text-slate-500">{r.email}</p></div>),C("Country",r=>r.countryOfResidence),C("Provider",r=>r.kycProvider||"—"),C("Submitted",r=>date(r.kycSubmittedAt,true)),C("Status",r=><Status value={r.kycStatus}/>)]} onRow={r=>select("KYC profile",r)}/></section>}
+ {tab==="certificates"&&<Table title="Certificate control" subtitle="Inspect, approve, revoke or regenerate verified certificates" rows={data.certificates} search={["traderName","userId","accountId","type","status"]} columns={[C("Certificate",r=><div><p className="font-medium capitalize">{label(r.type)}</p><p className="font-mono text-xs text-slate-500">{r.publicVerificationId||r.id}</p></div>),C("Trader",r=>r.traderName||users[r.userId]?.email||r.userId),C("Account",r=>r.accountId||"—"),C("Status",r=><Status value={r.status||"issued"}/>),C("Issued",r=>date(r.issuedAt)),C("Actions",r=><div className="flex gap-2"><Action onClick={()=>certAction(r,"approved")}>Approve</Action><Action muted onClick={()=>certAction(r,"revoked")}>Revoke</Action><Action muted onClick={()=>regenerate(r)}>Regenerate</Action></div>)]} onRow={r=>select("Certificate details",r)}/>}
+ {tab==="monitoring"&&<Controls challenges={data.challenges} accounts={data.accounts} users={users} status={challengeAction} mode={toggleMode} select={(r:Row)=>select("Challenge control",r)}/>}</main><Details value={selected} close={()=>setSelected(null)}/></div>;
 }
 
-function formatDate(value: unknown) {
-  const date = toDate(value);
-  return date ? date.toLocaleDateString() : "-";
-}
-
-export default function AdminDashboard() {
-  const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("overview");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [challenges, setChallenges] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [payouts, setPayouts] = useState<any[]>([]);
-  const [certificates, setCertificates] = useState<any[]>([]);
-  const [kycFilter, setKycFilter] = useState<KycFilter>("all");
-  const [kycProfiles, setKycProfiles] = useState<KycRecord[]>([]);
-
-  useEffect(() => {
-    if (!isFirebaseConfigured || !db) {
-      setError("Firebase is not configured.");
-      setLoading(false);
-      return;
-    }
-
-    const unsubs = [
-      onSnapshot(collection(db, "users"), (snap) => setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => setError(e.message)),
-      onSnapshot(collection(db, "orders"), (snap) => setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => setError(e.message)),
-      onSnapshot(collection(db, "challenges"), (snap) => setChallenges(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => setError(e.message)),
-      onSnapshot(collection(db, "accounts"), (snap) => setAccounts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => setError(e.message)),
-      onSnapshot(collection(db, "payouts"), (snap) => setPayouts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => setError(e.message)),
-      onSnapshot(collection(db, "certificates"), (snap) => setCertificates(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => setError(e.message)),
-    ];
-
-    setLoading(false);
-    return () => unsubs.forEach((unsubscribe) => unsubscribe());
-  }, []);
-
-  useEffect(() => {
-    getAllKycProfiles().then(setKycProfiles).catch(console.error);
-  }, []);
-
-  const userById = useMemo(() => Object.fromEntries(users.map((currentUser) => [currentUser.uid || currentUser.id, currentUser])), [users]);
-  const profileByUserId = useMemo(() => Object.fromEntries(kycProfiles.map((profile) => [profile.userId, profile])), [kycProfiles]);
-
-  const kycRows = useMemo(() => {
-    return users
-      .map((currentUser) => {
-        const userId = currentUser.uid || currentUser.id;
-        const profile = profileByUserId[userId] as KycRecord | undefined;
-        const status = (currentUser.kycStatus || profile?.kycStatus || "not_started") as KycStatus;
-        return {
-          userId,
-          legalFullName: profile?.legalFullName || currentUser.displayName || currentUser.fullName || "-",
-          email: profile?.email || currentUser.email || "-",
-          countryOfResidence: profile?.countryOfResidence || currentUser.country || "-",
-          kycSubmittedAt: profile?.kycSubmittedAt || currentUser.kycSubmittedAt,
-          kycStatus: status,
-        };
-      })
-      .filter((row) => kycFilter === "all" || row.kycStatus === kycFilter)
-      .sort((a, b) => (toDate(b.kycSubmittedAt)?.getTime() || 0) - (toDate(a.kycSubmittedAt)?.getTime() || 0));
-  }, [kycFilter, profileByUserId, users]);
-
-  const stats = useMemo(() => ({
-    challengesSold: orders.length,
-    activeAccounts: accounts.filter((account) => account.status === "active").length || challenges.filter((challenge) => challenge.status === "active").length,
-    payoutRequests: payouts.length,
-    certificates: certificates.length,
-  }), [accounts, challenges, certificates, orders, payouts]);
-
-  const handlePayoutAction = async (id: string, status: "approved" | "denied") => {
-    if (!db) return;
-    await updateDoc(doc(db, "payouts", id), { status, processedAt: new Date().toISOString(), processedBy: user?.email || "owner" });
-  };
-
-  const handleCertificateAction = async (id: string, status: "approved" | "revoked" | "issued") => {
-    if (!db) return;
-    await updateDoc(doc(db, "certificates", id), { status, reviewedAt: new Date().toISOString(), reviewedBy: user?.email || "owner" });
-  };
-
-  const handleCertificateRegenerate = async (certificate: any) => {
-    if (!functions) return;
-    const regenerate = httpsCallable(functions, "adminRegenerateCertificate");
-    await regenerate({ challengeId: certificate.challengeId, payoutId: certificate.payoutId });
-  };
-
-  if (loading) return <div className="grid min-h-screen place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" /></div>;
-
-  return (
-    <div className="min-h-screen bg-background px-6 py-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Owner Admin Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Monitor purchases, users, payouts, KYC, and account health.</p>
-          </div>
-          <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Trader dashboard</Link>
-        </header>
-
-        {error && <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">{error}</div>}
-
-        <div className="flex flex-wrap gap-2">
-          {(["overview", "purchases", "users", "payouts", "kyc", "certificates", "monitoring"] as Tab[]).map((item) => (
-            <button key={item} onClick={() => setTab(item)} className={`rounded-md px-3 py-2 text-sm capitalize ${tab === item ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>{item}</button>
-          ))}
-        </div>
-
-        {tab === "overview" && <OverviewCards stats={stats} />}
-        {tab === "users" && <UsersTable users={users} />}
-        {tab === "payouts" && <PayoutsTable payouts={payouts} userById={userById} onAction={handlePayoutAction} />}
-        {tab === "kyc" && <KycTable rows={kycRows} filter={kycFilter} setFilter={setKycFilter} />}
-        {tab === "certificates" && <CertificatesTable certificates={certificates} userById={userById} onAction={handleCertificateAction} onRegenerate={handleCertificateRegenerate} />}
-        {tab === "monitoring" && <MonitoringGrid challenges={challenges} />}
-      </div>
-    </div>
-  );
-}
-
-function OverviewCards({ stats }: { stats: Record<string, number> }) {
-  return <div className="grid gap-4 md:grid-cols-3">{Object.entries(stats).map(([key, value]) => <div key={key} className="premium-card"><p className="text-xs text-muted-foreground">{key}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>)}</div>;
-}
-
-function UsersTable({ users }: { users: any[] }) {
-  return <div className="premium-card overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-3">Name</th><th>Email</th><th>KYC</th></tr></thead><tbody>{users.map((currentUser) => { const userId = currentUser.uid || currentUser.id; return <tr key={userId} className="border-b border-border/50"><td className="py-3">{currentUser.displayName || currentUser.fullName || "-"}</td><td>{currentUser.email}</td><td>{currentUser.kycStatus || "not_started"}</td></tr>; })}</tbody></table></div>;
-}
-
-function PayoutsTable({ payouts, userById, onAction }: { payouts: any[]; userById: Record<string, any>; onAction: (id: string, status: "approved" | "denied") => void }) {
-  return <div className="premium-card overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-3">User</th><th>Requested</th><th>KYC</th><th>Status</th><th>Actions</th></tr></thead><tbody>{payouts.map((payout) => { const payoutUser = userById[payout.userId]; return <tr key={payout.id} className="border-b border-border/50"><td className="py-3">{payoutUser?.email || payout.userId}</td><td>${Number(payout.amount || 0).toLocaleString()}</td><td>{payoutUser?.kycStatus || "unknown"}</td><td>{payout.status}</td><td className="space-x-2"><button onClick={() => onAction(payout.id, "approved")} className="rounded bg-secondary px-2 py-1 text-xs">Approve</button><button onClick={() => onAction(payout.id, "denied")} className="rounded bg-secondary px-2 py-1 text-xs">Reject</button></td></tr>; })}</tbody></table></div>;
-}
-
-function CertificatesTable({ certificates, userById, onAction, onRegenerate }: { certificates: any[]; userById: Record<string, any>; onAction: (id: string, status: "approved" | "revoked" | "issued") => void; onRegenerate: (certificate: any) => void }) {
-  return <div className="space-y-4"><div><h2 className="text-lg font-semibold">Certificate Controls</h2><p className="text-sm text-muted-foreground">View, approve, revoke, or regenerate backend-generated certificates. Unlocking still depends on real challenge, account, payout, and milestone records.</p></div><div className="premium-card overflow-auto"><table className="w-full min-w-[920px] text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-3">Certificate</th><th>Trader</th><th>Account</th><th>Status</th><th>Issued</th><th>Actions</th></tr></thead><tbody>{certificates.map((certificate) => { const trader = userById[certificate.userId]; return <tr key={certificate.id} className="border-b border-border/50"><td className="py-3"><div className="flex items-center gap-2"><Award size={15} /><div><p className="font-medium">{String(certificate.type || "certificate").replace(/_/g, " ")}</p><p className="font-mono text-xs text-muted-foreground">{certificate.publicVerificationId || certificate.id}</p></div></div></td><td>{certificate.traderName || trader?.email || certificate.userId}</td><td>{certificate.accountId || "-"}</td><td><span className="rounded-full bg-secondary px-2 py-1 text-xs capitalize">{certificate.status || "issued"}</span></td><td>{formatDate(certificate.issuedAt)}</td><td className="space-x-2 whitespace-nowrap"><button onClick={() => onAction(certificate.id, "approved")} className="rounded bg-secondary px-2 py-1 text-xs">Approve</button><button onClick={() => onAction(certificate.id, "revoked")} className="rounded bg-secondary px-2 py-1 text-xs">Revoke</button><button onClick={() => onRegenerate(certificate)} className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs"><RotateCcw size={12} /> Regenerate</button><a href={`${import.meta.env.BASE_URL}certificates/verify/${certificate.publicVerificationId || certificate.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-xs"><ExternalLink size={12} /> View</a></td></tr>; })}</tbody></table></div></div>;
-}
-
-function KycTable({ rows, filter, setFilter }: { rows: any[]; filter: KycFilter; setFilter: (filter: KycFilter) => void }) {
-  return <div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">KYC Reviews</h2><p className="text-sm text-muted-foreground">All users with merged KYC profile data and provider status.</p></div><div className="flex gap-2">{(["all", "pending", "verified", "rejected"] as const).map((status) => <button key={status} onClick={() => setFilter(status)} className={`rounded-md px-3 py-2 text-xs capitalize ${filter === status ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>{status}</button>)}</div></div><div className="premium-card overflow-auto"><table className="w-full text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-3">Name</th><th>Email</th><th>Country</th><th>Submitted</th><th>Status</th></tr></thead><tbody>{rows.map((kyc) => <tr key={kyc.userId} className="border-b border-border/50"><td className="py-3 font-medium">{kyc.legalFullName || "-"}</td><td>{kyc.email || "-"}</td><td>{kyc.countryOfResidence || "-"}</td><td>{formatDate(kyc.kycSubmittedAt)}</td><td><span className="rounded-full bg-secondary px-2 py-1 text-xs capitalize">{kyc.kycStatus}</span></td></tr>)}</tbody></table></div></div>;
-}
-
-function MonitoringGrid({ challenges }: { challenges: any[] }) {
-  const cards: Array<[string, number, ElementType]> = [
-    ["Phase 1", challenges.filter((challenge) => String(challenge.phase).toLowerCase().includes("1")).length, Target],
-    ["Funded", challenges.filter((challenge) => challenge.status === "funded").length, Wallet],
-    ["Breaches", challenges.filter((challenge) => challenge.status === "expired").length, AlertTriangle],
-    ["Protected", challenges.length, Shield],
-  ];
-
-  return <div className="grid gap-4 md:grid-cols-2">{cards.map(([name, value, Icon]) => <div key={name} className="premium-card"><div className="flex items-center justify-between"><p>{name}</p><Icon size={16} /></div><p className="mt-2 text-2xl font-bold">{value}</p></div>)}</div>;
-}
+function C(name:string,render:(r:Row)=>ReactNode){return{name,render};}
+function Overview({period,orders,payouts,revenue,active,pending,certificates,challenges,users,go,select}:any){const paid=orders.filter((o:Row)=>o.status==="paid"),chart=chartData(orders,period);const cards=[["Gross sales",money(revenue),`${paid.length} paid purchases`,CircleDollarSign,"purchases"],["Challenges sold",paid.length,`${orders.length-paid.length} unpaid or failed`,TrendingUp,"purchases"],["Active accounts",active,`${challenges.filter((c:Row)=>c.status==="passed").length} passed`,Activity,"monitoring"],["Payout queue",pending,`${payouts.length} total requests`,Wallet,"payouts"],["Certificates",certificates.length,`${certificates.filter((c:Row)=>c.status==="approved").length} approved`,Award,"certificates"]];return <div className="space-y-6"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{cards.map(([title,value,note,Icon,target]:any)=><button key={title} onClick={()=>go(target)} className="group rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex justify-between"><span className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100"><Icon size={17}/></span><ChevronRight size={16} className="text-slate-300"/></div><p className="mt-5 text-2xl font-bold">{value}</p><p className="mt-1 text-sm font-medium">{title}</p><p className="mt-1 text-xs text-slate-500">{note}</p></button>)}</div><div className="grid gap-6 xl:grid-cols-[1.65fr_1fr]"><section className="rounded-xl border bg-white p-5 shadow-sm"><div className="flex justify-between"><div><h2 className="font-semibold">Sales performance</h2><p className="text-xs text-slate-500">Real paid order data · {period}</p></div><b>{money(revenue)}</b></div><div className="mt-4 h-72"><ResponsiveContainer><AreaChart data={chart}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/><XAxis dataKey="label" tick={{fontSize:11}} axisLine={false}/><YAxis tick={{fontSize:11}} axisLine={false}/><Tooltip formatter={v=>money(v)}/><Area type="monotone" dataKey="revenue" stroke="#0f172a" strokeWidth={2} fill="#e2e8f0"/></AreaChart></ResponsiveContainer></div></section><section className="rounded-xl border bg-white p-5 shadow-sm"><h2 className="font-semibold">Recent activity</h2><p className="mb-3 text-xs text-slate-500">Latest purchases in real time</p>{orders.slice(0,6).map((r:Row)=><button key={r.id} onClick={()=>select(r)} className="flex w-full justify-between rounded-lg p-3 text-left hover:bg-slate-50"><div className="min-w-0"><p className="truncate text-sm font-medium">{users[r.userId]?.email||r.userId}</p><p className="text-xs text-slate-500">{r.challenge||"Challenge purchase"}</p></div><div className="text-right"><b className="text-sm">{money(r.amount,r.currency)}</b><br/><Status value={r.status}/></div></button>)}{!orders.length&&<Empty text="No purchases in this period"/>}</section></div></div>}
+function chartData(orders:Row[],period:Period){const count=period==="24h"?24:period==="7d"?7:period==="30d"?30:90,hour=period==="24h";return Array.from({length:count},(_,i)=>{const start=new Date();if(hour){start.setMinutes(0,0,0);start.setHours(start.getHours()-(count-1-i));}else{start.setHours(0,0,0,0);start.setDate(start.getDate()-(count-1-i));}const end=new Date(start.getTime()+(hour?3600000:86400000)),matches=orders.filter(o=>{const d=created(o);return o.status==="paid"&&d&&d>=start&&d<end});return{label:hour?start.toLocaleTimeString([],{hour:"numeric"}):start.toLocaleDateString([],{month:"short",day:"numeric"}),revenue:matches.reduce((s,o)=>s+Number(o.amount||0),0)};});}
+function Controls({challenges,accounts,users,status,mode,select}:any){const byChallenge=Object.fromEntries(accounts.map((a:Row)=>[a.challengeId,a]));return <section><Title title="Challenge & account control" subtitle="Switch manual/automatic progression and make owner decisions"/><div className="mb-5 grid gap-4 md:grid-cols-4">{[["Active",challenges.filter((x:Row)=>x.status==="active").length,Target],["Passed",challenges.filter((x:Row)=>x.status==="passed").length,CheckCircle2],["Funded",challenges.filter((x:Row)=>x.status==="funded").length,Shield],["Breached",challenges.filter((x:Row)=>["failed","expired"].includes(x.status)).length,AlertTriangle]].map(([n,v,Icon]:any)=><div key={n} className="rounded-xl border bg-white p-5"><div className="flex justify-between text-sm text-slate-500"><span>{n}</span><Icon size={17}/></div><b className="mt-3 block text-2xl">{v}</b></div>)}</div><Table rows={challenges} search={["name","userId","status","phase","brokerAccountId"]} columns={[C("Trader",r=><div><p className="font-medium">{users[r.userId]?.displayName||users[r.userId]?.email||r.userId}</p><p className="text-xs text-slate-500">{r.name}</p></div>),C("Phase",r=>label(r.phase)),C("Broker account",r=>r.brokerAccountId||byChallenge[r.id]?.login||"Awaiting broker"),C("Status",r=><Status value={r.status}/>),C("Progression",r=><button onClick={e=>{e.stopPropagation();mode(r)}} className="rounded-full border px-3 py-1 text-xs capitalize">{r.progressionMode||"manual"}</button>),C("Decision",r=><div className="flex gap-2"><Action onClick={()=>status(r,"passed")}>Pass</Action><Action muted onClick={()=>status(r,"failed")}>Fail</Action><Action muted onClick={()=>status(r,"funded")}>Fund</Action></div>)]} onRow={select}/><div className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="shrink-0" size={17}/><p><b>Broker connection required for automatic decisions.</b> Manual controls are live. Automatic pass/fail cannot safely run until Match-Trader supplies verified trades, balance and equity data.</p></div></section>}
+function Title({title,subtitle,children}:{title:string;subtitle:string;children?:ReactNode}){return <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-semibold">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>{children}</div>}
+function Table({title,subtitle,rows,columns,search,onRow}:{title?:string;subtitle?:string;rows:Row[];columns:Array<{name:string;render:(r:Row)=>ReactNode}>;search:string[];onRow?:(r:Row)=>void}){const[q,setQ]=useState("");const visible=rows.filter(r=>!q||search.some(k=>String(r[k]||"").toLowerCase().includes(q.toLowerCase()))).sort((a,b)=>(created(b)?.getTime()||0)-(created(a)?.getTime()||0));return <section>{title&&<Title title={title} subtitle={subtitle||""}/>}<div className="overflow-hidden rounded-xl border bg-white shadow-sm"><div className="flex items-center justify-between border-b p-4"><div className="relative w-full max-w-sm"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search records..." className="h-9 w-full rounded-lg border bg-slate-50 pl-9 pr-3 text-sm outline-none"/></div><span className="ml-4 text-xs text-slate-500">{visible.length} records</span></div><div className="overflow-x-auto"><table className="w-full min-w-[920px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500"><tr>{columns.map(c=><th key={c.name} className="px-4 py-3">{c.name}</th>)}</tr></thead><tbody>{visible.map(r=><tr key={r.id} onClick={()=>onRow?.(r)} className="cursor-pointer border-t hover:bg-slate-50">{columns.map(c=><td key={c.name} className="px-4 py-3.5">{c.render(r)}</td>)}</tr>)}</tbody></table>{!visible.length&&<Empty text={q?"No matching records":"No live records yet"}/>}</div></div></section>}
+function Status({value}:{value:unknown}){const v=String(value||"unknown").toLowerCase(),good=["paid","active","approved","verified","passed","funded","issued"].includes(v),bad=["failed","denied","rejected","revoked","expired","blocked"].includes(v);return <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold capitalize ${good?"bg-emerald-50 text-emerald-700":bad?"bg-red-50 text-red-700":"bg-amber-50 text-amber-700"}`}>{label(v)}</span>}
+function Action({children,onClick,muted=false}:{children:ReactNode;onClick:()=>any;muted?:boolean}){return <button onClick={e=>{e.stopPropagation();void onClick()}} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${muted?"border bg-white text-slate-600 hover:bg-slate-100":"bg-slate-950 text-white"}`}>{children}</button>}
+function Empty({text}:{text:string}){return <div className="grid min-h-40 place-items-center p-8 text-center"><div><Clock3 className="mx-auto mb-2 text-slate-300"/><p className="text-sm text-slate-500">{text}</p></div></div>}
+function Details({value,close}:{value:{title:string;row:Row}|null;close:()=>void}){const hidden=/password|secret|token/i;return <Dialog open={!!value} onOpenChange={o=>!o&&close()}><DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto"><DialogHeader><DialogTitle>{value?.title}</DialogTitle></DialogHeader><div className="divide-y rounded-lg border">{value&&Object.entries(value.row).filter(([k])=>!hidden.test(k)).map(([k,v])=><div key={k} className="grid grid-cols-[150px_1fr] gap-4 px-4 py-3 text-sm"><span className="capitalize text-muted-foreground">{label(k)}</span><span className="break-all font-medium">{typeof v==="object"?(toDate(v)?.toLocaleString()||JSON.stringify(v)):String(v??"—")}</span></div>)}</div></DialogContent></Dialog>}
