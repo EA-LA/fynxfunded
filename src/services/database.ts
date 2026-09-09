@@ -128,13 +128,14 @@ class FirestoreDataService implements DataService {
   async getChallenges(userId: string) {
     const q = query(collection(getDb(), "challenges"), where("userId", "==", userId));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ ...d.data(), challengeId: d.id } as Challenge));
+    return snap.docs.map((d) => { const value=d.data(); return { ...value, challengeId:d.id, startDate:tsToString(value.startDate), endDate:value.endDate?tsToString(value.endDate):undefined } as Challenge; });
   }
 
   async getChallenge(challengeId: string) {
     const snap = await getDoc(doc(getDb(), "challenges", challengeId));
     if (!snap.exists()) return null;
-    return { ...snap.data(), challengeId: snap.id } as Challenge;
+    const value=snap.data();
+    return { ...value, challengeId:snap.id, startDate:tsToString(value.startDate), endDate:value.endDate?tsToString(value.endDate):undefined } as Challenge;
   }
 
   async createChallenge(challenge: Omit<Challenge, "challengeId">) {

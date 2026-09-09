@@ -11,6 +11,8 @@ import {
   BookOpen,
   Settings,
   HelpCircle,
+  Smartphone,
+  ExternalLink,
   Menu,
   X,
   LogOut,
@@ -29,6 +31,7 @@ const sidebarLinks = [
   { label: "Payouts", to: "/dashboard/payouts", icon: CreditCard },
   { label: "Certificates", to: "/dashboard/certificates", icon: Award },
   { label: "Learning", to: "/dashboard/learning", icon: BookOpen },
+  { label: "Resources", to: "/dashboard/resources", icon: ExternalLink },
   { label: "Settings", to: "/dashboard/settings", icon: Settings },
   { label: "Support", to: "/dashboard/support", icon: HelpCircle },
 ];
@@ -82,6 +85,8 @@ export default function DashboardLayout() {
         </nav>
 
         <div className="p-3 border-t border-sidebar-border">
+          <a href="https://apps.apple.com/us/app/fynx-finance-world/id6752357210" target="_blank" rel="noreferrer" className="mb-2 flex items-center gap-2 rounded-md bg-sidebar-accent px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:opacity-80"><Smartphone size={15}/>FYNX Mobile App<ExternalLink size={12} className="ml-auto"/></a>
+          <a href="https://www.fynxfinanceworld.com" target="_blank" rel="noreferrer" className="mb-3 flex items-center gap-2 px-3 py-2 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground"><ExternalLink size={13}/>FYNX Finance World</a>
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold text-sidebar-accent-foreground">
               {(user?.fullName || "U").charAt(0).toUpperCase()}

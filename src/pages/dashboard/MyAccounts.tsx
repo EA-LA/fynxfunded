@@ -36,7 +36,7 @@ export default function MyAccounts() {
       {challenges.length > 0 ? (
         <div className="grid gap-4">
           {challenges.map((ch) => (
-            <div key={ch.challengeId} className="premium-card">
+            <Link to={`/dashboard/accounts/${ch.challengeId}`} key={ch.challengeId} className="premium-card block hover:border-foreground/25 hover:bg-secondary/20 transition-colors group">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold">{ch.name}</h3>
@@ -64,7 +64,8 @@ export default function MyAccounts() {
                   <p className="font-medium text-muted-foreground">{ch.brokerAccountId || "Pending"}</p>
                 </div>
               </div>
-            </div>
+              <div className="mt-4 flex items-center justify-end gap-2 text-xs font-semibold">Open account workspace <ArrowRight size={14} className="transition-transform group-hover:translate-x-1"/></div>
+            </Link>
           ))}
         </div>
       ) : (

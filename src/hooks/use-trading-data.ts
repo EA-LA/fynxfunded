@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { challengeConfigs } from "@/lib/challengeConfig";
 
-export interface Trade { id:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss" }
+export interface Trade { id:string; accountId:string; challengeId:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss" }
 export interface AccountObjectives { profitTarget:{current:number;target:number}; dailyLoss:{current:number;limit:number}; maxLoss:{current:number;limit:number}; minTradingDays:{current:number;target:number}; consistency:{largestWinDay:number;threshold:number}|null }
 export interface PayoutInfo { availableBalance:number; eligibleAmount:number; nextWindow:string; method:string; isEligible:boolean; ineligibleReason:string; history:PayoutRecord[] }
 export interface PayoutRecord { id:string; date:string; amount:number; status:"Pending"|"Approved"|"Paid"|"Rejected"; method:string }
@@ -15,7 +15,7 @@ const iso=(v:any)=>v?.toDate?.().toISOString?.()||(typeof v==="string"?v:"");
 const pct=(v:unknown)=>n(String(v??"").replace("%",""));
 const elapsed=(a:string,b:string)=>{const mins=Math.max(0,Math.round((new Date(b).getTime()-new Date(a).getTime())/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h ${mins%60}m`:`${Math.floor(mins/1440)}d`};
 const sessionFor=(v:string):Trade["session"]=>{const h=new Date(v).getUTCHours();return h<8?"Asia":h<13?"London":"New York"};
-const mapTrade=(id:string,d:DocumentData):Trade=>{const open=iso(d.openTime||d.openedAt||d.createdAt),close=iso(d.closeTime||d.closedAt||d.updatedAt),pnl=n(d.pnl??d.profit??d.netProfit);return{id:d.tradeId||d.ticket||id,symbol:d.symbol||d.instrument||"—",type:String(d.type||d.side).toLowerCase()==="sell"?"Sell":"Buy",openTime:open,closeTime:close,lots:n(d.lots??d.volume),pnl,pips:n(d.pips),duration:d.duration||elapsed(open,close),riskPercent:n(d.riskPercent??d.riskPct),rr:n(d.rr??d.riskReward),session:d.session||sessionFor(open),result:pnl>=0?"Win":"Loss"}};
+const mapTrade=(id:string,d:DocumentData):Trade=>{const open=iso(d.openTime||d.openedAt||d.createdAt),close=iso(d.closeTime||d.closedAt||d.updatedAt),pnl=n(d.pnl??d.profit??d.netProfit);return{id:d.tradeId||d.ticket||id,accountId:d.accountId||d.brokerAccountId||"",challengeId:d.challengeId||"",symbol:d.symbol||d.instrument||"—",type:String(d.type||d.side).toLowerCase()==="sell"?"Sell":"Buy",openTime:open,closeTime:close,lots:n(d.lots??d.volume),pnl,pips:n(d.pips),duration:d.duration||elapsed(open,close),riskPercent:n(d.riskPercent??d.riskPct),rr:n(d.rr??d.riskReward),session:d.session||sessionFor(open),result:pnl>=0?"Win":"Loss"}};
 
 export function useTradingData():TradingData {
   const {user}=useAuth(); const [accounts,setAccounts]=useState<any[]>([]),[challenges,setChallenges]=useState<any[]>([]),[trades,setTrades]=useState<Trade[]>([]); const [loading,setLoading]=useState(true),[error,setError]=useState("");

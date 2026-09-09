@@ -77,22 +77,22 @@ export default function DashboardOverview() {
           <h3 className="text-sm font-semibold mb-4">All Challenges</h3>
           <div className="space-y-3">
             {challenges.map((ch) => (
-              <div key={ch.challengeId} className="flex items-center justify-between p-3 rounded-md bg-secondary/40">
+              <Link to={`/dashboard/accounts/${ch.challengeId}`} key={ch.challengeId} className="flex items-center justify-between gap-4 p-4 rounded-md bg-secondary/40 hover:bg-secondary transition-colors group">
                 <div>
                   <p className="text-sm font-medium">{ch.name}</p>
                   <p className="text-xs text-muted-foreground">
                     ${ch.accountSize.toLocaleString()} · {ch.phase.replace("-", " ")} · Started {new Date(ch.startDate).toLocaleDateString()}
                   </p>
                 </div>
-                <span className={`text-xs font-medium px-3 py-1 rounded-full ${
+                <div className="flex items-center gap-3"><span className={`text-xs font-medium px-3 py-1 rounded-full ${
                   ch.status === "active" ? "bg-secondary text-foreground" :
                   ch.status === "passed" ? "bg-secondary text-foreground" :
                   ch.status === "funded" ? "bg-secondary text-foreground" :
                   "bg-secondary/60 text-muted-foreground"
                 }`}>
                   {ch.status.charAt(0).toUpperCase() + ch.status.slice(1)}
-                </span>
-              </div>
+                </span><ArrowRight size={15} className="text-muted-foreground transition-transform group-hover:translate-x-1"/></div>
+              </Link>
             ))}
           </div>
         </div>

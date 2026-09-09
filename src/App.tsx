@@ -33,6 +33,8 @@ import Certificates from "./pages/dashboard/Certificates";
 import Learning from "./pages/dashboard/Learning";
 import DashboardSettings from "./pages/dashboard/DashboardSettings";
 import Support from "./pages/dashboard/Support";
+import AccountWorkspace from "./pages/dashboard/AccountWorkspace";
+import Resources from "./pages/dashboard/Resources";
 import ChallengeBuilder from "./pages/ChallengeBuilder";
 import AmlKyc from "./pages/AmlKyc";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
@@ -112,6 +114,7 @@ const App = () => (
                 <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                   <Route index element={<DashboardOverview />} />
                   <Route path="accounts" element={<MyAccounts />} />
+                  <Route path="accounts/:challengeId" element={<AccountWorkspace />} />
                   <Route path="objectives" element={<Objectives />} />
                   <Route path="trades" element={<Trades />} />
                   <Route path="analytics" element={<Analytics />} />
@@ -119,6 +122,7 @@ const App = () => (
                   <Route path="payouts" element={<DashboardPayouts />} />
                   <Route path="certificates" element={<Certificates />} />
                   <Route path="learning" element={<Learning />} />
+                  <Route path="resources" element={<Resources />} />
                   <Route path="settings" element={<DashboardSettings />} />
                   <Route path="support" element={<Support />} />
                 </Route>
