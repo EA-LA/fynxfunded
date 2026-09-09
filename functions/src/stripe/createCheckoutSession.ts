@@ -44,6 +44,23 @@ export const createCheckoutSession = onRequest(
         success_url: "https://www.fynxfunded.com/checkout/success?session_id={CHECKOUT_SESSION_ID}",
         cancel_url: "https://www.fynxfunded.com/checkout",
       });
+      await admin.firestore().collection("orders").doc(session.id).set({
+        userId: user.uid,
+        customerEmail: user.email,
+        amount: plan.amountCents / 100,
+        currency: "USD",
+        paymentMethod: "card",
+        status: "pending",
+        challenge: plan.label,
+        accountSize: plan.accountSize,
+        phase: `${plan.phase}-phase`,
+        style,
+        stripeSessionId: session.id,
+        checkoutUrl: session.url,
+        checkoutExpiresAt: admin.firestore.Timestamp.fromMillis(session.expires_at * 1000),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
       res.status(200).json({ url: session.url, sessionId: session.id });
     } catch (error) {
       console.error("[Stripe] createCheckoutSession failed", error);

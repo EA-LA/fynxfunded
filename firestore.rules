@@ -78,6 +78,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if isAdmin();
     }
