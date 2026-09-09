@@ -1,129 +1,26 @@
-// Central hook for trading data — currently returns empty state.
-// When backend is connected, this will fetch real user data.
+import { useEffect, useMemo, useState } from "react";
+import { collection, onSnapshot, query, where, type DocumentData } from "firebase/firestore";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { challengeConfigs } from "@/lib/challengeConfig";
 
-export interface Trade {
-  id: string;
-  symbol: string;
-  type: "Buy" | "Sell";
-  openTime: string;
-  closeTime: string;
-  lots: number;
-  pnl: number;
-  pips: number;
-  duration: string;
-  riskPercent: number;
-  rr: number;
-  session: "London" | "New York" | "Asia";
-  result: "Win" | "Loss";
+export interface Trade { id:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss" }
+export interface AccountObjectives { profitTarget:{current:number;target:number}; dailyLoss:{current:number;limit:number}; maxLoss:{current:number;limit:number}; minTradingDays:{current:number;target:number}; consistency:{largestWinDay:number;threshold:number}|null }
+export interface PayoutInfo { availableBalance:number; eligibleAmount:number; nextWindow:string; method:string; isEligible:boolean; ineligibleReason:string; history:PayoutRecord[] }
+export interface PayoutRecord { id:string; date:string; amount:number; status:"Pending"|"Approved"|"Paid"|"Rejected"; method:string }
+export interface TradingData { hasAccount:boolean; hasTrades:boolean; trades:Trade[]; objectives:AccountObjectives|null; payout:PayoutInfo|null; loading:boolean; error:string; accountName:string; accountSize:number; balance:number; equity:number; brokerConnected:boolean }
+
+const n=(v:unknown,fallback=0)=>Number.isFinite(Number(v))?Number(v):fallback;
+const iso=(v:any)=>v?.toDate?.().toISOString?.()||(typeof v==="string"?v:"");
+const pct=(v:unknown)=>n(String(v??"").replace("%",""));
+const elapsed=(a:string,b:string)=>{const mins=Math.max(0,Math.round((new Date(b).getTime()-new Date(a).getTime())/60000));return mins<60?`${mins}m`:mins<1440?`${Math.floor(mins/60)}h ${mins%60}m`:`${Math.floor(mins/1440)}d`};
+const sessionFor=(v:string):Trade["session"]=>{const h=new Date(v).getUTCHours();return h<8?"Asia":h<13?"London":"New York"};
+const mapTrade=(id:string,d:DocumentData):Trade=>{const open=iso(d.openTime||d.openedAt||d.createdAt),close=iso(d.closeTime||d.closedAt||d.updatedAt),pnl=n(d.pnl??d.profit??d.netProfit);return{id:d.tradeId||d.ticket||id,symbol:d.symbol||d.instrument||"—",type:String(d.type||d.side).toLowerCase()==="sell"?"Sell":"Buy",openTime:open,closeTime:close,lots:n(d.lots??d.volume),pnl,pips:n(d.pips),duration:d.duration||elapsed(open,close),riskPercent:n(d.riskPercent??d.riskPct),rr:n(d.rr??d.riskReward),session:d.session||sessionFor(open),result:pnl>=0?"Win":"Loss"}};
+
+export function useTradingData():TradingData {
+  const {user}=useAuth(); const [accounts,setAccounts]=useState<any[]>([]),[challenges,setChallenges]=useState<any[]>([]),[trades,setTrades]=useState<Trade[]>([]); const [loading,setLoading]=useState(true),[error,setError]=useState("");
+  useEffect(()=>{if(!user||!db){setAccounts([]);setChallenges([]);setTrades([]);setLoading(false);return} setLoading(true);setError("");let ready=0;const done=()=>{if(++ready===3)setLoading(false)},fail=(e:any)=>{console.error(e);setError(e?.message||"Unable to load trading data");done()};const unsubs=[onSnapshot(query(collection(db,"accounts"),where("userId","==",user.userId)),s=>{setAccounts(s.docs.map(x=>({id:x.id,...x.data()})));done()},fail),onSnapshot(query(collection(db,"challenges"),where("userId","==",user.userId)),s=>{setChallenges(s.docs.map(x=>({id:x.id,...x.data()})));done()},fail),onSnapshot(query(collection(db,"trades"),where("userId","==",user.userId)),s=>{setTrades(s.docs.map(x=>mapTrade(x.id,x.data())).sort((a,b)=>b.closeTime.localeCompare(a.closeTime)));done()},fail)];return()=>unsubs.forEach(u=>u())},[user]);
+  return useMemo(()=>{const challenge=challenges.find(x=>["active","passed","funded"].includes(x.status))||challenges[0],account=accounts.find(x=>x.status==="active")||accounts[0],size=n(challenge?.accountSize||account?.balance),config=challengeConfigs.find(x=>x.accountSize===size)||challengeConfigs[1],phaseKey=(["1-phase","2-phase","3-phase"].includes(challenge?.phase)?challenge.phase:"2-phase") as "1-phase"|"2-phase"|"3-phase",rules=config.phases[phaseKey],total=trades.reduce((s,t)=>s+t.pnl,0),days=new Set(trades.map(t=>t.closeTime.slice(0,10)).filter(Boolean)).size;const byDay:Record<string,number>={};trades.forEach(t=>{const d=t.closeTime.slice(0,10);byDay[d]=(byDay[d]||0)+t.pnl});const worstDay=Math.abs(Math.min(0,...Object.values(byDay)));let run=0,peak=0,maxDd=0;trades.slice().reverse().forEach(t=>{run+=t.pnl;peak=Math.max(peak,run);maxDd=Math.max(maxDd,peak-run)});const objectives:AccountObjectives|null=challenge?{profitTarget:{current:size?total/size*100:0,target:pct(rules.profitTargets[0])},dailyLoss:{current:size?worstDay/size*100:0,limit:pct(rules.dailyLoss)},maxLoss:{current:size?maxDd/size*100:0,limit:pct(rules.maxLoss)},minTradingDays:{current:days,target:rules.minDays},consistency:null}:null;return{hasAccount:!!challenge||!!account,hasTrades:!!trades.length,trades,objectives,payout:null,loading,error,accountName:challenge?.name||account?.login||"No active challenge",accountSize:size,balance:n(account?.balance,size),equity:n(account?.equity,size),brokerConnected:!!(challenge?.brokerAccountId||account?.brokerAccountId||account?.login)}},[accounts,challenges,trades,loading,error]);
 }
 
-export interface AccountObjectives {
-  profitTarget: { current: number; target: number };
-  dailyLoss: { current: number; limit: number };
-  maxLoss: { current: number; limit: number };
-  minTradingDays: { current: number; target: number };
-  consistency: { largestWinDay: number; threshold: number } | null;
-}
-
-export interface PayoutInfo {
-  availableBalance: number;
-  eligibleAmount: number;
-  nextWindow: string;
-  method: string;
-  isEligible: boolean;
-  ineligibleReason: string;
-  history: PayoutRecord[];
-}
-
-export interface PayoutRecord {
-  id: string;
-  date: string;
-  amount: number;
-  status: "Pending" | "Approved" | "Paid" | "Rejected";
-  method: string;
-}
-
-export interface TradingData {
-  hasAccount: boolean;
-  hasTrades: boolean;
-  trades: Trade[];
-  objectives: AccountObjectives | null;
-  payout: PayoutInfo | null;
-}
-
-export function useTradingData(): TradingData {
-  // No demo data — empty until real backend is connected
-  return {
-    hasAccount: false,
-    hasTrades: false,
-    trades: [],
-    objectives: null,
-    payout: null,
-  };
-}
-
-// Derived analytics helpers
-export function computeAnalytics(trades: Trade[]) {
-  if (trades.length === 0) return null;
-
-  const wins = trades.filter((t) => t.result === "Win");
-  const losses = trades.filter((t) => t.result === "Loss");
-  const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
-  const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
-  const avgLoss = losses.length ? Math.abs(losses.reduce((s, t) => s + t.pnl, 0) / losses.length) : 0;
-  const profitFactor = avgLoss > 0 ? (avgWin * wins.length) / (avgLoss * losses.length) : 0;
-  const expectancy = trades.length ? totalPnl / trades.length : 0;
-
-  // Consecutive streaks
-  let maxConsWins = 0, maxConsLosses = 0, cw = 0, cl = 0;
-  trades.forEach((t) => {
-    if (t.result === "Win") { cw++; cl = 0; maxConsWins = Math.max(maxConsWins, cw); }
-    else { cl++; cw = 0; maxConsLosses = Math.max(maxConsLosses, cl); }
-  });
-
-  // Session performance
-  const sessions = { London: 0, "New York": 0, Asia: 0 };
-  trades.forEach((t) => { sessions[t.session] += t.pnl; });
-  const bestSession = (Object.entries(sessions) as [string, number][]).sort((a, b) => b[1] - a[1])[0];
-
-  // Instrument performance
-  const instruments: Record<string, { pnl: number; count: number }> = {};
-  trades.forEach((t) => {
-    if (!instruments[t.symbol]) instruments[t.symbol] = { pnl: 0, count: 0 };
-    instruments[t.symbol].pnl += t.pnl;
-    instruments[t.symbol].count++;
-  });
-  const sortedInstruments = Object.entries(instruments).sort((a, b) => b[1].pnl - a[1].pnl);
-
-  // Risk metrics
-  let maxDrawdown = 0, peak = 0, runningPnl = 0;
-  trades.forEach((t) => {
-    runningPnl += t.pnl;
-    if (runningPnl > peak) peak = runningPnl;
-    const dd = peak - runningPnl;
-    if (dd > maxDrawdown) maxDrawdown = dd;
-  });
-  const currentDrawdown = peak - runningPnl;
-  const avgRisk = trades.reduce((s, t) => s + t.riskPercent, 0) / trades.length;
-  const avgRR = trades.reduce((s, t) => s + t.rr, 0) / trades.length;
-
-  return {
-    totalTrades: trades.length,
-    winRate: (wins.length / trades.length) * 100,
-    avgWin,
-    avgLoss,
-    profitFactor,
-    expectancy,
-    maxDrawdown,
-    currentDrawdown,
-    avgRisk,
-    avgRR,
-    maxConsWins,
-    maxConsLosses,
-    sessions,
-    bestSession: bestSession[0],
-    instruments: sortedInstruments,
-    bestPair: sortedInstruments[0]?.[0] || "—",
-    worstPair: sortedInstruments[sortedInstruments.length - 1]?.[0] || "—",
-  };
-}
+export function computeAnalytics(trades:Trade[]){if(!trades.length)return null;const wins=trades.filter(t=>t.pnl>=0),losses=trades.filter(t=>t.pnl<0),totalPnl=trades.reduce((s,t)=>s+t.pnl,0),avgWin=wins.length?wins.reduce((s,t)=>s+t.pnl,0)/wins.length:0,avgLoss=losses.length?Math.abs(losses.reduce((s,t)=>s+t.pnl,0)/losses.length):0,sessions={London:0,"New York":0,Asia:0},instruments:Record<string,{pnl:number;count:number}>={};let maxConsWins=0,maxConsLosses=0,cw=0,cl=0,maxDrawdown=0,peak=0,runningPnl=0;trades.slice().reverse().forEach(t=>{if(t.pnl>=0){cw++;cl=0;maxConsWins=Math.max(maxConsWins,cw)}else{cl++;cw=0;maxConsLosses=Math.max(maxConsLosses,cl)}runningPnl+=t.pnl;peak=Math.max(peak,runningPnl);maxDrawdown=Math.max(maxDrawdown,peak-runningPnl);sessions[t.session]+=t.pnl;instruments[t.symbol]??={pnl:0,count:0};instruments[t.symbol].pnl+=t.pnl;instruments[t.symbol].count++});const sorted=Object.entries(instruments).sort((a,b)=>b[1].pnl-a[1].pnl),bestSession=Object.entries(sessions).sort((a,b)=>b[1]-a[1])[0][0];return{totalTrades:trades.length,winRate:wins.length/trades.length*100,avgWin,avgLoss,profitFactor:avgLoss&&losses.length?(avgWin*wins.length)/(avgLoss*losses.length):0,expectancy:totalPnl/trades.length,maxDrawdown,currentDrawdown:peak-runningPnl,avgRisk:trades.reduce((s,t)=>s+t.riskPercent,0)/trades.length,avgRR:trades.reduce((s,t)=>s+t.rr,0)/trades.length,maxConsWins,maxConsLosses,sessions,bestSession,instruments:sorted,bestPair:sorted[0]?.[0]||"—",worstPair:sorted.at(-1)?.[0]||"—",totalPnl}}

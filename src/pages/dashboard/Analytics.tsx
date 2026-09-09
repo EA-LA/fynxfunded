@@ -1,107 +1,20 @@
+import { useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useTradingData, computeAnalytics } from "@/hooks/use-trading-data";
-import { BarChart3 } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
+import { Activity, BarChart3, CalendarDays, Radio } from "lucide-react";
 
-export default function Analytics() {
-  const { hasTrades, trades } = useTradingData();
-  const analytics = computeAnalytics(trades);
-
-  if (!hasTrades || !analytics) {
-    return (
-      <div className="space-y-6 animate-fade-up">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">Performance breakdown and insights.</p>
-        </div>
-        <EmptyState
-          icon={<BarChart3 size={24} />}
-          title="No analytics yet"
-          description="Analytics will appear once trading begins. Start a challenge and place your first trade."
-        />
-      </div>
-    );
-  }
-
-  const statBlock = (label: string, value: string | number, sub?: string) => (
-    <div className="bg-secondary/50 rounded-lg p-4">
-      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+const money=(v:number)=>`${v>=0?"+":"-"}$${Math.abs(v).toFixed(2)}`;
+export default function Analytics(){
+  const data=useTradingData(), analytics=computeAnalytics(data.trades),[range,setRange]=useState("All");
+  const curve=useMemo(()=>{let total=0;return data.trades.slice().reverse().map((t,i)=>({name:t.closeTime?new Date(t.closeTime).toLocaleDateString(undefined,{month:"short",day:"numeric"}):`Trade ${i+1}`,pnl:Number((total+=t.pnl).toFixed(2))}))},[data.trades]);
+  const stats=["Total trades",analytics?.totalTrades||0,"Net P/L",money(analytics?.totalPnl||0),"Win rate",`${(analytics?.winRate||0).toFixed(1)}%`,"Profit factor",(analytics?.profitFactor||0).toFixed(2),"Expectancy",money(analytics?.expectancy||0),"Max drawdown",`$${(analytics?.maxDrawdown||0).toFixed(2)}`];
+  return <div className="space-y-6 animate-fade-up">
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold tracking-tight">Analytics</h1><p className="mt-1 text-sm text-muted-foreground">Live performance, risk and behavior insights.</p></div><div className="flex rounded-lg border p-1">{["7D","30D","All"].map(x=><button onClick={()=>setRange(x)} className={`rounded-md px-3 py-1.5 text-xs ${range===x?"bg-primary text-primary-foreground":"text-muted-foreground"}`} key={x}>{x}</button>)}</div></div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">{Array.from({length:6},(_,i)=><div className="premium-card" key={String(stats[i*2])}><p className="text-xs text-muted-foreground">{stats[i*2]}</p><p className="mt-2 text-xl font-bold">{stats[i*2+1]}</p></div>)}</div>
+    <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+      <div className="premium-card"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Cumulative P/L</h3><p className="text-xs text-muted-foreground">Verified closed trades · {range}</p></div><BarChart3 size={18}/></div><div className="mt-5 h-72">{curve.length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={curve}><defs><linearGradient id="pnl" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="currentColor" stopOpacity={.25}/><stop offset="95%" stopColor="currentColor" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" opacity={.25}/><XAxis dataKey="name" fontSize={11}/><YAxis fontSize={11}/><Tooltip/><Area type="monotone" dataKey="pnl" stroke="currentColor" fill="url(#pnl)" strokeWidth={2}/></AreaChart></ResponsiveContainer>:<div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed"><Activity className="text-muted-foreground"/><p className="mt-3 text-sm font-semibold">Chart ready for live trades</p><p className="mt-1 max-w-sm text-center text-xs text-muted-foreground">Once the broker sends the first closed trade, the equity curve builds automatically. No demo performance is shown.</p></div>}</div></div>
+      <div className="premium-card"><h3 className="font-semibold">Data status</h3><div className="mt-5 space-y-4">{[[Radio,data.brokerConnected?"Broker connected":"Awaiting broker",data.brokerConnected?"Listening for verified trade events":"Connect broker API to begin automatic import"],[CalendarDays,`${new Set(data.trades.map(t=>t.closeTime.slice(0,10))).size} trading days`,"Calculated from closed trades"],[Activity,data.hasTrades?"Analytics live":"No trade history yet","This workspace stays ready before purchase"]].map(([Icon,t,d]:any)=><div className="flex gap-3" key={t}><span className="rounded-lg bg-secondary p-2"><Icon size={16}/></span><div><p className="text-sm font-medium">{t}</p><p className="text-xs text-muted-foreground">{d}</p></div></div>)}</div></div>
     </div>
-  );
-
-  return (
-    <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-sm text-muted-foreground mt-1">Performance breakdown and insights.</p>
-      </div>
-
-      {/* Trade Performance */}
-      <div className="premium-card">
-        <h3 className="text-sm font-semibold mb-4">Trade Performance</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {statBlock("Total Trades", analytics.totalTrades)}
-          {statBlock("Win Rate", `${analytics.winRate.toFixed(1)}%`)}
-          {statBlock("Avg Win", `$${analytics.avgWin.toFixed(2)}`)}
-          {statBlock("Avg Loss", `$${analytics.avgLoss.toFixed(2)}`)}
-          {statBlock("Profit Factor", analytics.profitFactor.toFixed(2))}
-          {statBlock("Expectancy", `$${analytics.expectancy.toFixed(2)}`)}
-        </div>
-      </div>
-
-      {/* Risk Metrics */}
-      <div className="premium-card">
-        <h3 className="text-sm font-semibold mb-4">Risk Metrics</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {statBlock("Max Drawdown", `$${analytics.maxDrawdown.toFixed(2)}`)}
-          {statBlock("Current Drawdown", `$${analytics.currentDrawdown.toFixed(2)}`)}
-          {statBlock("Avg Risk/Trade", `${analytics.avgRisk.toFixed(1)}%`)}
-          {statBlock("Avg R:R", analytics.avgRR.toFixed(2))}
-          {statBlock("Max Consec. Wins", analytics.maxConsWins)}
-          {statBlock("Max Consec. Losses", analytics.maxConsLosses)}
-        </div>
-      </div>
-
-      {/* Session Analysis */}
-      <div className="premium-card">
-        <h3 className="text-sm font-semibold mb-4">Session Analysis</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {Object.entries(analytics.sessions).map(([session, pnl]) => (
-            <div key={session} className={`bg-secondary/50 rounded-lg p-4 ${session === analytics.bestSession ? "ring-1 ring-foreground/20" : ""}`}>
-              <p className="text-xs text-muted-foreground mb-1">{session}</p>
-              <p className={`text-xl font-bold ${pnl >= 0 ? "" : "text-muted-foreground"}`}>
-                {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
-              </p>
-              {session === analytics.bestSession && (
-                <p className="text-[10px] font-medium mt-1 text-muted-foreground">Best Session</p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Instrument Performance */}
-      <div className="premium-card">
-        <h3 className="text-sm font-semibold mb-4">Instrument Performance</h3>
-        <div className="space-y-2">
-          {analytics.instruments.map(([symbol, data]) => (
-            <div key={symbol} className="flex items-center justify-between bg-secondary/50 rounded-lg px-4 py-3">
-              <div>
-                <span className="text-sm font-medium">{symbol}</span>
-                <span className="text-xs text-muted-foreground ml-2">{data.count} trades</span>
-              </div>
-              <span className={`text-sm font-bold ${data.pnl >= 0 ? "" : "text-muted-foreground"}`}>
-                {data.pnl >= 0 ? "+" : ""}${data.pnl.toFixed(2)}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-6 mt-4 text-xs text-muted-foreground">
-          <span>Best: <span className="text-foreground font-medium">{analytics.bestPair}</span></span>
-          <span>Worst: <span className="text-foreground font-medium">{analytics.worstPair}</span></span>
-        </div>
-      </div>
-    </div>
-  );
+    <div className="grid gap-5 lg:grid-cols-2"><div className="premium-card"><h3 className="font-semibold">Session performance</h3><div className="mt-4 space-y-3">{Object.entries(analytics?.sessions||{London:0,"New York":0,Asia:0}).map(([x,v])=><div className="flex items-center justify-between rounded-lg bg-secondary/50 px-4 py-3" key={x}><span className="text-sm">{x}</span><b>{money(v)}</b></div>)}</div></div><div className="premium-card"><h3 className="font-semibold">Instrument performance</h3><div className="mt-4 space-y-3">{analytics?.instruments.length?analytics.instruments.slice(0,6).map(([x,v])=><div className="flex items-center justify-between rounded-lg bg-secondary/50 px-4 py-3" key={x}><span className="text-sm">{x} <small className="text-muted-foreground">· {v.count} trades</small></span><b>{money(v.pnl)}</b></div>):<p className="rounded-lg bg-secondary/50 p-5 text-sm text-muted-foreground">Pairs will be ranked here after trading begins.</p>}</div></div></div>
+  </div>
 }

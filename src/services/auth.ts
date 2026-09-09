@@ -230,14 +230,14 @@ class FirebaseAuthService implements AuthService {
       return {} as User;
     }
     const cred = await signInWithPopup(this.getAuth(), provider);
-    const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
-    this.currentUser = user;
-
     await createOrUpdateFirestoreUser(cred.user.uid, {
       email: cred.user.email || "",
       displayName: cred.user.displayName || "Trader",
       provider: "google",
     });
+
+    const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
+    this.currentUser = user;
 
     recordLoginSession(user.userId).catch(console.error);
     return user;
@@ -248,7 +248,16 @@ class FirebaseAuthService implements AuthService {
     provider.addScope("email");
     provider.addScope("name");
     try {
-      await signInWithRedirect(this.getAuth(), provider);
+      if (isSafari()) {
+        await signInWithRedirect(this.getAuth(), provider);
+        return {} as User;
+      }
+      const cred = await signInWithPopup(this.getAuth(), provider);
+      await createOrUpdateFirestoreUser(cred.user.uid, { email: cred.user.email || "", displayName: cred.user.displayName || "Trader", provider: "apple" });
+      const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
+      this.currentUser = user;
+      recordLoginSession(user.userId).catch(console.error);
+      return user;
     } catch (err: any) {
       if (err?.code === "auth/operation-not-allowed") {
         throw new Error("Apple Sign-In is not configured yet. Enable it in Firebase Console.");
@@ -262,9 +271,6 @@ class FirebaseAuthService implements AuthService {
     try {
       const result = await getRedirectResult(this.getAuth());
       if (result?.user) {
-        const user = await this.hydrateFromFirestore(firebaseUserToUser(result.user));
-        this.currentUser = user;
-
         const providerId = result.providerId || "oauth";
         const providerName = providerId.includes("apple") ? "apple" : providerId.includes("google") ? "google" : providerId;
 
@@ -273,6 +279,9 @@ class FirebaseAuthService implements AuthService {
           displayName: result.user.displayName || "Trader",
           provider: providerName,
         });
+
+        const user = await this.hydrateFromFirestore(firebaseUserToUser(result.user));
+        this.currentUser = user;
 
         recordLoginSession(user.userId).catch(console.error);
         return user;

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useTradingData } from "@/hooks/use-trading-data";
-import { Search, Download, ListX } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
+import { Search, Download, ListX, Radio, ShieldCheck } from "lucide-react";
 
 export default function Trades() {
-  const { hasTrades, trades } = useTradingData();
+  const data = useTradingData(); const { hasTrades, trades } = data;
   const [symbolFilter, setSymbolFilter] = useState("");
   const [resultFilter, setResultFilter] = useState<"" | "Win" | "Loss">("");
 
@@ -13,6 +12,8 @@ export default function Trades() {
     if (resultFilter && t.result !== resultFilter) return false;
     return true;
   });
+  const total=trades.reduce((s,t)=>s+t.pnl,0),wins=trades.filter(t=>t.pnl>=0).length,lots=trades.reduce((s,t)=>s+t.lots,0);
+  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open","Close","Lots","P/L","Pips","Risk %","R:R","Session"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -21,14 +22,8 @@ export default function Trades() {
         <p className="text-sm text-muted-foreground mt-1">Full trade history for your active account.</p>
       </div>
 
-      {!hasTrades ? (
-        <EmptyState
-          icon={<ListX size={24} />}
-          title="No trades recorded yet"
-          description="Your trade history will appear here once you start trading on your challenge account."
-        />
-      ) : (
-        <>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Trades",trades.length],["Net P/L",`${total>=0?"+":""}$${total.toFixed(2)}`],["Win rate",`${trades.length?(wins/trades.length*100).toFixed(1):"0.0"}%`],["Volume",`${lots.toFixed(2)} lots`]].map(([k,v])=><div className="premium-card" key={k}><p className="text-xs text-muted-foreground">{k}</p><p className="mt-2 text-2xl font-bold">{v}</p></div>)}</div>
+      <div className="premium-card flex flex-wrap items-center gap-3"><Radio size={17}/><div className="mr-auto"><p className="text-sm font-semibold">{data.brokerConnected?"Broker feed connected":"Broker feed not connected"}</p><p className="text-xs text-muted-foreground">Closed trades appear here automatically after the broker writes verified records.</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs">{data.brokerConnected?"Listening live":"Waiting for setup"}</span></div>
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative max-w-xs">
@@ -50,7 +45,7 @@ export default function Trades() {
               <option value="Win">Wins</option>
               <option value="Loss">Losses</option>
             </select>
-            <button className="ml-auto inline-flex items-center gap-2 bg-secondary text-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-secondary/80 transition-colors">
+            <button disabled={!filtered.length} onClick={exportCsv} className="ml-auto inline-flex items-center gap-2 bg-secondary text-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-secondary/80 transition-colors disabled:opacity-40">
               <Download size={14} />
               Export CSV
             </button>
@@ -107,13 +102,10 @@ export default function Trades() {
               </tbody>
             </table>
             {filtered.length === 0 && (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No trades match your filter.
-              </div>
+              <div className="py-14 text-center"><ListX className="mx-auto text-muted-foreground"/><p className="mt-3 text-sm font-semibold">{hasTrades?"No trades match this filter":"No closed trades yet"}</p><p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">The journal is ready. It will show ticket, instrument, side, timestamps, volume, P/L, pips, risk, R:R and market session from the connected broker.</p></div>
             )}
           </div>
-        </>
-      )}
+      {!hasTrades&&<div className="grid gap-4 md:grid-cols-3">{[[ShieldCheck,"Verified records","Only server-side broker imports can create official trade records."],[Radio,"Automatic sync","New closed trades update this page and analytics in real time."],[Download,"Portable journal","Export the filtered journal to CSV whenever records are available."]].map(([Icon,t,d]:any)=><div className="premium-card" key={t}><Icon size={19}/><p className="mt-3 font-semibold">{t}</p><p className="mt-1 text-xs text-muted-foreground">{d}</p></div>)}</div>}
     </div>
   );
 }
