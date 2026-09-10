@@ -12,3 +12,14 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /checkout
+Disallow: /order-status
+Disallow: /verification
+
+Sitemap: https://www.fynxfunded.com/sitemap.xml

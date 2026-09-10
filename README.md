@@ -1,86 +1,24 @@
-# Welcome to your Lovable project
+# FYNX Funded
 
-## Project info
+Official web application for the FYNX Funded trading-evaluation platform.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Development
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm ci
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Quality checks
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+npm run lint
+npm test -- --run
+npm run build
+```
 
-**Use GitHub Codespaces**
+## Production
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+The `main` branch deploys to [www.fynxfunded.com](https://www.fynxfunded.com) through Vercel.
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-
-## Public waitlist mode and private platform preview
-
-The public site is currently locked to a waitlist landing page while the funded platform remains under active development. All public routes render the waitlist unless preview mode is enabled for the current browser session or `VITE_PUBLIC_SITE_MODE=platform` is intentionally set at launch.
-
-To preview the full platform privately:
-
-1. Keep `VITE_PUBLIC_SITE_MODE` unset or set to `waitlist` in Production until launch. Setting it to `platform` launches the full platform publicly.
-2. Set `VITE_PLATFORM_PREVIEW_KEY` in your deployment environment if you want a custom preview key. If it is not set, the default development key is `fynx-preview`.
-3. Leave `VITE_BASE_PATH` unset for a root-domain Vercel deployment such as `https://fynxfunded.com`. Only set it for subpath hosting, for example `/fynx-prime/`.
-4. Open `/?preview=<your-preview-key>` on the production domain. If using a subpath base, open that base path with the same preview query.
-5. Click **Enable admin platform preview**. The browser stores `fynx-platform-preview=enabled` in session storage and the full platform routes become available for that tab session.
-6. To return that browser to public waitlist mode, close the tab/session or remove the `fynx-platform-preview` session storage item.
+Public search metadata is defined in `index.html`, the XML sitemap is located at `public/sitemap.xml`, and authenticated application routes are excluded from search in `public/robots.txt`.

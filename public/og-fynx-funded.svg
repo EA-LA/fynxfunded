@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07090d"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#65e6bd"/>
+      <stop offset="1" stop-color="#7dd3fc"/>
+    </linearGradient>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M60 0H0V60" fill="none" stroke="#ffffff" stroke-opacity=".045"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <rect x="72" y="70" width="82" height="82" rx="20" fill="#0d1718" stroke="#65e6bd" stroke-opacity=".45"/>
+  <path d="M96 126V98M96 126h38M100 117l11-12 10 7 20-24" fill="none" stroke="url(#line)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="178" y="126" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="800" letter-spacing="2">FYNX</text>
+  <text x="350" y="126" fill="#aab2bf" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="300">Funded</text>
+  <text x="72" y="286" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800">Disciplined trading.</text>
+  <text x="72" y="371" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800">Transparent evaluation.</text>
+  <text x="76" y="447" fill="#aab2bf" font-family="Arial, Helvetica, sans-serif" font-size="30">A professional funded-trading evaluation workspace.</text>
+  <path d="M74 506H1125" stroke="url(#line)" stroke-width="3" opacity=".85"/>
+  <text x="76" y="560" fill="#d7dde7" font-family="Arial, Helvetica, sans-serif" font-size="27">fynxfunded.com</text>
+  <text x="1126" y="560" fill="#65e6bd" font-family="Arial, Helvetica, sans-serif" font-size="24" text-anchor="end">FYNX ecosystem</text>
+</svg>

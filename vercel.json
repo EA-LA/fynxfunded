@@ -16,9 +16,30 @@
     }
   ],
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/how-it-works", "destination": "/index.html" },
+    { "source": "/challenges", "destination": "/index.html" },
+    { "source": "/rules", "destination": "/index.html" },
+    { "source": "/payouts", "destination": "/index.html" },
+    { "source": "/faq", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/signup", "destination": "/index.html" },
+    { "source": "/forgot-password", "destination": "/index.html" },
+    { "source": "/reset-password", "destination": "/index.html" },
+    { "source": "/terms", "destination": "/index.html" },
+    { "source": "/privacy", "destination": "/index.html" },
+    { "source": "/risk-disclosure", "destination": "/index.html" },
+    { "source": "/refund-policy", "destination": "/index.html" },
+    { "source": "/aml-kyc", "destination": "/index.html" },
+    { "source": "/challenge-builder", "destination": "/index.html" },
+    { "source": "/checkout", "destination": "/index.html" },
+    { "source": "/checkout/success", "destination": "/index.html" },
+    { "source": "/checkout/failure", "destination": "/index.html" },
+    { "source": "/order-status", "destination": "/index.html" },
+    { "source": "/verification", "destination": "/index.html" },
+    { "source": "/certificates/verify/:certificateId", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/dashboard/:path*", "destination": "/index.html" }
   ]
 }
