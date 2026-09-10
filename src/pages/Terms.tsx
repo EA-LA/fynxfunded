@@ -6,7 +6,7 @@ const sections = [
     title: "Agreement to Terms",
     content: (
       <>
-        <p>By accessing or using the FYNX Funded platform ("Platform"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, you must not access or use the Platform. These Terms constitute a legally binding agreement between you ("User," "you") and FYNX Funded LLC ("Company," "we," "us").</p>
+        <p>By accessing or using the FYNX Funded platform ("Platform"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, you must not access or use the Platform. These Terms form an agreement between you ("User," "you") and the FYNX Funded operator identified in your order confirmation or other transaction record ("Company," "we," "us").</p>
         <p>We reserve the right to modify these Terms at any time. Continued use of the Platform following any changes constitutes acceptance of the revised Terms.</p>
       </>
     ),
@@ -129,7 +129,7 @@ const sections = [
     id: "ip",
     title: "Intellectual Property",
     content: (
-      <p>All content, branding, software, and materials on the Platform are the intellectual property of FYNX Funded LLC or its licensors. You may not reproduce, distribute, modify, or create derivative works without prior written consent.</p>
+      <p>All content, branding, software, and materials on the Platform are owned by the FYNX Funded operator or its licensors and are protected by applicable intellectual-property laws. You may not reproduce, distribute, modify, or create derivative works without prior written consent.</p>
     ),
   },
   {
@@ -143,14 +143,14 @@ const sections = [
     id: "liability",
     title: "Limitation of Liability",
     content: (
-      <p>To the maximum extent permitted by applicable law, FYNX Funded LLC shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits, revenue, data, or goodwill, arising out of or related to your use of the Platform, regardless of the theory of liability.</p>
+      <p>To the maximum extent permitted by applicable law, the FYNX Funded operator shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits, revenue, data, or goodwill, arising out of or related to your use of the Platform, regardless of the theory of liability.</p>
     ),
   },
   {
     id: "indemnification",
     title: "Indemnification",
     content: (
-      <p>You agree to indemnify, defend, and hold harmless FYNX Funded LLC, its officers, directors, employees, and agents from any claims, damages, losses, liabilities, and expenses (including reasonable attorneys' fees) arising out of your use of the Platform, violation of these Terms, or infringement of any third-party rights.</p>
+      <p>To the extent permitted by applicable law, you agree to indemnify, defend, and hold harmless the FYNX Funded operator, its officers, directors, employees, and agents from claims, damages, losses, liabilities, and expenses arising out of your unlawful use of the Platform, violation of these Terms, or infringement of third-party rights.</p>
     ),
   },
   {
@@ -171,7 +171,7 @@ const sections = [
     id: "governing-law",
     title: "Governing Law",
     content: (
-      <p>[Placeholder: These Terms shall be governed by and construed in accordance with the laws of [Jurisdiction], without regard to conflict of law principles. Any disputes shall be resolved in the courts of [Jurisdiction].]</p>
+      <p>The governing law and forum for a purchase are those applicable to the contracting entity identified in the relevant order confirmation or transaction record. Nothing in these Terms limits mandatory rights or remedies that cannot lawfully be excluded in your place of residence.</p>
     ),
   },
   {
@@ -187,8 +187,7 @@ export default function Terms() {
   return (
     <LegalPageLayout
       title="Terms of Service"
-      lastUpdated="February 2026"
-      disclaimer="This is a template for informational purposes and does not constitute legal advice. Consult a qualified attorney before using this document."
+      lastUpdated="September 10, 2026"
       sections={sections}
     />
   );

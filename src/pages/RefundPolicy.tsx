@@ -87,7 +87,7 @@ export default function RefundPolicy() {
   return (
     <LegalPageLayout
       title="Refund Policy"
-      lastUpdated="February 2026"
+      lastUpdated="September 10, 2026"
       sections={sections}
     />
   );

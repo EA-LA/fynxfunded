@@ -161,7 +161,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </div>
 
           <p className="text-xs text-muted-foreground/60 mb-6">
-            FYNX Funded is building a multi-asset funded trading platform designed to support all major global markets and currencies.
+            FYNX Funded is building a trading-evaluation platform with account tracking, risk controls, and educational resources. Available markets and features depend on the selected plan and connected provider.
           </p>
 
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">

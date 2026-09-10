@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/MarketingLayout";
 import CinematicBackground from "@/components/CinematicBackground";
-import { plans, testimonials, faqItems } from "@/lib/mockData";
+import { plans, faqItems } from "@/lib/mockData";
 import {
   ArrowRight,
   Zap,
@@ -14,25 +14,25 @@ import {
 } from "lucide-react";
 
 const proofItems = [
-  "Fast payouts",
-  "Real-time dashboard",
+  "Tracked payout workflow",
+  "Performance dashboard",
   "Clear rules",
-  "Scalable funding",
+  "Multiple account sizes",
 ];
 
 const features = [
-  { icon: BarChart3, title: "Real-time Stats", desc: "Live P/L, equity curves, and performance metrics updated in real-time." },
+  { icon: BarChart3, title: "Performance Stats", desc: "P/L, equity curves, and performance metrics populate from connected account data." },
   { icon: Target, title: "Objectives Tracker", desc: "Visual progress bars for every trading objective and risk limit." },
-  { icon: Calendar, title: "Payout Calendar", desc: "Know exactly when you're eligible and track your payout history." },
-  { icon: TrendingUp, title: "Account Scaling", desc: "Grow from $10K to $200K+ with consistent performance." },
-  { icon: Shield, title: "Rules Clarity", desc: "No hidden rules. Every policy is documented and tracked live." },
-  { icon: Zap, title: "Risk Engine", desc: "Automated daily loss and max loss monitoring with real-time alerts." },
+  { icon: Calendar, title: "Payout Tracking", desc: "Review eligibility information and payout-request history in one place." },
+  { icon: TrendingUp, title: "Account Options", desc: "Choose from available evaluation sizes and phase structures." },
+  { icon: Shield, title: "Rules Clarity", desc: "Review evaluation targets and risk limits before purchase." },
+  { icon: Zap, title: "Risk Engine", desc: "Designed to evaluate daily-loss and maximum-loss limits from connected account records." },
 ];
 
 const steps = [
   { num: "01", title: "Choose Your Challenge", desc: "Select an account size and evaluation type that matches your trading style." },
   { num: "02", title: "Pass the Evaluation", desc: "Hit the profit target while respecting risk limits. No time pressure." },
-  { num: "03", title: "Get Funded & Earn", desc: "Trade with our capital. Keep up to 90% of the profits you generate." },
+  { num: "03", title: "Qualify for the Funded Stage", desc: "Eligible traders may advance under the rules and profit split shown for their selected plan." },
 ];
 
 export default function Index() {
@@ -49,7 +49,7 @@ export default function Index() {
               Trade with Discipline.
             </h1>
             <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-xl animate-fade-up delay-200">
-              Prove your edge. Access up to $100K in trading capital with transparent rules, real-time tracking, and fast payouts.
+              Choose an evaluation up to $100K, follow transparent rules, and track eligible account activity from your dashboard.
             </p>
             <div className="mt-10 flex flex-wrap gap-4 animate-fade-up delay-300">
               <Link
@@ -176,31 +176,6 @@ export default function Index() {
 
       <div className="max-w-7xl mx-auto px-6"><div className="glow-line" /></div>
 
-      {/* Testimonials */}
-      <section className="max-w-7xl mx-auto px-6 py-24 md:py-32">
-        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-center mb-16 animate-fade-up">
-          Trusted by Traders
-        </h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
-            <div key={t.name} className={`premium-card animate-fade-up delay-${(i + 1) * 200}`}>
-              <p className="text-sm text-muted-foreground leading-relaxed">"{t.text}"</p>
-              <div className="mt-6 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-semibold">
-                  {t.name[0]}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.role}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="max-w-7xl mx-auto px-6"><div className="glow-line" /></div>
-
       {/* FAQ preview */}
       <section className="max-w-7xl mx-auto px-6 py-24 md:py-32">
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-center mb-16 animate-fade-up">
@@ -234,7 +209,7 @@ export default function Index() {
             Ready to Prove Your Edge?
           </h2>
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
-            Join thousands of traders funded by FYNX.
+            Review the current plans, rules, and eligibility requirements before you begin.
           </p>
           <div className="mt-8 animate-fade-up delay-300">
             <Link

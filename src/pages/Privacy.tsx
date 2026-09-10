@@ -70,7 +70,7 @@ const sections = [
     id: "security",
     title: "Security",
     content: (
-      <p>We implement industry-standard security measures to protect your data, including encryption in transit and at rest, access controls, and regular security audits. However, no method of electronic storage or transmission is 100% secure. We cannot guarantee absolute security.</p>
+      <p>We use technical and organizational safeguards intended to protect personal data, including access controls and security measures provided by our hosting and service providers. No method of electronic storage or transmission is completely secure, and we cannot guarantee absolute security.</p>
     ),
   },
   {
@@ -118,7 +118,7 @@ export default function Privacy() {
   return (
     <LegalPageLayout
       title="Privacy Policy"
-      lastUpdated="February 2026"
+      lastUpdated="September 10, 2026"
       sections={sections}
     />
   );

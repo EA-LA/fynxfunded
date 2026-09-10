@@ -211,7 +211,7 @@ export default function ChallengesPricing() {
             <div>
               <h3 className="text-sm font-semibold mb-1">Global Market Coverage</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                FYNX Funded supports trading across all major global currencies and financial markets.
+                Available instruments and markets depend on the selected plan and connected trading provider. Confirm availability in the plan details before purchase.
                 Forex trading is available now. Additional asset classes — including Crypto, Indices, Stocks, Futures, Options, Bonds, and Funds — are being rolled out in future phases.
               </p>
             </div>

@@ -5,8 +5,8 @@ import { Link } from "react-router-dom";
 const timeline = [
   { step: "1", title: "Meet Profit Target", desc: "Reach the minimum profit threshold in your funded account." },
   { step: "2", title: "Request Payout", desc: "Submit a payout request through your dashboard." },
-  { step: "3", title: "Review & Approval", desc: "Our team reviews within 24 hours." },
-  { step: "4", title: "Receive Funds", desc: "Funds transferred via wire or crypto within 24-48 hours." },
+  { step: "3", title: "Review & Approval", desc: "The request is reviewed for eligibility, account status, and verification requirements." },
+  { step: "4", title: "Receive Funds", desc: "Approved requests are sent using the method and estimated timeline shown during processing." },
 ];
 
 const eligibility = [
@@ -29,7 +29,7 @@ export default function PayoutsPage() {
         <div className="max-w-2xl mb-16">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight animate-fade-up">Payouts</h1>
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
-            Fast, transparent, and on your schedule.
+            Review eligibility, submit a request, and follow its status from your dashboard.
           </p>
         </div>
 

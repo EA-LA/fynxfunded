@@ -131,7 +131,7 @@ export const mockPayoutHistory = [
 export const faqItems = [
   {
     q: "What is FYNX Funded?",
-    a: "FYNX Funded is a proprietary trading firm that provides funded trading accounts to skilled traders. Pass our evaluation challenge and trade with our capital.",
+    a: "FYNX Funded provides trading evaluation programs. Traders who meet the applicable objectives and eligibility requirements may advance to the funded stage described in their selected plan.",
   },
   {
     q: "How does the evaluation work?",
@@ -139,44 +139,26 @@ export const faqItems = [
   },
   {
     q: "What instruments can I trade?",
-    a: "You can trade Forex pairs, indices (NAS100, US30, etc.), commodities (Gold, Oil), and select crypto pairs.",
+    a: "Available instruments depend on the active platform and account configuration. Check the plan and account details shown before trading.",
   },
   {
     q: "How quickly can I get paid?",
-    a: "Once you're funded and meet payout eligibility, payouts are processed within 24-48 hours. We support wire transfer and cryptocurrency.",
+    a: "Eligible users can submit a payout request from the dashboard. Available methods and estimated processing times are shown during the request and may depend on verification and the payment provider.",
   },
   {
     q: "Is the fee refundable?",
-    a: "Yes. Once you receive your first payout as a funded trader, your evaluation fee is refunded in full.",
+    a: "Fee-refund eligibility depends on the selected plan and the terms displayed at purchase. Check your order details for the rule that applies to you.",
   },
   {
     q: "What happens if I breach a rule?",
-    a: "If you violate a daily loss limit, max loss limit, or other trading rule, your account will be breached. You can always restart with a new challenge at a discounted rate.",
+    a: "If you violate a daily-loss limit, maximum-loss limit, or another applicable rule, the account may be marked breached. Any restart option and price will be shown separately if available.",
   },
   {
     q: "Can I hold trades over the weekend?",
-    a: "Weekend holding is permitted on most instruments. Check our Rules page for specific restrictions.",
+    a: "Weekend-holding permissions depend on the instrument, platform, and selected plan. Check the Rules page and your account terms before holding a position.",
   },
   {
     q: "Is there a time limit to pass the challenge?",
     a: "No. There is no maximum time limit. Take as long as you need, as long as you meet the minimum trading days requirement.",
-  },
-];
-
-export const testimonials = [
-  {
-    name: "Marcus T.",
-    role: "Forex Trader",
-    text: "Got funded in 12 days. The dashboard is incredibly clean and the payout was in my account within 24 hours. Best prop firm I've used.",
-  },
-  {
-    name: "Sarah K.",
-    role: "Index Trader",
-    text: "The rules are transparent and the platform just works. No hidden catches. I'm scaling my account to $200K now.",
-  },
-  {
-    name: "David L.",
-    role: "Commodities Trader",
-    text: "After trying 3 other firms, FYNX is the only one that feels professional. The real-time objectives tracker is a game changer.",
   },
 ];

@@ -66,8 +66,7 @@ export default function RiskDisclosure() {
   return (
     <LegalPageLayout
       title="Risk Disclosure"
-      lastUpdated="February 2026"
-      disclaimer="This is a template for informational purposes and does not constitute legal advice. Consult a qualified attorney and financial advisor for guidance specific to your situation."
+      lastUpdated="September 10, 2026"
       sections={sections}
     />
   );

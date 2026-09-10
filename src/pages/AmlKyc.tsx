@@ -19,19 +19,13 @@ export default function AmlKyc() {
   return (
     <LegalPageLayout
       title="AML/KYC Policy"
-      lastUpdated="February 25, 2026"
+      lastUpdated="September 10, 2026"
       sections={sections}
     >
-      <div className="bg-secondary/50 border border-border rounded-md p-4 mb-8">
-        <p className="text-sm text-muted-foreground">
-          <strong className="text-foreground">Disclaimer:</strong> This is a template for informational purposes and does not constitute legal advice. Consult a qualified attorney for compliance with applicable laws and regulations.
-        </p>
-      </div>
-
       <section id="overview">
         <h2 className="text-xl font-semibold mt-10 mb-4">1. Overview</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          FYNX Funded LLC ("Company," "we," "us") is committed to preventing the use of our platform for money laundering, terrorist financing, or any other illicit financial activity. This Anti-Money Laundering (AML) and Know Your Customer (KYC) Policy outlines the procedures we follow to verify user identities and monitor transactions in accordance with applicable laws and industry best practices.
+          The operator of FYNX Funded ("Company," "we," "us") is committed to preventing the use of our platform for money laundering, terrorist financing, fraud, or other illicit activity. This Anti-Money Laundering (AML) and Know Your Customer (KYC) Policy describes the controls that may apply based on the services used, risk level, payment partners, and applicable law.
         </p>
       </section>
 
@@ -118,7 +112,7 @@ export default function AmlKyc() {
       <section id="data-handling">
         <h2 className="text-xl font-semibold mt-10 mb-4">9. Data Handling & Privacy</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          All personal data collected for KYC/AML purposes is handled in accordance with our <a href="/privacy" className="text-foreground underline">Privacy Policy</a>. We retain KYC documentation for the period required by applicable law (typically 5–7 years after the end of the business relationship). Data is stored securely with appropriate encryption and access controls.
+          Personal data collected for KYC/AML purposes is handled in accordance with our <a href="/privacy" className="text-foreground underline">Privacy Policy</a>. Records are retained for the period required by applicable law and the policies of the verification provider. Access is limited to authorized systems, personnel, and service providers as needed for verification, compliance, fraud prevention, and support.
         </p>
       </section>
 

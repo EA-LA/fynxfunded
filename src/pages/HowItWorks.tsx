@@ -17,9 +17,9 @@ const phases = [
   },
   {
     num: "Funded",
-    title: "Live Trading",
-    desc: "Trade with our capital. Keep up to 90% of profits. Scale your account with performance.",
-    details: ["Up to 90% profit split", "Bi-weekly payouts", "Account scaling plan", "Full dashboard access", "Fee refunded on first payout"],
+    title: "Funded Stage",
+    desc: "Eligible traders may advance to the funded stage under the terms of their selected plan.",
+    details: ["Plan-specific profit split", "Eligibility-based payouts", "Account progress tracking", "Dashboard access", "Fee refund where included in the purchased plan"],
   },
 ];
 

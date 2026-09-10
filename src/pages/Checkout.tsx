@@ -227,7 +227,7 @@ export default function Checkout() {
             <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Shield size={12} /> Secure Payment</span>
               <span>·</span>
-              <span>256-bit SSL Encryption</span>
+              <span>Payment details handled by Stripe</span>
             </div>
           </div>
 
