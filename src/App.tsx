@@ -74,6 +74,9 @@ const isCheckoutReturn = () => {
   return new URLSearchParams(window.location.search).get("session_id")?.startsWith("cs_") === true;
 };
 
+const isPublicCertificateVerification = () =>
+  typeof window !== "undefined" && window.location.pathname.startsWith("/certificates/verify/");
+
 const App = () => (
   <ThemeProvider>
     <I18nProvider>
@@ -83,7 +86,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter basename={routerBasename}>
             <AuthProvider>
-              {isPlatformPreviewEnabled() || isCheckoutReturn() ? (
+              {isPlatformPreviewEnabled() || isCheckoutReturn() || isPublicCertificateVerification() ? (
                 <Routes>
                   {/* Public routes */}
                   <Route path="/" element={<Index />} />
