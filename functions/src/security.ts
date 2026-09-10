@@ -1,5 +1,10 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
+
+const mailgunApiKey = defineSecret("MAILGUN_API_KEY");
+const MAILGUN_DOMAIN = "mail.fynxfunded.com";
+const MAILGUN_SENDER = "FYNX Funded Security <security@mail.fynxfunded.com>";
 
 interface LoginAlertSession {
   device?: string;
@@ -14,7 +19,7 @@ function safeText(value: unknown, fallback = "Unknown"): string {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 200) : fallback;
 }
 
-export const sendLoginAlert = onCall(async (request) => {
+export const sendLoginAlert = onCall({ secrets: [mailgunApiKey] }, async (request) => {
   if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Auth required");
 
   const uid = request.auth.uid;
@@ -44,21 +49,33 @@ export const sendLoginAlert = onCall(async (request) => {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
-  // This queue document is intentionally provider-neutral. A transactional email
-  // extension or worker can deliver it without exposing mail credentials to the client.
-  await admin.firestore().collection("mail").add({
+  const text = `New login detected for your FYNX Funded account. Device: ${alert.device}. Browser: ${alert.browser}. IP: ${alert.ip}. Location: ${alert.location}. Time: ${alert.time}. If this was not you, reset your password immediately.`;
+  const form = new URLSearchParams({
+    from: MAILGUN_SENDER,
     to: email,
-    message: {
-      subject: alert.subject,
-      text: `New login detected. Device: ${alert.device}. Browser: ${alert.browser}. IP: ${alert.ip}. Location: ${alert.location}. Time: ${alert.time}.`,
-      html: `<p>New login detected for your FYNX Funded account.</p><ul><li>Device: ${alert.device}</li><li>Browser: ${alert.browser}</li><li>IP: ${alert.ip}</li><li>Location: ${alert.location}</li><li>Time: ${alert.time}</li></ul>`,
+    subject: alert.subject,
+    text,
+  });
+  const authorization = Buffer.from(`api:${mailgunApiKey.value()}`).toString("base64");
+  const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${authorization}`,
+      "Content-Type": "application/x-www-form-urlencoded",
     },
-    metadata: alert,
+    body: form.toString(),
   });
 
+  if (!response.ok) {
+    const providerMessage = (await response.text()).slice(0, 500);
+    console.error("Mailgun rejected login alert", { status: response.status, providerMessage });
+    throw new HttpsError("internal", "The login alert could not be delivered");
+  }
+
   await admin.firestore().collection("users").doc(uid).collection("securityEvents").add({
-    type: "login_alert_queued",
+    type: "login_alert_sent",
     ...alert,
+    status: "sent",
   });
 
   return { sent: true };
