@@ -19,6 +19,63 @@ function safeText(value: unknown, fallback = "Unknown"): string {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 200) : fallback;
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  })[character] || character);
+}
+
+function loginAlertHtml(alert: { device: string; browser: string; ip: string; location: string; time: string }): string {
+  const rows = [
+    ["Device", alert.device],
+    ["Browser", alert.browser],
+    ["IP address", alert.ip],
+    ["Location", alert.location],
+    ["Time", alert.time],
+  ].map(([label, value]) => `
+    <tr>
+      <td style="padding:14px 0;border-bottom:1px solid #273142;color:#8f9bad;font-size:13px;">${label}</td>
+      <td style="padding:14px 0;border-bottom:1px solid #273142;color:#ffffff;font-size:13px;font-weight:600;text-align:right;">${escapeHtml(value)}</td>
+    </tr>`).join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#070b12;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#ffffff;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">A new sign-in was detected on your FYNX Funded account.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#070b12;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;">
+        <tr><td style="padding:0 0 18px;">
+          <img src="https://www.fynxfunded.com/og-fynx-funded.png" width="620" alt="FYNX Funded" style="display:block;width:100%;height:auto;border:0;border-radius:18px;">
+        </td></tr>
+        <tr><td style="background:#101722;border:1px solid #273142;border-radius:18px;padding:36px 38px;box-shadow:0 16px 45px rgba(0,0,0,.32);">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+            <tr><td>
+              <div style="display:inline-block;padding:7px 11px;border-radius:999px;background:#123330;color:#6ee7d2;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">Security alert</div>
+              <h1 style="margin:20px 0 10px;font-size:30px;line-height:1.2;letter-spacing:-.6px;color:#ffffff;">New sign-in detected</h1>
+              <p style="margin:0 0 24px;color:#aab4c3;font-size:15px;line-height:1.7;">A device signed in to your FYNX Funded account. Review the details below to confirm it was you.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#0a1019;border:1px solid #273142;border-radius:13px;padding:6px 18px;">${rows}</table>
+              <div style="margin:24px 0;padding:16px 18px;border-left:3px solid #ef6464;background:#29171c;border-radius:8px;color:#f5c5c5;font-size:13px;line-height:1.6;"><strong style="color:#ffffff;">Wasn’t you?</strong><br>Secure your account immediately by changing your password and reviewing active sessions.</div>
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:10px;background:#66e3d1;"><a href="https://www.fynxfunded.com/dashboard/settings" style="display:inline-block;padding:14px 22px;color:#07110f;text-decoration:none;font-size:14px;font-weight:800;">Review account security&nbsp; →</a></td></tr></table>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:24px 20px;color:#697586;font-size:12px;line-height:1.7;">
+          This automated security message was sent by FYNX Funded.<br>
+          <a href="https://www.fynxfunded.com" style="color:#7bded2;text-decoration:none;">fynxfunded.com</a> &nbsp;•&nbsp; <a href="mailto:support@fynxfunded.com" style="color:#7bded2;text-decoration:none;">support@fynxfunded.com</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export const sendLoginAlert = onCall({ secrets: [mailgunApiKey] }, async (request) => {
   if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Auth required");
 
@@ -55,6 +112,7 @@ export const sendLoginAlert = onCall({ secrets: [mailgunApiKey] }, async (reques
     to: email,
     subject: alert.subject,
     text,
+    html: loginAlertHtml(alert),
   });
   const authorization = Buffer.from(`api:${mailgunApiKey.value()}`).toString("base64");
   const response = await fetch(`https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`, {
