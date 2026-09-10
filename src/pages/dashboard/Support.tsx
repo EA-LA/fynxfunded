@@ -3,6 +3,7 @@ import { MessageSquare } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { createTicket, getUserTickets } from "@/services/tickets";
 import type { Ticket, TicketPriority } from "@/services/types";
+import { toast } from "@/hooks/use-toast";
 
 export default function Support() {
   const { user } = useAuth();
@@ -34,8 +35,10 @@ export default function Support() {
       setTickets(updated);
       setSubject("");
       setMessage("");
-    } catch (err) {
-      console.error("[Support] Failed to create ticket:", err);
+      toast({ title: "Ticket submitted", description: "Your support request is now in the queue." });
+    } catch (err: unknown) {
+      const description = err instanceof Error ? err.message : "Please try again in a moment.";
+      toast({ title: "Ticket could not be submitted", description, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }

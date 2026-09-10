@@ -60,13 +60,9 @@ export async function getUserCertificates(userId: string): Promise<Certificate[]
 
 export async function getCertificateByPublicId(certificateId: string): Promise<Certificate | null> {
   if (!isFirebaseConfigured || !db) return null;
-  const exact = await getDoc(doc(db, "certificates", certificateId));
+  const exact = await getDoc(doc(db, "public_certificates", certificateId));
   if (exact.exists()) return { certificateId: exact.id, ...exact.data() } as Certificate;
-
-  const certQuery = query(collection(db, "certificates"), where("publicVerificationId", "==", certificateId));
-  const snap = await getDocs(certQuery);
-  const first = snap.docs[0];
-  return first ? ({ certificateId: first.id, ...first.data() } as Certificate) : null;
+  return null;
 }
 
 function toMillis(value: unknown) {

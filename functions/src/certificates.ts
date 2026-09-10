@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 
 const OWNER_ADMIN_EMAILS = ["ha6876122@gmail.com", "fynxteam5@gmail.com"];
 
@@ -24,16 +25,16 @@ const challengeRules: Record<number, Record<string, { profitTargets: string[]; d
   200000: { "1-phase": { profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "85%" }, "2-phase": { profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "90%" }, "3-phase": { profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "90%" } },
 };
 
-export const generateCertificatesOnChallengeWrite = functions.firestore.document("challenges/{challengeId}").onWrite(async (change, context) => {
-  if (!change.after.exists) return;
-  const challenge = { id: context.params.challengeId, ...change.after.data() };
+export const generateCertificatesOnChallengeWrite = onDocumentWritten("challenges/{challengeId}", async (event) => {
+  if (!event.data?.after.exists) return;
+  const challenge = { id: event.params.challengeId, ...event.data.after.data() };
   await generateChallengeCertificates(challenge, "backend_trigger");
 });
 
 
-export const generateCertificatesOnAccountWrite = functions.firestore.document("accounts/{accountId}").onWrite(async (change, context) => {
-  if (!change.after.exists) return;
-  const account: FirebaseFirestore.DocumentData = { id: context.params.accountId, ...(change.after.data() || {}) };
+export const generateCertificatesOnAccountWrite = onDocumentWritten("accounts/{accountId}", async (event) => {
+  if (!event.data?.after.exists) return;
+  const account: FirebaseFirestore.DocumentData = { id: event.params.accountId, ...(event.data.after.data() || {}) };
   const status = String(account.status || account.accountType || "").toLowerCase();
   if (status !== "funded" && account.accountType !== "funded") return;
   const challengeId = account.challengeId || account.challengeRef;
@@ -43,28 +44,29 @@ export const generateCertificatesOnAccountWrite = functions.firestore.document("
   await generateChallengeCertificates({ id: snap.id, ...snap.data(), status: "funded", brokerAccountId: account.id, fundedAt: account.fundedAt || account.updatedAt }, "backend_trigger");
 });
 
-export const generateCertificatesOnPayoutWrite = functions.firestore.document("payouts/{payoutId}").onWrite(async (change, context) => {
-  if (!change.after.exists) return;
-  const after = change.after.data() || {};
-  const before = change.before.exists ? change.before.data() : null;
+export const generateCertificatesOnPayoutWrite = onDocumentWritten("payouts/{payoutId}", async (event) => {
+  if (!event.data?.after.exists) return;
+  const after = event.data.after.data() || {};
+  const before = event.data.before.exists ? event.data.before.data() : null;
   if (after.status !== "paid" || before?.status === "paid") return;
-  await generatePayoutCertificates({ id: context.params.payoutId, ...after }, "backend_trigger");
+  await generatePayoutCertificates({ id: event.params.payoutId, ...after }, "backend_trigger");
 });
 
-export const adminRegenerateCertificate = functions.https.onCall(async (data, context) => {
-  const email = context.auth?.token.email?.toLowerCase() || "";
-  if (!context.auth || !OWNER_ADMIN_EMAILS.includes(email)) {
-    throw new functions.https.HttpsError("permission-denied", "Only FYNX owner admins can regenerate certificates.");
+export const adminRegenerateCertificate = onCall(async (request) => {
+  const email = String(request.auth?.token.email || "").toLowerCase();
+  if (!request.auth || !OWNER_ADMIN_EMAILS.includes(email)) {
+    throw new HttpsError("permission-denied", "Only FYNX owner admins can regenerate certificates.");
   }
 
+  const data = request.data || {};
   if (data.challengeId) {
     const snap = await admin.firestore().collection("challenges").doc(String(data.challengeId)).get();
-    if (!snap.exists) throw new functions.https.HttpsError("not-found", "Challenge not found.");
+    if (!snap.exists) throw new HttpsError("not-found", "Challenge not found.");
     await generateChallengeCertificates({ id: snap.id, ...snap.data() }, "admin_regeneration");
   }
   if (data.payoutId) {
     const snap = await admin.firestore().collection("payouts").doc(String(data.payoutId)).get();
-    if (!snap.exists) throw new functions.https.HttpsError("not-found", "Payout not found.");
+    if (!snap.exists) throw new HttpsError("not-found", "Payout not found.");
     await generatePayoutCertificates({ id: snap.id, ...snap.data() }, "admin_regeneration");
   }
   return { ok: true };
@@ -158,6 +160,26 @@ async function upsertCertificate(type: CertificateType, base: FirebaseFirestore.
     publicVerificationId: certificateId,
     status: source === "admin_regeneration" ? "issued" : existingStatus || "issued",
     issuedAt: base.issuedAt || base.passedDate || admin.firestore.FieldValue.serverTimestamp(),
+    verificationUrl,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  await admin.firestore().collection("public_certificates").doc(certificateId).set({
+    certificateId,
+    publicVerificationId: certificateId,
+    type,
+    status: source === "admin_regeneration" ? "issued" : existingStatus || "issued",
+    traderName: base.traderName,
+    accountId: base.accountId || "",
+    challengeType: base.challengeType || "FYNX Funded Challenge",
+    accountSize: Number(base.accountSize || 0),
+    phase: base.phase || "",
+    passedDate: base.passedDate || null,
+    fundedDate: base.fundedDate || null,
+    issuedAt: base.issuedAt || base.passedDate || admin.firestore.FieldValue.serverTimestamp(),
+    profitSplit: base.profitSplit || null,
+    payoutAmount: typeof base.payoutAmount === "number" ? base.payoutAmount : null,
+    milestoneName: base.milestoneName || null,
     verificationUrl,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });

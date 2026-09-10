@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ElementType } from "react";
 import { collection, onSnapshot, query, Timestamp, where } from "firebase/firestore";
 import { CreditCard, FileText, ReceiptText, Search } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 
-type Order = Record<string, any> & { id: string };
-function toDate(value: any) { if (!value) return null; if (value instanceof Timestamp) return value.toDate(); if (value?.toDate) return value.toDate(); const d = new Date(value); return Number.isNaN(d.getTime()) ? null : d; }
-function date(value: any) { return toDate(value)?.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) || "—"; }
-function money(value: any, currency="USD") { return new Intl.NumberFormat(undefined, { style: "currency", currency: String(currency || "USD").toUpperCase() }).format(Number(value || 0)); }
+type Order = Record<string, unknown> & { id: string };
+function toDate(value: unknown) { if (!value) return null; if (value instanceof Timestamp) return value.toDate(); if (typeof value === "object" && value !== null && "toDate" in value) return (value as { toDate: () => Date }).toDate(); const d = new Date(String(value)); return Number.isNaN(d.getTime()) ? null : d; }
+function date(value: unknown) { return toDate(value)?.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) || "—"; }
+function money(value: unknown, currency: unknown="USD") { return new Intl.NumberFormat(undefined, { style: "currency", currency: String(currency || "USD").toUpperCase() }).format(Number(value || 0)); }
 
 export default function Billing() {
   const { user } = useAuth();
@@ -16,14 +16,14 @@ export default function Billing() {
   const [status, setStatus] = useState("all");
   const [error, setError] = useState("");
   useEffect(() => {
-    if (!db || !user?.uid) return;
-    return onSnapshot(query(collection(db, "orders"), where("userId", "==", user.uid)), snap => setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() }))), e => setError(e.message));
-  }, [user?.uid]);
+    if (!db || !user?.userId) return;
+    return onSnapshot(query(collection(db, "orders"), where("userId", "==", user.userId)), snap => { setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setError(""); }, e => setError(e.message));
+  }, [user?.userId]);
   const visible = useMemo(() => orders.filter(o => (status === "all" || o.status === status) && (!search || [o.challenge,o.id,o.status,o.stripeSessionId].some(v => String(v || "").toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>(toDate(b.createdAt)?.getTime()||0)-(toDate(a.createdAt)?.getTime()||0)), [orders,search,status]);
   const paid = orders.filter(o => o.status === "paid");
   const resume = (order: Order) => {
     const expiry = toDate(order.checkoutExpiresAt);
-    if (order.checkoutUrl && (!expiry || expiry > new Date())) window.location.href = order.checkoutUrl;
+    if (typeof order.checkoutUrl === "string" && (!expiry || expiry > new Date())) window.location.href = order.checkoutUrl;
     else window.location.href = `/checkout?size=${sizeIndex(order.accountSize)}&phase=${order.phase || "2-phase"}&style=${order.style || "normal"}&currency=${order.currency || "USD"}`;
   };
   return <div className="space-y-6">
@@ -36,5 +36,5 @@ export default function Billing() {
   </div>;
 }
 function sizeIndex(size:number){return size>=200000?5:size>=100000?4:size>=50000?3:size>=25000?2:size>=10000?1:0;}
-function Summary({icon:Icon,title,value}:{icon:any;title:string;value:string|number}){return <div className="premium-card"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{title}</p><Icon size={17}/></div><p className="mt-4 text-2xl font-bold">{value}</p></div>}
+function Summary({icon:Icon,title,value}:{icon:ElementType;title:string;value:string|number}){return <div className="premium-card"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{title}</p><Icon size={17}/></div><p className="mt-4 text-2xl font-bold">{value}</p></div>}
 function Badge({value}:{value:string}){const ok=value==="paid",bad=["failed","refunded"].includes(value);return <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${ok?"bg-emerald-500/10 text-emerald-500":bad?"bg-destructive/10 text-destructive":"bg-amber-500/10 text-amber-500"}`}>{value||"pending"}</span>}
