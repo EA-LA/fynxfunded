@@ -1,4 +1,4 @@
-import { useState, useEffect, type ElementType, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ElementType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Shield, ShieldCheck, ShieldAlert, Mail, Smartphone, Monitor, Key, CheckCircle2, AlertTriangle, Globe2, Trash2, LogOut, Copy, Download, X } from "lucide-react";
 import { countries } from "@/lib/countries";
@@ -84,7 +84,7 @@ export default function DashboardSettings() {
     });
   }, [user?.userId]);
 
-  const refreshSessions = async () => {
+  const refreshSessions = useCallback(async () => {
     if (!user?.userId) return;
     setSessionsLoading(true);
     try {
@@ -94,11 +94,11 @@ export default function DashboardSettings() {
     } finally {
       setSessionsLoading(false);
     }
-  };
+  }, [user?.userId]);
 
   useEffect(() => {
     if (showSessions) refreshSessions();
-  }, [showSessions, user?.userId]);
+  }, [showSessions, refreshSessions]);
 
   const handleResendVerification = async () => {
     setVerifyLoading(true);

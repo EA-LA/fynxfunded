@@ -197,7 +197,9 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     setLangState(code);
     try {
       localStorage.setItem("fynx-lang", code);
-    } catch {}
+    } catch {
+      // Language preference is optional when storage is unavailable.
+    }
   }, []);
 
   const t = useCallback(

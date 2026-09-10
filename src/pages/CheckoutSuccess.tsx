@@ -16,6 +16,7 @@ export default function CheckoutSuccess() {
     const verifyPayment = async () => {
       const sessionId = params.get("session_id");
       const localOrderId = localStorage.getItem("fynx_last_order_id");
+      let paymentVerified = false;
 
       // Path 1: Stripe session_id in URL — verify via backend
       if (sessionId) {
@@ -37,6 +38,7 @@ export default function CheckoutSuccess() {
             const data = await res.json();
             if (data.verified && data.status === "paid") {
               setVerified(true);
+              paymentVerified = true;
               if (data.order) {
                 setOrder(data.order as Order);
               }
@@ -48,7 +50,7 @@ export default function CheckoutSuccess() {
       }
 
       // Path 2: PayPal / fallback — verify from Firestore via localStorage order ID
-      if (!verified && localOrderId) {
+      if (!paymentVerified && localOrderId) {
         try {
           const found = await dataService.getOrder(localOrderId);
           if (found && found.status === "paid") {

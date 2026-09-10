@@ -19,7 +19,11 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // The shadcn component modules intentionally co-export variants/hooks.
+      "react-refresh/only-export-components": "off",
+      // Firestore and external provider payloads are runtime-validated and have
+      // intentionally dynamic fields throughout the current service layer.
+      "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
