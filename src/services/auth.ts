@@ -133,9 +133,14 @@ function firebaseUserToUser(fbUser: import("firebase/auth").User): User {
   };
 }
 
-function isSafari(): boolean {
-  const ua = navigator.userAgent;
-  return /^((?!chrome|android).)*safari/i.test(ua);
+const REDIRECT_FALLBACK_ERRORS = new Set([
+  "auth/popup-blocked",
+  "auth/operation-not-supported-in-this-environment",
+]);
+
+function shouldUseRedirectFallback(error: unknown): boolean {
+  return !!error && typeof error === "object" && "code" in error
+    && REDIRECT_FALLBACK_ERRORS.has(String((error as { code?: unknown }).code));
 }
 
 // ── Firebase adapter ──────────────────────────────────────
@@ -168,6 +173,40 @@ class FirebaseAuthService implements AuthService {
       user.lastSecurityUpdate = firestoreDateToString(fsData.lastSecurityUpdate);
     }
     return user;
+  }
+
+  private async finishOAuthSignIn(
+    fbUser: import("firebase/auth").User,
+    provider: string,
+  ): Promise<User> {
+    await createOrUpdateFirestoreUser(fbUser.uid, {
+      email: fbUser.email || "",
+      displayName: fbUser.displayName || "Trader",
+      provider,
+    });
+
+    const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
+    this.currentUser = user;
+    recordLoginSession(user.userId).catch(console.error);
+    return user;
+  }
+
+  private async signInWithOAuthProvider(
+    provider: GoogleAuthProvider | OAuthProvider,
+    providerName: "google" | "apple",
+  ): Promise<User> {
+    try {
+      // Popup is reliable on the production custom domain and keeps the OAuth
+      // helper state in the same page. Redirect remains a fallback for browsers
+      // that explicitly block or do not support popups.
+      const credential = await signInWithPopup(this.getAuth(), provider);
+      return await this.finishOAuthSignIn(credential.user, providerName);
+    } catch (error) {
+      if (!shouldUseRedirectFallback(error)) throw error;
+      sessionStorage.setItem("fynx_oauth_pending", providerName);
+      await signInWithRedirect(this.getAuth(), provider);
+      return {} as User;
+    }
   }
 
   async signUp(email: string, password: string, fullName: string): Promise<User> {
@@ -225,22 +264,8 @@ class FirebaseAuthService implements AuthService {
 
   async signInWithGoogle(): Promise<User> {
     const provider = new GoogleAuthProvider();
-    if (isSafari()) {
-      await signInWithRedirect(this.getAuth(), provider);
-      return {} as User;
-    }
-    const cred = await signInWithPopup(this.getAuth(), provider);
-    await createOrUpdateFirestoreUser(cred.user.uid, {
-      email: cred.user.email || "",
-      displayName: cred.user.displayName || "Trader",
-      provider: "google",
-    });
-
-    const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
-    this.currentUser = user;
-
-    recordLoginSession(user.userId).catch(console.error);
-    return user;
+    provider.setCustomParameters({ prompt: "select_account" });
+    return this.signInWithOAuthProvider(provider, "google");
   }
 
   async signInWithApple(): Promise<User> {
@@ -248,23 +273,13 @@ class FirebaseAuthService implements AuthService {
     provider.addScope("email");
     provider.addScope("name");
     try {
-      if (isSafari()) {
-        await signInWithRedirect(this.getAuth(), provider);
-        return {} as User;
-      }
-      const cred = await signInWithPopup(this.getAuth(), provider);
-      await createOrUpdateFirestoreUser(cred.user.uid, { email: cred.user.email || "", displayName: cred.user.displayName || "Trader", provider: "apple" });
-      const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
-      this.currentUser = user;
-      recordLoginSession(user.userId).catch(console.error);
-      return user;
+      return await this.signInWithOAuthProvider(provider, "apple");
     } catch (err: any) {
       if (err?.code === "auth/operation-not-allowed") {
         throw new Error("Apple Sign-In is not configured yet. Enable it in Firebase Console.");
       }
       throw err;
     }
-    return {} as User;
   }
 
   async handleRedirectResult(): Promise<User | null> {
@@ -274,17 +289,8 @@ class FirebaseAuthService implements AuthService {
         const providerId = result.providerId || "oauth";
         const providerName = providerId.includes("apple") ? "apple" : providerId.includes("google") ? "google" : providerId;
 
-        await createOrUpdateFirestoreUser(result.user.uid, {
-          email: result.user.email || "",
-          displayName: result.user.displayName || "Trader",
-          provider: providerName,
-        });
-
-        const user = await this.hydrateFromFirestore(firebaseUserToUser(result.user));
-        this.currentUser = user;
-
-        recordLoginSession(user.userId).catch(console.error);
-        return user;
+        sessionStorage.removeItem("fynx_oauth_pending");
+        return await this.finishOAuthSignIn(result.user, providerName);
       }
     } catch (err) {
       console.error("[AuthService] Redirect result error:", err);
