@@ -13,3 +13,5 @@ export { sendLoginAlert } from "./security";
 export { generateCertificatesOnChallengeWrite, generateCertificatesOnAccountWrite, generateCertificatesOnPayoutWrite, adminRegenerateCertificate } from "./certificates";
 
 export { adminChallengeProgression, evaluateAutomaticProgressionOnTrade } from "./challengeProgression";
+
+export { sendProgressionOutcomeEmail } from "./progressionNotifications";
