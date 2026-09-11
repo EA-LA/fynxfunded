@@ -138,9 +138,16 @@ const REDIRECT_FALLBACK_ERRORS = new Set([
   "auth/operation-not-supported-in-this-environment",
 ]);
 
-function shouldUseRedirectFallback(error: unknown): boolean {
-  return !!error && typeof error === "object" && "code" in error
-    && REDIRECT_FALLBACK_ERRORS.has(String((error as { code?: unknown }).code));
+export function shouldUseRedirectFallback(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  const code = String((error as { code?: unknown }).code);
+  if (REDIRECT_FALLBACK_ERRORS.has(code)) return true;
+
+  // Safari can surface blocked popup-helper communication as internal-error
+  // instead of popup-blocked. Redirect is the safe recovery for that browser.
+  const isSafari = typeof navigator !== "undefined"
+    && /^((?!chrome|chromium|android).)*safari/i.test(navigator.userAgent);
+  return isSafari && code === "auth/internal-error";
 }
 
 // ── Firebase adapter ──────────────────────────────────────
