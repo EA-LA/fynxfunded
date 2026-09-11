@@ -151,7 +151,8 @@ export type CertificateType =
   | "top_trader"
   | "scaling_plan"
   | "profit_split"
-  | "account_completion";
+  | "account_completion"
+  | "learning_completion";
 
 export type CertificateStatus = "issued" | "pending_approval" | "approved" | "revoked";
 
@@ -187,6 +188,9 @@ export interface Certificate {
   profitSplit?: string;
   payoutAmount?: number;
   milestoneName?: string;
+  courseName?: string;
+  learningTopics?: string[];
+  quizAverage?: number;
   rulesSnapshot?: CertificateRulesSnapshot;
   verificationUrl: string;
   generatedFrom?: {

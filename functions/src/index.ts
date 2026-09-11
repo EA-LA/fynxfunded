@@ -15,3 +15,5 @@ export { generateCertificatesOnChallengeWrite, generateCertificatesOnAccountWrit
 export { adminChallengeProgression, evaluateAutomaticProgressionOnTrade } from "./challengeProgression";
 
 export { sendProgressionOutcomeEmail } from "./progressionNotifications";
+
+export { submitLearningQuiz } from "./learningCertificates";

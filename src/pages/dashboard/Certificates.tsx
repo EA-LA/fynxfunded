@@ -1,192 +1,44 @@
+/* eslint-disable no-useless-escape */
 import { useEffect, useMemo, useState } from "react";
-import { Award, BadgeCheck, CalendarCheck, Copy, Download, ExternalLink, FileText, Filter, Share2, ShieldCheck, Sparkles, Trophy, Wallet } from "lucide-react";
+import { Award, Copy, Download, ExternalLink, Filter, Share2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { CERTIFICATE_TYPE_GROUP, getCertificateTitle, getUserCertificates } from "@/services/certificates";
-import type { Certificate } from "@/services/types";
+import type { Certificate, CertificateType } from "@/services/types";
 
-type FilterKey = "All" | "Passed" | "Funded" | "Payouts" | "Milestones";
-const filters: FilterKey[] = ["All", "Passed", "Funded", "Payouts", "Milestones"];
+type FilterKey = "All" | "Passed" | "Funded" | "Payouts" | "Milestones" | "Learning";
+const filters: FilterKey[] = ["All", "Passed", "Funded", "Payouts", "Milestones", "Learning"];
+const copyByType: Record<CertificateType,{eyebrow:string;statement:(c:Certificate)=>string;accent:string}> = {
+ challenge_passed:{eyebrow:"Evaluation achievement",statement:c=>`passed ${c.phase||"the evaluation phase"} of the ${c.challengeType}. The profit target and risk objectives were verified.`,accent:"#e9a23b"},
+ verification_passed:{eyebrow:"Verification achievement",statement:c=>`completed the verification stage of ${c.challengeType} while meeting the required trading objectives.`,accent:"#67d4bd"},
+ funded_trader:{eyebrow:"Funded status unlocked",statement:c=>`earned funded trader status through verified performance on ${c.challengeType}.`,accent:"#f2c15b"},
+ first_payout:{eyebrow:"Payout achievement",statement:c=>`received a first verified payout${c.payoutAmount?` of ${money(c.payoutAmount)}`:""} from a FYNX funded account.`,accent:"#6dd6a5"},
+ milestone:{eyebrow:"Milestone unlocked",statement:c=>`reached the verified milestone “${c.milestoneName||"Trading milestone"}” through real account progress.`,accent:"#d3a6ff"},
+ consistency:{eyebrow:"Consistency recognized",statement:()=>"demonstrated disciplined, consistent trading performance across the required evaluation window.",accent:"#71c7ec"},
+ top_trader:{eyebrow:"Top trader recognition",statement:()=>"earned recognition as a leading FYNX trader through verified account performance.",accent:"#f2c15b"},
+ scaling_plan:{eyebrow:"Scaling achievement",statement:()=>"qualified for the FYNX scaling plan through verified performance and risk discipline.",accent:"#67d4bd"},
+ profit_split:{eyebrow:"Profit split achievement",statement:c=>`completed a verified ${c.profitSplit||"funded"} profit split on a FYNX funded account.`,accent:"#6dd6a5"},
+ account_completion:{eyebrow:"Account journey completed",statement:c=>`completed the full account journey for ${c.challengeType}.`,accent:"#e9a23b"},
+ learning_completion:{eyebrow:"Education achievement",statement:c=>`completed the ${c.courseName||"FYNX Trading Education Program"} and passed every required assessment${c.quizAverage?` with a ${c.quizAverage}% average`:""}.`,accent:"#8ab4f8"},
+};
+function money(v?:number){return typeof v==="number"&&v>0?`$${v.toLocaleString()}`:"—"}
+function date(v?:unknown){if(!v)return"—";const d=typeof v==="object"&&v!==null&&"toDate" in v?(v as {toDate:()=>Date}).toDate():new Date(v as string);return Number.isNaN(d.getTime())?"—":d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"})}
+function nameFor(c:Certificate,fallback?:string){const name=c.traderName?.trim();return !name||name.includes("@")?fallback||name||"FYNX Trader":name}
+function safe(v:string){return v.replace(/[&<>"']/g,x=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[x]||x)}
 
-const icons = {
-  challenge_passed: CalendarCheck,
-  verification_passed: ShieldCheck,
-  funded_trader: Trophy,
-  first_payout: Wallet,
-  milestone: Sparkles,
-  consistency: BadgeCheck,
-  top_trader: Trophy,
-  scaling_plan: Award,
-  profit_split: Wallet,
-  account_completion: FileText,
-} as const;
+export default function Certificates(){const{user}=useAuth();const[filter,setFilter]=useState<FilterKey>("All");const[certs,setCerts]=useState<Certificate[]>([]);const[loading,setLoading]=useState(true);
+ useEffect(()=>{if(!user?.userId)return;let live=true;getUserCertificates(user.userId).then(x=>live&&setCerts(x.filter(c=>c.status!=="revoked"))).catch(()=>toast.error("Certificates could not be loaded.")).finally(()=>live&&setLoading(false));return()=>{live=false}},[user?.userId]);
+ const visible=useMemo(()=>certs.filter(c=>filter==="All"||CERTIFICATE_TYPE_GROUP[c.type]===filter),[certs,filter]);const counts=useMemo(()=>Object.fromEntries(filters.map(k=>[k,k==="All"?certs.length:certs.filter(c=>CERTIFICATE_TYPE_GROUP[c.type]===k).length]))as Record<FilterKey,number>,[certs]);
+ return <div className="space-y-7 animate-fade-up"><section className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#090b0e] p-6 text-white shadow-2xl sm:p-8"><p className="font-mono text-xs uppercase tracking-[.3em] text-white/45">FYNX Funded / Certificate Vault</p><div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="max-w-3xl text-3xl font-semibold tracking-tight sm:text-5xl">Achievements built from verified progress.</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/55">Every certificate has its own purpose, recipient, account data, issue date, and public verification record.</p></div><div className="grid grid-cols-3 gap-5 border-l border-white/10 pl-6 text-center"><Stat label="Issued" value={certs.length}/><Stat label="Funded" value={counts.Funded}/><Stat label="Learning" value={counts.Learning}/></div></div></section>
+ <div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><Filter size={15}/> Filter</span>{filters.map(k=><button key={k} onClick={()=>setFilter(k)} className={`rounded-full border px-4 py-2 text-sm transition ${filter===k?"border-foreground bg-foreground text-background":"border-border bg-secondary/60 text-muted-foreground hover:text-foreground"}`}>{k} <span className="ml-1 opacity-60">{counts[k]}</span></button>)}</div>
+ {loading?<div className="premium-card grid min-h-80 place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground"/></div>:visible.length?<div className="space-y-8">{visible.map(c=><CertificateCard key={c.certificateId} certificate={c} fallbackName={user?.fullName}/>)}</div>:<Empty/>}</div>}
 
-function money(value?: number) {
-  return typeof value === "number" && value > 0 ? `$${value.toLocaleString()}` : "—";
-}
+function CertificateCard({certificate:c,fallbackName}:{certificate:Certificate;fallbackName?:string}){const copy=copyByType[c.type]||copyByType.challenge_passed;const name=nameFor(c,fallbackName);const account=c.type==="learning_completion"?"FYNX Academy":c.accountId||"Pending assignment";const phase=c.type==="learning_completion"?`${c.quizAverage||0}% average`:String(c.phase||"Achievement").replace("-"," ");const issued=date(c.issuedAt||c.passedDate);const url=c.verificationUrl||`${window.location.origin}/certificates/verify/${c.publicVerificationId}`;
+ const copyLink=async()=>{await navigator.clipboard.writeText(url);toast.success("Verification link copied.")};const share=async()=>navigator.share?navigator.share({title:getCertificateTitle(c.type),text:`${name} — verified FYNX achievement`,url}):copyLink();
+ return <article className="overflow-hidden rounded-[1.5rem] border border-border bg-card shadow-xl"><div className="relative min-h-[560px] overflow-hidden bg-[#0b0e12] p-6 font-mono text-white sm:p-10 lg:aspect-[1.9/1] lg:min-h-0"><div className="absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.055)_1px,transparent_1px)] [background-size:60px_60px]"/><div className="relative flex h-full flex-col"><header className="flex items-center justify-between border-b border-white/15 pb-5 text-xs uppercase tracking-[.16em] text-white/55"><span><b style={{color:copy.accent}}>●</b>&nbsp; FYNX Funded / Certificates</span><span className="hidden sm:block">Cert_ID: {c.publicVerificationId}</span></header><div className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[1.2fr_.8fr]"><div><p className="text-xs font-bold uppercase tracking-[.18em]" style={{color:copy.accent}}>{copy.eyebrow}</p><h2 className="mt-6 break-words text-4xl font-bold tracking-tight sm:text-6xl">{name}</h2><p className="mt-6 max-w-3xl text-sm leading-7 text-white/65 sm:text-lg">Account <strong style={{color:copy.accent}}>{account}</strong> {copy.statement(c)}</p><div className="mt-9 grid max-w-2xl grid-cols-3 gap-5"><Metric label={c.type==="learning_completion"?"Program":"Phase"} value={phase}/><Metric label="Reference" value={account}/><Metric label="Date" value={issued}/></div></div><svg viewBox="0 0 420 190" className="hidden w-full lg:block"><polyline points="8,150 74,138 115,142 165,104 210,114 260,72 306,82 360,43 408,55" fill="none" stroke={copy.accent} strokeWidth="4"/><circle cx="408" cy="55" r="5" fill={copy.accent}/></svg></div><footer className="flex flex-col gap-2 border-t border-white/15 pt-5 text-[11px] uppercase tracking-[.12em] text-white/45 sm:flex-row sm:justify-between"><span>FYNX Funded — Verified {getCertificateTitle(c.type)}</span><span style={{color:copy.accent}}>fynxfunded.com/certificates/verify/{c.publicVerificationId}</span></footer></div></div><div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"><div><p className="text-xs uppercase tracking-[.2em] text-muted-foreground">Public verification</p><p className="mt-1 font-mono text-sm font-semibold">{c.publicVerificationId}</p></div><div className="flex flex-wrap gap-2"><Link to={`/certificates/verify/${c.publicVerificationId}`} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-secondary"><ExternalLink size={14}/> Verify</Link><button onClick={()=>printCertificate(c,name)} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-secondary"><Download size={14}/> PDF</button><button onClick={share} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-secondary"><Share2 size={14}/> Share</button><button onClick={copyLink} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-secondary"><Copy size={14}/> Copy</button></div></div></article>}
 
-function date(value?: unknown) {
-  if (!value) return "—";
-  const parsed = typeof value === "object" && value !== null && "toDate" in value ? (value as { toDate: () => Date }).toDate() : new Date(value as string);
-  return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
-}
-
-export default function Certificates() {
-  const { user } = useAuth();
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("All");
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user?.userId) return;
-    let mounted = true;
-    getUserCertificates(user.userId)
-      .then((items) => mounted && setCertificates(items.filter((item) => item.status !== "revoked")))
-      .finally(() => mounted && setLoading(false));
-    return () => { mounted = false; };
-  }, [user?.userId]);
-
-  const filteredCertificates = useMemo(() => certificates.filter((certificate) => activeFilter === "All" || CERTIFICATE_TYPE_GROUP[certificate.type] === activeFilter), [activeFilter, certificates]);
-
-  const counts = useMemo(() => filters.reduce<Record<FilterKey, number>>((acc, key) => {
-    acc[key] = key === "All" ? certificates.length : certificates.filter((certificate) => CERTIFICATE_TYPE_GROUP[certificate.type] === key).length;
-    return acc;
-  }, { All: 0, Passed: 0, Funded: 0, Payouts: 0, Milestones: 0 }), [certificates]);
-
-  return (
-    <div className="space-y-8 animate-fade-up">
-      <section className="relative overflow-hidden rounded-[2rem] border border-border bg-[radial-gradient(circle_at_top_left,hsl(var(--foreground)/0.16),transparent_34%),linear-gradient(135deg,hsl(var(--background)),hsl(var(--secondary)/0.55))] p-6 shadow-2xl sm:p-8">
-        <div className="absolute right-6 top-6 hidden h-28 w-28 rounded-full border border-foreground/10 sm:block" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-xs uppercase tracking-[0.25em] text-muted-foreground">
-              <Award size={14} /> FYNX Funded Certificates
-            </div>
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight sm:text-5xl">Verified trader achievements, unlocked from real account progress.</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Challenge, verification, funded, payout, milestone, consistency, top trader, scaling, profit split, and completion certificates are generated by backend account, objective, trade, payout, and status events—not by this page.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-3 rounded-2xl border border-border bg-background/70 p-3 text-center backdrop-blur">
-            <Stat label="Issued" value={certificates.length} />
-            <Stat label="Funded" value={counts.Funded} />
-            <Stat label="Payouts" value={counts.Payouts} />
-          </div>
-        </div>
-      </section>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground"><Filter size={15} /> Filter</span>
-        {filters.map((filter) => (
-          <button key={filter} onClick={() => setActiveFilter(filter)} className={`rounded-full border px-4 py-2 text-sm transition ${activeFilter === filter ? "border-foreground bg-foreground text-background" : "border-border bg-secondary/60 text-muted-foreground hover:text-foreground"}`}>
-            {filter} <span className="ml-1 opacity-60">{counts[filter]}</span>
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="premium-card grid min-h-[320px] place-items-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" /></div>
-      ) : filteredCertificates.length > 0 ? (
-        <div className="grid gap-6 xl:grid-cols-2">
-          {filteredCertificates.map((certificate) => <CertificateCard key={certificate.certificateId} certificate={certificate} />)}
-        </div>
-      ) : (
-        <EmptyCertificateState />
-      )}
-    </div>
-  );
-}
-
-function CertificateCard({ certificate }: { certificate: Certificate }) {
-  const Icon = icons[certificate.type] || Award;
-  const verifyHref = certificate.verificationUrl || `/certificates/verify/${certificate.publicVerificationId}`;
-
-  const handleCopy = async () => navigator.clipboard?.writeText(verifyHref);
-  const handleShare = async () => {
-    if (navigator.share) await navigator.share({ title: getCertificateTitle(certificate.type), text: "Verified FYNX Funded certificate", url: verifyHref });
-    else await handleCopy();
-  };
-  const handleDownload = () => window.print();
-
-  return (
-    <article className="group overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-xl">
-      <div className="relative border-b border-border bg-black p-6 text-white sm:p-8 print:bg-white print:text-black">
-        <div className="absolute inset-0 opacity-40 [background:radial-gradient(circle_at_20%_10%,white,transparent_18%),linear-gradient(135deg,transparent,rgba(255,255,255,.14))]" />
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-white/55 print:text-black/50">FYNX Funded</p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{getCertificateTitle(certificate.type)}</h2>
-          </div>
-          <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/20 bg-white/10"><Icon size={28} /></div>
-        </div>
-        <div className="relative mt-10 rounded-2xl border border-white/15 bg-white/[0.06] p-5 print:border-black/20">
-          <p className="text-sm text-white/55 print:text-black/50">Awarded to</p>
-          <p className="mt-1 text-3xl font-semibold">{certificate.traderName}</p>
-          <p className="mt-4 text-sm leading-6 text-white/60 print:text-black/60">For verified progress on {certificate.challengeType} with account {certificate.accountId}.</p>
-        </div>
-      </div>
-
-      <div className="space-y-5 p-6 sm:p-8">
-        <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
-          <Info label="Account ID" value={certificate.accountId} />
-          <Info label="Challenge" value={certificate.challengeType} />
-          <Info label="Account Size" value={money(certificate.accountSize)} />
-          <Info label="Passed" value={date(certificate.passedDate)} />
-          <Info label="Funded" value={date(certificate.fundedDate)} />
-          <Info label="Profit Split" value={certificate.profitSplit || "—"} />
-        </div>
-
-        {certificate.rulesSnapshot && (
-          <div className="rounded-2xl border border-border bg-secondary/30 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">Objectives snapshot</p>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
-              <Info label="Target" value={certificate.rulesSnapshot.profitTargets.join(" / ")} />
-              <Info label="Daily Loss" value={certificate.rulesSnapshot.dailyLoss} />
-              <Info label="Max Loss" value={certificate.rulesSnapshot.maxLoss} />
-              <Info label="Min Days" value={String(certificate.rulesSnapshot.minDays)} />
-              <Info label="Split" value={certificate.rulesSnapshot.profitSplit} />
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-3 rounded-2xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Certificate ID</p>
-            <p className="mt-1 break-all font-mono text-sm font-semibold">{certificate.publicVerificationId}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to={`/certificates/verify/${certificate.publicVerificationId}`} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"><ExternalLink size={14} /> Verify</Link>
-            <button onClick={handleDownload} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"><Download size={14} /> PDF</button>
-            <button onClick={handleShare} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"><Share2 size={14} /> Share</button>
-            <button onClick={handleCopy} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-secondary"><Copy size={14} /> Copy</button>
-          </div>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function EmptyCertificateState() {
-  return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-border bg-[linear-gradient(135deg,hsl(var(--secondary)/0.55),hsl(var(--background)))] p-8 text-center shadow-xl sm:py-16">
-      <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-border bg-background shadow-inner"><Award size={36} /></div>
-      <h3 className="mt-6 text-2xl font-semibold">Your certificate vault is ready</h3>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">No certificates are unlocked yet. They will appear automatically only after backend records confirm phase passes, funded status, paid payouts, or eligible milestone events.</p>
-      <div className="mx-auto mt-8 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
-        <EmptyStep title="Pass Phase 1" text="Unlock Challenge Passed from account status and objectives." />
-        <EmptyStep title="Complete Verification" text="Unlock Verification Passed when Phase 2 records are complete." />
-        <EmptyStep title="Get Funded & Paid" text="Unlock funded, payout, split, and scaling certificates from real events." />
-      </div>
-    </div>
-  );
-}
-
-function EmptyStep({ title, text }: { title: string; text: string }) {
-  return <div className="rounded-2xl border border-border bg-background/70 p-4"><p className="font-medium">{title}</p><p className="mt-2 text-sm text-muted-foreground">{text}</p></div>;
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return <div className="min-w-20"><p className="text-2xl font-semibold">{value}</p><p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</p></div>;
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-medium">{value}</p></div>;
-}
+function printCertificate(c:Certificate,name:string){const copy=copyByType[c.type]||copyByType.challenge_passed;const account=c.type==="learning_completion"?"FYNX Academy":c.accountId||"Pending assignment";const phase=c.type==="learning_completion"?`${c.quizAverage||0}% average`:String(c.phase||"Achievement").replace("-"," ");const w=window.open("","_blank","noopener,noreferrer");if(!w){toast.error("Allow pop-ups to download this certificate.");return}w.document.write(`<!doctype html><html><head><title>${safe(getCertificateTitle(c.type))}</title><style>@page{size:landscape;margin:0}*{box-sizing:border-box}body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.cert{width:100vw;height:100vh;padding:42px 54px;background:#0b0e12;color:#fff;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:55px 55px;display:flex;flex-direction:column}.top,.bottom{display:flex;justify-content:space-between;text-transform:uppercase;letter-spacing:2px;color:#888;font-size:12px;border-bottom:1px solid #333;padding-bottom:18px}.bottom{border-top:1px solid #333;border-bottom:0;padding:18px 0 0}.main{flex:1;display:flex;align-items:center}.eye,.verify{color:${copy.accent}}.eye{font-weight:700;text-transform:uppercase;letter-spacing:2px}.name{font-size:58px;margin:28px 0 20px}.text{font-size:18px;line-height:1.7;color:#aaa;max-width:920px}.text strong{color:${copy.accent}}.metrics{display:flex;gap:70px;margin-top:42px}.label{font-size:11px;color:#777;text-transform:uppercase}.value{font-size:19px;margin-top:8px}.verify{font-size:11px}</style></head><body><section class="cert"><div class="top"><span><b style="color:${copy.accent}">●</b> FYNX Funded / Certificates</span><span>Cert_ID: ${safe(c.publicVerificationId)}</span></div><main class="main"><div><div class="eye">${safe(copy.eyebrow)}</div><h1 class="name">${safe(name)}</h1><p class="text">Account <strong>${safe(account)}</strong> ${safe(copy.statement(c))}</p><div class="metrics"><div><div class="label">${c.type==="learning_completion"?"Program":"Phase"}</div><div class="value">${safe(phase)}</div></div><div><div class="label">Reference</div><div class="value">${safe(account)}</div></div><div><div class="label">Date</div><div class="value">${safe(date(c.issuedAt||c.passedDate))}</div></div></div></div></main><div class="bottom"><span>FYNX Funded — Verified ${safe(getCertificateTitle(c.type))}</span><span class="verify">fynxfunded.com/certificates/verify/${safe(c.publicVerificationId)}</span></div></section><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);w.document.close()}
+function Empty(){return <div className="rounded-[1.75rem] border border-dashed bg-secondary/20 p-10 text-center sm:py-16"><Award className="mx-auto text-muted-foreground" size={42}/><h3 className="mt-5 text-2xl font-semibold">Your achievement vault is ready</h3><p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Certificates appear automatically after verified challenge passes, funded status, payouts, milestones, or completion of every Learning Center assessment.</p></div>}
+function Metric({label,value}:{label:string;value:string}){return <div className="min-w-0"><p className="text-[10px] uppercase tracking-[.17em] text-white/35">{label}</p><p className="mt-2 truncate text-sm sm:text-base">{value}</p></div>}
+function Stat({label,value}:{label:string;value:number}){return <div><p className="text-2xl font-semibold">{value}</p><p className="text-[10px] uppercase tracking-[.2em] text-white/40">{label}</p></div>}

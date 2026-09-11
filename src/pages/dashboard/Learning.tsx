@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { BookOpen, TrendingUp, Landmark, Globe, Shield, BarChart3, AlertTriangle, Brain, ChevronRight, ArrowLeft, Search } from "lucide-react";
+import { Link } from "react-router-dom";
+import { httpsCallable } from "firebase/functions";
+import { toast } from "sonner";
+import { functions } from "@/lib/firebase";
 
 const categories = [
   {
@@ -194,8 +198,10 @@ export default function Learning() {
   const [view, setView] = useState<ViewState>({ type: "library" });
   const [search, setSearch] = useState("");
   const [quizState, setQuizState] = useState<{ answers: Record<number, number>; submitted: boolean }>({ answers: {}, submitted: false });
+  const [submitting, setSubmitting] = useState(false);
+  const [savedResult, setSavedResult] = useState<{ percent: number; passed: boolean; completedAll: boolean; certificateId?: string | null } | null>(null);
 
-  const resetQuiz = () => setQuizState({ answers: {}, submitted: false });
+  const resetQuiz = () => { setQuizState({ answers: {}, submitted: false }); setSavedResult(null); };
 
   // Library view
   if (view.type === "library") {
@@ -491,29 +497,36 @@ export default function Learning() {
 
         {!quizState.submitted ? (
           <button
-            onClick={() => setQuizState((s) => ({ ...s, submitted: true }))}
-            disabled={Object.keys(quizState.answers).length < quiz.questions.length}
+            onClick={async () => {
+              if (!functions) { toast.error("Learning progress cannot connect to Firebase."); return; }
+              setSubmitting(true);
+              try {
+                const orderedAnswers = quiz.questions.map((_, index) => quizState.answers[index]);
+                const response = await httpsCallable(functions, "submitLearningQuiz")({ quizId: quiz.id, answers: orderedAnswers });
+                const result = response.data as { percent: number; passed: boolean; completedAll: boolean; certificateId?: string | null };
+                setSavedResult(result);
+                setQuizState((state) => ({ ...state, submitted: true }));
+                if (result.completedAll) toast.success("Learning program completed — your certificate is ready.");
+                else if (result.passed) toast.success("Assessment passed and progress saved.");
+                else toast.error("A score of 80% is required. Review the lesson and try again.");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message.replace(/^FirebaseError:\s*/, "") : "Your result could not be saved.");
+              } finally { setSubmitting(false); }
+            }}
+            disabled={submitting || Object.keys(quizState.answers).length < quiz.questions.length}
             className="px-6 py-2.5 bg-foreground text-background rounded-md text-sm font-medium hover:bg-foreground/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Submit Answers
+            {submitting ? "Checking & saving…" : "Submit Answers"}
           </button>
         ) : (
-          <div className="premium-card flex items-center justify-between">
+          <div className="premium-card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold">Score: {score}/{quiz.questions.length}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {score === quiz.questions.length ? "Perfect score!" : score >= quiz.questions.length * 0.6 ? "Good job!" : "Keep studying!"}
+                {savedResult?.completedAll ? "All assessments passed. Your verified education certificate is ready." : savedResult?.passed ? "Assessment passed. Complete all three assessments to unlock your certificate." : "80% is required. Review the material and try again."}
               </p>
             </div>
-            <button
-              onClick={() => {
-                resetQuiz();
-                setView({ type: "category", categoryId: view.categoryId });
-              }}
-              className="text-sm border border-border px-4 py-2 rounded-md hover:bg-secondary transition-colors"
-            >
-              Back to {cat.title}
-            </button>
+            <div className="flex gap-2">{savedResult?.completedAll && <Link to="/dashboard/certificates" className="rounded-md bg-foreground px-4 py-2 text-sm text-background">View certificate</Link>}<button onClick={() => { resetQuiz(); if(savedResult?.passed)setView({ type: "category", categoryId: view.categoryId }); }} className="text-sm border border-border px-4 py-2 rounded-md hover:bg-secondary transition-colors">{savedResult?.passed ? `Back to ${cat.title}` : "Try again"}</button></div>
           </div>
         )}
       </div>

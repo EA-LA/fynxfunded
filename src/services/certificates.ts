@@ -14,9 +14,10 @@ export const CERTIFICATE_TYPE_LABELS: Record<CertificateType, string> = {
   scaling_plan: "Scaling Plan Certificate",
   profit_split: "Profit Split Certificate",
   account_completion: "Account Completion Certificate",
+  learning_completion: "Trading Education Certificate",
 };
 
-export const CERTIFICATE_TYPE_GROUP: Record<CertificateType, "Passed" | "Funded" | "Payouts" | "Milestones"> = {
+export const CERTIFICATE_TYPE_GROUP: Record<CertificateType, "Passed" | "Funded" | "Payouts" | "Milestones" | "Learning"> = {
   challenge_passed: "Passed",
   verification_passed: "Passed",
   funded_trader: "Funded",
@@ -27,6 +28,7 @@ export const CERTIFICATE_TYPE_GROUP: Record<CertificateType, "Passed" | "Funded"
   top_trader: "Milestones",
   scaling_plan: "Milestones",
   account_completion: "Milestones",
+  learning_completion: "Learning",
 };
 
 export function getCertificateTitle(type: CertificateType) {
