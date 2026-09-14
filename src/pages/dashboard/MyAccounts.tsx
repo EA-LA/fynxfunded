@@ -62,7 +62,7 @@ export default function MyAccounts() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Broker Account</p>
-                  <p className="font-medium text-muted-foreground">{ch.brokerAccountId || "Pending"}</p>
+                  <p className="font-medium text-muted-foreground">{ch.accountReference || ch.brokerAccountId || "Pending"}</p>
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-end gap-2 text-xs font-semibold">Open account workspace <ArrowRight size={14} className="transition-transform group-hover:translate-x-1"/></div>

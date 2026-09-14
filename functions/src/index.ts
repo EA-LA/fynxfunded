@@ -16,4 +16,6 @@ export { adminChallengeProgression, evaluateAutomaticProgressionOnTrade } from "
 
 export { sendProgressionOutcomeEmail } from "./progressionNotifications";
 
+export { sendBrokerCredentialsEmail } from "./credentialDelivery";
+
 export { submitLearningQuiz } from "./learningCertificates";
