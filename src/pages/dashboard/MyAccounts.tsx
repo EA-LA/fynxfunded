@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { dataService } from "@/services/database";
 import { useState, useEffect } from "react";
 import type { Challenge } from "@/services/types";
+import { publicAccountReference } from "@/lib/publicReferences";
 
 export default function MyAccounts() {
   const { user } = useAuth();
@@ -40,7 +41,7 @@ export default function MyAccounts() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold">{ch.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">{ch.challengeId}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Account {publicAccountReference(ch)}</p>
                 </div>
                 <span className={`text-xs font-medium px-3 py-1 rounded-full ${
                   ch.status === "active" ? "bg-secondary text-foreground" :

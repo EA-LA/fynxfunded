@@ -9,6 +9,15 @@ const mailgunApiKey = defineSecret("MAILGUN_API_KEY");
 const MAILGUN_DOMAIN = "mail.fynxfunded.com";
 const MAILGUN_SENDER = "FYNX Funded <security@mail.fynxfunded.com>";
 
+function publicNumber(value: string, prefix: "FYNX" | "FX", digits: number) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${prefix}-${String(Math.abs(hash >>> 0) % (10 ** digits)).padStart(digits, "0")}`;
+}
+
 export const stripeWebhook = onRequest(
   { region: "us-central1", secrets: [stripeSecretKey, webhookSecret, mailgunApiKey], invoker: "public" },
   async (req, res) => {
@@ -54,6 +63,8 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
   const eventRef = db.collection("stripe_events").doc(eventId);
   const phaseLabel = `${phase}-phase`;
   const challengeName = `$${accountSize.toLocaleString("en-US")} ${phase}-phase challenge`;
+  const orderNumber = publicNumber(session.id, "FYNX", 8);
+  const accountReference = publicNumber(session.id, "FX", 6);
 
   const email = session.customer_details?.email || session.customer_email || "";
   const shouldSendEmail = await db.runTransaction(async (transaction) => {
@@ -62,6 +73,7 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
 
     transaction.set(orderRef, {
       userId,
+      orderNumber,
       challengeId: challengeRef.id,
       amount: (session.amount_total || 0) / 100,
       currency: (session.currency || "usd").toUpperCase(),
@@ -79,6 +91,7 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
 
     transaction.set(challengeRef, {
       userId,
+      accountReference,
       orderId: orderRef.id,
       name: challengeName,
       phase: phaseLabel,
@@ -103,7 +116,7 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
   if (!shouldSendEmail) return;
   await sendPurchaseConfirmation(email, {
     challengeName,
-    orderReference: session.id,
+    orderReference: orderNumber,
     amount: (session.amount_total || 0) / 100,
     currency: (session.currency || "usd").toUpperCase(),
   });
@@ -137,7 +150,7 @@ function purchaseEmailHtml(details: { challengeName: string; orderReference: str
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#080808;border:1px solid #303030;border-radius:13px;padding:6px 18px;">
 <tr><td style="padding:14px 0;border-bottom:1px solid #2d2d2d;color:#a3a3a3;font-size:13px;">Challenge</td><td style="padding:14px 0;border-bottom:1px solid #2d2d2d;color:#ffffff;font-size:13px;font-weight:600;text-align:right;">${challengeName}</td></tr>
 <tr><td style="padding:14px 0;border-bottom:1px solid #2d2d2d;color:#a3a3a3;font-size:13px;">Total paid</td><td style="padding:14px 0;border-bottom:1px solid #2d2d2d;color:#ffffff;font-size:13px;font-weight:600;text-align:right;">${total}</td></tr>
-<tr><td style="padding:14px 0;color:#a3a3a3;font-size:13px;">Order reference</td><td style="padding:14px 0;color:#ffffff;font-size:11px;font-weight:600;text-align:right;word-break:break-all;">${orderReference}</td></tr>
+<tr><td style="padding:14px 0;color:#a3a3a3;font-size:13px;">Receipt number</td><td style="padding:14px 0;color:#ffffff;font-size:13px;font-weight:700;text-align:right;white-space:nowrap;">${orderReference}</td></tr>
 </table>
 <div style="margin:24px 0;padding:16px 18px;border-left:3px solid #ffffff;background:#1a1a1a;border-radius:8px;color:#cfcfcf;font-size:13px;line-height:1.6;"><strong style="color:#ffffff;">What happens next?</strong><br>Your trading account credentials will be emailed separately and displayed in your dashboard as soon as account provisioning is complete.</div>
 <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:10px;background:#ffffff;"><a href="https://www.fynxfunded.com/dashboard" style="display:inline-block;padding:14px 22px;color:#000000;text-decoration:none;font-size:14px;font-weight:800;">Open your dashboard&nbsp; →</a></td></tr></table>
@@ -147,7 +160,7 @@ function purchaseEmailHtml(details: { challengeName: string; orderReference: str
 }
 
 async function sendPurchaseConfirmation(email: string, details: { challengeName: string; orderReference: string; amount: number; currency: string }) {
-  const text = `Thank you for your purchase. Your ${details.challengeName} order is confirmed. Total paid: ${details.currency} ${details.amount.toFixed(2)}. Your trading account credentials will be emailed separately and displayed in your dashboard as soon as account provisioning is complete. Order reference: ${details.orderReference}`;
+  const text = `Thank you for your purchase. Your ${details.challengeName} order is confirmed. Total paid: ${details.currency} ${details.amount.toFixed(2)}. Your trading account credentials will be emailed separately and displayed in your dashboard as soon as account provisioning is complete. Receipt number: ${details.orderReference}`;
   const form = new URLSearchParams({
     from: MAILGUN_SENDER,
     to: email,

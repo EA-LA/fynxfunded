@@ -1,43 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { generateReceipt } from "@/services/payments";
-import type { Order } from "@/services/types";
+import { createReceiptPdf } from "@/services/payments";
+import { displayDate, isInternalReference, publicAccountReference, publicOrderReference } from "@/lib/publicReferences";
 
-const order: Order = {
-  orderId: "order_FYNX_1001",
-  userId: "user_1",
-  challengeId: "challenge_1",
-  amount: 79,
+const order = {
+  orderId: "cs_test_a16R2x1s97X7oTwfFFc0D8o4wF4aGkZKkz7Y4WUYKIcRYG4bYnn6TZBl51",
+  amount: 199,
   currency: "USD",
-  paymentMethod: "card",
+  paymentMethod: "card" as const,
   status: "paid",
   createdAt: "2026-09-09T12:00:00.000Z",
-  paidAt: "2026-09-09T12:01:00.000Z",
-  challenge: "$10K 2-Phase Challenge",
-  accountSize: 10_000,
+  challenge: "$25,000 2-phase challenge",
+  accountSize: 25_000,
   phase: "2-phase",
-  style: "normal",
 };
 
-describe("payment receipts", () => {
-  it("includes the immutable order and payment facts", () => {
-    const receipt = generateReceipt(order);
-    expect(receipt).toContain("order_FYNX_1001");
-    expect(receipt).toContain("$10K 2-Phase Challenge");
-    expect(receipt).toContain("Account Size: $10,000");
-    expect(receipt).toContain("Method:       Credit/Debit Card");
-    expect(receipt).toContain("Amount:       $79");
-    expect(receipt).toContain("Status:       PAID");
+describe("customer-facing references", () => {
+  it("never exposes a Stripe Checkout session ID", () => {
+    const receipt = publicOrderReference(order);
+    expect(receipt).toMatch(/^FYNX-\d{8}$/);
+    expect(receipt).not.toContain("cs_test");
+    expect(isInternalReference(order.orderId)).toBe(true);
   });
 
-  it.each([
-    ["paypal", "PayPal"],
-    ["apple", "Apple Pay"],
-    ["crypto", "Cryptocurrency"],
-  ] as const)("formats %s payments", (paymentMethod, expected) => {
-    expect(generateReceipt({ ...order, paymentMethod })).toContain(`Method:       ${expected}`);
+  it("creates stable, short account references", () => {
+    const first = publicAccountReference({ challengeId: order.orderId });
+    expect(first).toMatch(/^FX-\d{6}$/);
+    expect(publicAccountReference({ challengeId: order.orderId })).toBe(first);
   });
 
-  it("contains the required simulated-trading disclosure", () => {
-    expect(generateReceipt(order)).toContain("This is a simulated trading evaluation.");
+  it("does not display Invalid Date", () => {
+    expect(displayDate("not-a-date")).toBe("Payment confirmed");
+  });
+});
+
+describe("PDF receipt", () => {
+  it("creates one real A4 PDF page", async () => {
+    const pdf = await createReceiptPdf(order);
+    expect(pdf.getNumberOfPages()).toBe(1);
+    const bytes = pdf.output("arraybuffer");
+    expect(bytes.byteLength).toBeGreaterThan(5_000);
+    expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe("%PDF");
   });
 });

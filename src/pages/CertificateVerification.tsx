@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Award, BadgeCheck, ExternalLink, ShieldCheck } from "lucide-react";
 import { getCertificateByPublicId, getCertificateTitle } from "@/services/certificates";
 import type { Certificate } from "@/services/types";
+import { publicAccountReference } from "@/lib/publicReferences";
 
 function money(value?: number) {
   return typeof value === "number" ? `$${value.toLocaleString()}` : "—";
@@ -12,6 +13,11 @@ function date(value?: unknown) {
   if (!value) return "—";
   const parsed = typeof value === "object" && value !== null && "toDate" in value ? (value as { toDate: () => Date }).toDate() : new Date(value as string);
   return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
+}
+
+function recipientName(certificate: Certificate) {
+  const name = certificate.traderName?.trim();
+  return name && !name.includes("@") && name.toLowerCase() !== "trader" ? name : "FYNX Trader";
 }
 
 export default function CertificateVerification() {
@@ -49,10 +55,10 @@ export default function CertificateVerification() {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
                   <p className="text-sm text-white/50">Awarded to</p>
-                  <p className="mt-1 text-3xl font-semibold">{certificate.traderName}</p>
+                  <p className="mt-1 text-3xl font-semibold">{recipientName(certificate)}</p>
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
                     <Info label="Certificate ID" value={certificate.publicVerificationId} />
-                    <Info label="Account ID" value={certificate.accountId} />
+                    <Info label="Account" value={certificate.type === "learning_completion" ? "FYNX Academy" : publicAccountReference({ accountId: certificate.accountId, challengeId: certificate.challengeId })} />
                     <Info label="Challenge" value={certificate.challengeType} />
                     <Info label="Account Size" value={money(certificate.accountSize)} />
                     <Info label="Passed Date" value={date(certificate.passedDate)} />

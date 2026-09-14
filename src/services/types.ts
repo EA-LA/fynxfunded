@@ -30,6 +30,7 @@ export type KycStatus = "not_started" | "pending" | "verified" | "rejected";
 // ── Orders ────────────────────────────────────────────────
 export interface Order {
   orderId: string;
+  orderNumber?: string;
   userId: string;
   challengeId: string;
   amount: number;
@@ -50,6 +51,7 @@ export type PaymentMethodType = "card" | "paypal" | "apple" | "crypto";
 // ── Challenges ────────────────────────────────────────────
 export interface Challenge {
   challengeId: string;
+  accountReference?: string;
   userId: string;
   orderId: string;
   name: string;

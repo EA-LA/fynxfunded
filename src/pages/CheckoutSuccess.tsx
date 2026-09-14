@@ -5,6 +5,7 @@ import { dataService } from "@/services/database";
 import { downloadReceipt } from "@/services/payments";
 import type { Order } from "@/services/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
+import { displayDate, publicOrderReference } from "@/lib/publicReferences";
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
@@ -106,11 +107,11 @@ export default function CheckoutSuccess() {
 
         {order && (
           <div className="premium-card space-y-3 text-sm mb-6">
-            <DetailRow label="Order ID" value={order.orderId} mono />
+            <DetailRow label="Receipt number" value={publicOrderReference(order)} mono />
             <DetailRow label="Challenge" value={order.challenge} />
             <DetailRow label="Amount" value={`$${order.amount}`} />
             <DetailRow label="Payment Method" value={order.paymentMethod} />
-            <DetailRow label="Date" value={new Date(order.createdAt).toLocaleDateString()} />
+            <DetailRow label="Date" value={displayDate(order.paidAt || order.createdAt)} />
             <DetailRow label="Status" value={order.status.toUpperCase()} />
           </div>
         )}
@@ -118,7 +119,7 @@ export default function CheckoutSuccess() {
         <div className="flex flex-col sm:flex-row gap-3">
           {order && (
             <button
-              onClick={() => downloadReceipt(order)}
+              onClick={() => void downloadReceipt(order)}
               className="flex-1 border border-border px-4 py-2.5 rounded-md text-sm font-medium hover:bg-secondary transition-colors inline-flex items-center justify-center gap-2"
             >
               <Download size={14} /> Download Receipt
@@ -147,9 +148,9 @@ export default function CheckoutSuccess() {
 
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex min-w-0 items-start justify-between gap-6">
       <span className="text-muted-foreground">{label}</span>
-      <span className={`font-medium ${mono ? "font-mono text-xs" : ""}`}>{value}</span>
+      <span className={`min-w-0 text-right font-medium ${mono ? "font-mono text-xs" : ""}`}>{value}</span>
     </div>
   );
 }

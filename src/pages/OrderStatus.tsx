@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { FileText, CheckCircle2, XCircle, Clock, ArrowLeft, RefreshCw } from "lucide-react";
+import { displayDate, publicOrderReference } from "@/lib/publicReferences";
 
 export default function OrderStatus() {
   const raw = localStorage.getItem("fynx_last_order");
@@ -51,7 +52,7 @@ export default function OrderStatus() {
             </div>
             <div>
               <h3 className="font-semibold">{order.challenge}</h3>
-              <p className="text-xs text-muted-foreground">Order {order.id}</p>
+              <p className="text-xs text-muted-foreground">Receipt {publicOrderReference(order)}</p>
             </div>
             <span className={`ml-auto text-xs font-medium px-3 py-1 rounded-full bg-secondary ${sc.color}`}>
               {order.status}
@@ -59,8 +60,8 @@ export default function OrderStatus() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4 text-sm">
-            <Row label="Order ID" value={order.id} />
-            <Row label="Date" value={new Date(order.date).toLocaleDateString()} />
+            <Row label="Receipt number" value={publicOrderReference(order)} />
+            <Row label="Date" value={displayDate(order.date)} />
             <Row label="Amount" value={`$${order.amount}`} />
             <Row label="Payment Method" value={order.method} />
             <Row label="Account Size" value={`$${order.accountSize?.toLocaleString()}`} />

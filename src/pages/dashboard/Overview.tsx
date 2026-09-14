@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { dataService } from "@/services/database";
 import { useState, useEffect } from "react";
 import type { Challenge, TradingAccount } from "@/services/types";
+import { displayDate, publicAccountReference } from "@/lib/publicReferences";
 
 export default function DashboardOverview() {
   const { user } = useAuth();
@@ -81,7 +82,7 @@ export default function DashboardOverview() {
                 <div>
                   <p className="text-sm font-medium">{ch.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    ${ch.accountSize.toLocaleString()} · {ch.phase.replace("-", " ")} · Started {new Date(ch.startDate).toLocaleDateString()}
+                    ${ch.accountSize.toLocaleString()} · {ch.phase.replace("-", " ")} · Started {displayDate(ch.startDate)}
                   </p>
                 </div>
                 <div className="flex items-center gap-3"><span className={`text-xs font-medium px-3 py-1 rounded-full ${
@@ -111,7 +112,7 @@ function ActiveDashboard({ challenge, account }: { challenge: Challenge; account
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="font-semibold text-lg">{challenge.name}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Challenge: {challenge.challengeId}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Account {publicAccountReference(challenge)}</p>
           </div>
           <span className="text-xs font-medium px-3 py-1 rounded-full bg-secondary text-foreground">
             {challenge.status.charAt(0).toUpperCase() + challenge.status.slice(1)}
@@ -128,7 +129,7 @@ function ActiveDashboard({ challenge, account }: { challenge: Challenge; account
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Start Date</p>
-            <p className="font-medium">{new Date(challenge.startDate).toLocaleDateString()}</p>
+            <p className="font-medium">{displayDate(challenge.startDate)}</p>
           </div>
         </div>
       </div>
