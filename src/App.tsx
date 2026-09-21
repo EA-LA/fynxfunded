@@ -1,3 +1,4 @@
+import SearchMetadata from "./components/SearchMetadata";
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -31,7 +32,7 @@ export default function App() {
   const platform = showPlatform();
   return <ThemeProvider><I18nProvider><QueryClientProvider client={queryClient}><TooltipProvider>
     <Toaster /><Sonner />
-    <BrowserRouter basename={routerBasename}><Suspense fallback={<RouteLoader />}>
+    <BrowserRouter basename={routerBasename}><SearchMetadata platform={platform} /><Suspense fallback={<RouteLoader />}>
       {platform ? <PlatformRoutes /> : <Routes><Route path="*" element={<WaitlistLanding />} /></Routes>}
     </Suspense></BrowserRouter>
   </TooltipProvider></QueryClientProvider></I18nProvider></ThemeProvider>;

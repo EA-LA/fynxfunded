@@ -7,39 +7,219 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://ipapi.co https://api.ipify.org; frame-src https://*.firebaseapp.com https://*.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(), geolocation=(), payment=(self)" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://ipapi.co https://api.ipify.org; frame-src https://*.firebaseapp.com https://*.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=(), payment=(self)"
+        }
+      ]
+    },
+    {
+      "source": "/admin",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/login",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/signup",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/forgot-password",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/reset-password",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/checkout/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/order-status",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/verification",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/certificates/verify/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
       ]
     }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/how-it-works", "destination": "/index.html" },
-    { "source": "/challenges", "destination": "/index.html" },
-    { "source": "/rules", "destination": "/index.html" },
-    { "source": "/payouts", "destination": "/index.html" },
-    { "source": "/faq", "destination": "/index.html" },
-    { "source": "/login", "destination": "/index.html" },
-    { "source": "/signup", "destination": "/index.html" },
-    { "source": "/forgot-password", "destination": "/index.html" },
-    { "source": "/reset-password", "destination": "/index.html" },
-    { "source": "/terms", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/index.html" },
-    { "source": "/risk-disclosure", "destination": "/index.html" },
-    { "source": "/refund-policy", "destination": "/index.html" },
-    { "source": "/aml-kyc", "destination": "/index.html" },
-    { "source": "/challenge-builder", "destination": "/index.html" },
-    { "source": "/checkout", "destination": "/index.html" },
-    { "source": "/checkout/success", "destination": "/index.html" },
-    { "source": "/checkout/failure", "destination": "/index.html" },
-    { "source": "/order-status", "destination": "/index.html" },
-    { "source": "/verification", "destination": "/index.html" },
-    { "source": "/certificates/verify/:certificateId", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" },
-    { "source": "/dashboard", "destination": "/index.html" },
-    { "source": "/dashboard/:path*", "destination": "/index.html" }
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/how-it-works",
+      "destination": "/seo/how-it-works.html"
+    },
+    {
+      "source": "/challenges",
+      "destination": "/seo/challenges.html"
+    },
+    {
+      "source": "/rules",
+      "destination": "/seo/rules.html"
+    },
+    {
+      "source": "/payouts",
+      "destination": "/seo/payouts.html"
+    },
+    {
+      "source": "/faq",
+      "destination": "/seo/faq.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/signup",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/seo/terms.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/seo/privacy.html"
+    },
+    {
+      "source": "/risk-disclosure",
+      "destination": "/seo/risk-disclosure.html"
+    },
+    {
+      "source": "/refund-policy",
+      "destination": "/seo/refund-policy.html"
+    },
+    {
+      "source": "/aml-kyc",
+      "destination": "/seo/aml-kyc.html"
+    },
+    {
+      "source": "/challenge-builder",
+      "destination": "/seo/challenge-builder.html"
+    },
+    {
+      "source": "/checkout",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/checkout/success",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/checkout/failure",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/order-status",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/verification",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/certificates/verify/:certificateId",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard/:path*",
+      "destination": "/index.html"
+    }
   ]
 }
