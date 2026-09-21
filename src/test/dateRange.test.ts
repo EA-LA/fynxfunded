@@ -1,20 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { filterByDateRange, rangeStart } from "@/lib/dateRange";
 
-const now = new Date("2026-09-10T12:00:00-07:00");
+// The product uses local calendar days, so fixtures must use the runner's local zone too.
+const now = new Date(2026, 8, 10, 12);
 const records = [
-  { id: "today", closed: "2026-09-10T09:00:00-07:00" },
-  { id: "seven-day-edge", closed: "2026-09-04T00:00:00-07:00" },
-  { id: "older-than-seven", closed: "2026-09-03T23:59:59-07:00" },
-  { id: "within-thirty", closed: "2026-08-12T08:00:00-07:00" },
-  { id: "older-than-thirty", closed: "2026-08-11T23:59:59-07:00" },
+  { id: "today", closed: new Date(2026, 8, 10, 9) },
+  { id: "seven-day-edge", closed: new Date(2026, 8, 4) },
+  { id: "older-than-seven", closed: new Date(2026, 8, 3, 23, 59, 59) },
+  { id: "within-thirty", closed: new Date(2026, 7, 12, 8) },
+  { id: "older-than-thirty", closed: new Date(2026, 7, 11, 23, 59, 59) },
   { id: "invalid", closed: "not-a-date" },
 ];
 
 describe("analytics date ranges", () => {
   it("uses inclusive calendar-day boundaries", () => {
-    expect(rangeStart("7D", now)?.toISOString()).toBe("2026-09-04T07:00:00.000Z");
-    expect(rangeStart("30D", now)?.toISOString()).toBe("2026-08-12T07:00:00.000Z");
+    expect(rangeStart("7D", now)).toEqual(new Date(2026, 8, 4));
+    expect(rangeStart("30D", now)).toEqual(new Date(2026, 7, 12));
   });
 
   it("returns only records in the selected period", () => {
