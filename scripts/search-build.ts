@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 import pages from '../src/lib/search-pages.json';
 
-// Generate route-specific initial metadata. Keep the waitlist launch gate intact.
+// Generate route-specific initial metadata. The platform is open for browsing.
 export function searchBuild(platform: boolean): Plugin {
   let output = '';
   return {

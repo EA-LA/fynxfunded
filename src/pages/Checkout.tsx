@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CreditCard, Wallet, Apple, Globe2, Lock, Shield } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
-import { useAuth } from "@/contexts/AuthContext";
+import PaymentHold from "@/components/PaymentHold";
 import type { PaymentMethodType } from "@/services/types";
-import { auth as firebaseAuth } from "@/lib/firebase";
 
 const cryptoOptions = [
   { id: "btc", label: "Bitcoin (BTC)" },
@@ -13,30 +12,11 @@ const cryptoOptions = [
   { id: "usdc", label: "USD Coin (USDC)" },
 ];
 
-/** Map account size number → price map key prefix */
-function accountSizeToKey(size: number): string {
-  if (size >= 200000) return "200k";
-  if (size >= 100000) return "100k";
-  if (size >= 50000) return "50k";
-  if (size >= 25000) return "25k";
-  if (size >= 10000) return "10k";
-  return "5k";
-}
-
-/** Map phase string → phase number for price map */
-function phaseToNumber(phase: string): string {
-  if (phase === "1-phase") return "1";
-  if (phase === "2-phase") return "2";
-  if (phase === "3-phase") return "3";
-  return "2";
-}
-
 export default function Checkout() {
   const [params] = useSearchParams();
   const [method, setMethod] = useState<PaymentMethodType>("card");
-  const [processing, setProcessing] = useState(false);
+  const [holdOpen, setHoldOpen] = useState(false);
   const [cryptoCoin, setCryptoCoin] = useState("usdt");
-  const { user } = useAuth();
 
   const sizeIdx = parseInt(params.get("size") || "1");
   const phase = (params.get("phase") || "2-phase") as "1-phase" | "2-phase" | "3-phase";
@@ -44,63 +24,8 @@ export default function Checkout() {
   const currency = params.get("currency") || "USD";
 
   const config = challengeConfigs[sizeIdx] || challengeConfigs[1];
-  const phaseConfig = config.phases[phase];
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-    "https://us-central1-fynx-c7a28.cloudfunctions.net";
-
-  /** Stripe: create checkout session and redirect */
-  const handleStripeCheckout = async () => {
-    if (!user) return;
-    setProcessing(true);
-    try {
-      const sizeKey = accountSizeToKey(config.accountSize);
-      const phaseNum = phaseToNumber(phase);
-
-      const idToken = await firebaseAuth?.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Please sign in again before checking out.");
-      const res = await fetch(`${apiBase}/createCheckoutSession`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          accountSize: sizeKey,
-          phase: phaseNum,
-          style,
-          currency,
-        }),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Stripe checkout failed (${res.status}): ${txt}`);
-      }
-
-      const data = await res.json();
-      if (data.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = data.url;
-      } else {
-        throw new Error("No checkout URL returned from Stripe.");
-      }
-    } catch (err: any) {
-      console.error("[Checkout] Stripe error:", err);
-      alert(err?.message || "Payment failed. Please try again.");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  /** Handle pay button click for non-PayPal methods */
-  const handlePay = async () => {
-    if (!user) return;
-
-    if (method === "card") {
-      await handleStripeCheckout();
-      return;
-    }
-
-    // Apple Pay and Crypto are not connected yet
-    alert(`${method === "apple" ? "Apple Pay" : method === "paypal" ? "PayPal" : "Crypto"} payment gateway is not connected yet. Please use Card.`);
-  };
+  const phaseConfig = config.phases[phase] || config.phases["2-phase"];
+  const handlePay = () => setHoldOpen(true);
 
   const methods: { id: PaymentMethodType; label: string; icon: React.ReactNode }[] = [
     { id: "card", label: "Credit / Debit Card", icon: <CreditCard size={18} /> },
@@ -111,6 +36,7 @@ export default function Checkout() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PaymentHold open={holdOpen} onOpenChange={setHoldOpen} />
       <header className="border-b border-border">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="text-lg font-bold tracking-tight">
@@ -130,7 +56,7 @@ export default function Checkout() {
           <Lock size={16} className="text-muted-foreground" />
           <h1 className="text-2xl font-bold tracking-tight">Secure Checkout</h1>
         </div>
-        <p className="text-sm text-muted-foreground mb-8">Complete your challenge purchase.</p>
+        <p className="text-sm text-muted-foreground mb-8">Explore your challenge details. Payments will open once we finish the final step.</p>
 
         <div className="grid lg:grid-cols-5 gap-8">
           {/* Payment form */}
@@ -162,7 +88,7 @@ export default function Checkout() {
                 <div className="text-center py-4">
                   <CreditCard size={32} className="mx-auto text-muted-foreground mb-3" />
                   <p className="text-sm font-medium mb-1">Credit / Debit Card</p>
-                  <p className="text-xs text-muted-foreground">You'll be redirected to Stripe's secure checkout to complete payment.</p>
+                  <p className="text-xs text-muted-foreground">Payments are temporarily on hold while we finish the final step.</p>
                 </div>
               </div>
             )}
@@ -171,7 +97,7 @@ export default function Checkout() {
               <div className="premium-card animate-fade-in text-center py-8">
                 <Globe2 size={32} className="mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm font-medium mb-1">PayPal</p>
-                <p className="text-xs text-muted-foreground">PayPal checkout is temporarily disabled while the public platform is in private build mode. Please use Card in preview testing.</p>
+                <p className="text-xs text-muted-foreground">Payments are temporarily on hold while we finish the final step.</p>
               </div>
             )}
 
@@ -179,7 +105,7 @@ export default function Checkout() {
               <div className="premium-card animate-fade-in text-center py-8">
                 <Apple size={32} className="mx-auto text-muted-foreground mb-3" />
                 <p className="text-sm font-medium mb-1">Apple Pay</p>
-                <p className="text-xs text-muted-foreground">Apple Pay gateway is not connected yet. Please use Card.</p>
+                <p className="text-xs text-muted-foreground">Payments are temporarily on hold while we finish the final step.</p>
               </div>
             )}
 
@@ -201,33 +127,23 @@ export default function Checkout() {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-4">Crypto payment gateway is not connected yet. Please use Card.</p>
+                <p className="text-xs text-muted-foreground mt-4">Payments are temporarily on hold while we finish the final step.</p>
               </div>
             )}
 
             {/* Pay button */}
             <button
               onClick={handlePay}
-              disabled={processing}
               className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {processing ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Lock size={14} />
-                  Pay ${phaseConfig.price}
-                </>
-              )}
+              <Lock size={14} />
+              Pay ${phaseConfig.price}
             </button>
 
             <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Shield size={12} /> Secure Payment</span>
+              <span className="flex items-center gap-1"><Shield size={12} /> Payments on hold</span>
               <span>·</span>
-              <span>Payment details handled by Stripe</span>
+              <span>No payment will be taken</span>
             </div>
           </div>
 
