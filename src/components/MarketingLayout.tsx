@@ -33,7 +33,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </div>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden xl:flex items-center gap-5">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
@@ -45,9 +45,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 {t(link.key)}
               </Link>
             ))}
+            <a href="https://www.fynxfinanceworld.com/api/" className="text-sm font-medium text-muted-foreground hover:text-foreground">API</a>
           </div>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden xl:flex items-center gap-2">
             <LanguageSelector />
             <ThemeToggle />
             <Link
@@ -66,7 +67,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
           {/* Mobile toggle */}
           <button
-            className="md:hidden text-foreground"
+            className="xl:hidden text-foreground"
+            aria-label="Toggle navigation"
+            aria-expanded={mobileOpen}
+            aria-controls="marketing-mobile-navigation"
             onClick={() => setMobileOpen(!mobileOpen)}
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -75,7 +79,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
         {/* Mobile menu */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-border bg-background px-6 py-4 space-y-3 animate-fade-in">
+          <div id="marketing-mobile-navigation" className="xl:hidden border-t border-border bg-background px-6 py-4 space-y-3 animate-fade-in">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
@@ -86,6 +90,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 {t(link.key)}
               </Link>
             ))}
+            <a href="https://www.fynxfinanceworld.com/api/" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-muted-foreground hover:text-foreground">API</a>
             <div className="pt-3 border-t border-border flex items-center gap-3">
               <LanguageSelector />
               <ThemeToggle />
@@ -113,6 +118,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 <Link to="/challenges" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.challenges")}</Link>
                 <Link to="/rules" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.rules")}</Link>
                 <Link to="/payouts" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.payouts")}</Link>
+                <a href="https://www.fynxfinanceworld.com/api/" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">FYNX API</a>
+                <a href="https://www.fynxfinanceworld.com/api/docs.html" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">API documentation</a>
+                <a href="https://www.fynxfinanceworld.com/api/pricing.html" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">API pricing</a>
               </div>
             </div>
             <div>
