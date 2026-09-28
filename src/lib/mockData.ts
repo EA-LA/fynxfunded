@@ -135,11 +135,11 @@ export const faqItems = [
   },
   {
     q: "How does the evaluation work?",
-    a: "Our evaluation consists of two phases. In Phase 1, you must reach the profit target while staying within risk limits. Phase 2 confirms your consistency. Pass both and receive a funded account.",
+    a: "The approved new-account schedule offers 1, 2 or 3 phases. Each phase requires its profit target, minimum trading days, 40% consistency and no loss breach. Eligibility requires human review; purchases remain closed. See Trading Rules for each program.",
   },
   {
     q: "What instruments can I trade?",
-    a: "Available instruments depend on the active platform and account configuration. Check the plan and account details shown before trading.",
+    a: "The planned scope is Forex with a USD account ledger. No production pairs or leverage are approved yet. Crypto and other markets are unavailable; the broker catalog is still being verified.",
   },
   {
     q: "How quickly can I get paid?",
@@ -155,7 +155,7 @@ export const faqItems = [
   },
   {
     q: "Can I hold trades over the weekend?",
-    a: "Weekend-holding permissions depend on the instrument, platform, and selected plan. Check the Rules page and your account terms before holding a position.",
+    a: "No universal weekend or overnight permission is offered, including for Swing style. Permissions require the final account terms and verified broker instrument schedule. Purchases remain closed.",
   },
   {
     q: "Is there a time limit to pass the challenge?",

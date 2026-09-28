@@ -21,7 +21,7 @@ export default function Checkout() {
   const sizeIdx = parseInt(params.get("size") || "1");
   const phase = (params.get("phase") || "2-phase") as "1-phase" | "2-phase" | "3-phase";
   const style = params.get("style") || "normal";
-  const currency = params.get("currency") || "USD";
+  const currency = "USD"; // Approved account ledger; URL parameters cannot imply unsupported currencies.
 
   const config = challengeConfigs[sizeIdx] || challengeConfigs[1];
   const phaseConfig = config.phases[phase] || config.phases["2-phase"];
@@ -56,7 +56,7 @@ export default function Checkout() {
           <Lock size={16} className="text-muted-foreground" />
           <h1 className="text-2xl font-bold tracking-tight">Secure Checkout</h1>
         </div>
-        <p className="text-sm text-muted-foreground mb-8">Explore your challenge details. Payments will open once we finish the final step.</p>
+        <p className="text-sm text-muted-foreground mb-8">Challenge preview in USD. Payments are closed; payment methods below are previews and are not currently available.</p>
 
         <div className="grid lg:grid-cols-5 gap-8">
           {/* Payment form */}

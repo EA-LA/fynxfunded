@@ -1,3 +1,4 @@
+import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Lock, Globe2, TrendingUp } from "lucide-react";
@@ -52,6 +53,8 @@ export default function ChallengeBuilder() {
       <div className="max-w-6xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold tracking-tight mb-1">Challenge Builder</h1>
         <p className="text-sm text-muted-foreground mb-8">Configure your evaluation in a few steps.</p>
+
+        <RuleAvailabilityNotice />
 
         {/* Progress */}
         <div className="flex items-center gap-1 mb-10 overflow-x-auto pb-2">
@@ -168,8 +171,8 @@ export default function ChallengeBuilder() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-4">
                   <Globe2 size={12} className="inline mr-1" />
-                  Traders may trade all supported currency pairs within enabled markets.
-                  Forex pairs are fully available. Additional currency instruments will be enabled as new markets launch.
+                  The approved new-account ledger uses USD only; this is separate from a currency pair’s base and quote currencies.
+                  The exact Forex pair list is pending broker verification.
                 </p>
               </div>
             )}
@@ -194,14 +197,14 @@ export default function ChallengeBuilder() {
                       {m.available ? (
                         <span className="text-xs text-foreground/70 mt-1 inline-block">Available</span>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground/60 mt-1 inline-block border border-border rounded px-1.5 py-0.5">Coming Soon</span>
+                        <span className="text-[10px] text-muted-foreground/60 mt-1 inline-block border border-border rounded px-1.5 py-0.5">Not available</span>
                       )}
                     </div>
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground mt-4">
-                  Traders will be able to trade all supported global currencies and instruments under each market category.
-                  Forex is currently live. Other markets are marked Coming Soon and will be enabled as the platform expands.
+                  Forex is the planned scope; no production instruments are approved yet.
+                  Crypto and other markets are unavailable. Launch dates have not been announced.
                 </p>
               </div>
             )}
@@ -244,7 +247,7 @@ export default function ChallengeBuilder() {
                 </label>
 
                 <p className="text-xs text-muted-foreground mt-4 p-3 border border-border rounded-md bg-secondary/30">
-                  We support bank cards and crypto payments (availability may vary by region).
+                  Payments remain closed. Available payment methods will be confirmed before launch.
                 </p>
               </div>
             )}

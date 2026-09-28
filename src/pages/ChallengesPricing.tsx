@@ -1,3 +1,4 @@
+import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import { useState } from "react";
 import MarketingLayout from "@/components/MarketingLayout";
 import { plans, aggressivePlans } from "@/lib/mockData";
@@ -17,6 +18,7 @@ export default function ChallengesPricing() {
   return (
     <MarketingLayout>
       <section className="max-w-7xl mx-auto px-6 py-24 md:py-32">
+        <RuleAvailabilityNotice />
         <div className="text-center mb-16">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight animate-fade-up">
             Challenges & Pricing
@@ -188,7 +190,7 @@ export default function ChallengesPricing() {
                   />
                   <CompareRow
                     label="Weekend Holding"
-                    values={challengeConfigs.map(() => "Swing only")}
+                    values={challengeConfigs.map(() => "Pending account terms")}
                   />
                   <CompareRow
                     label="News Trading"
@@ -196,7 +198,7 @@ export default function ChallengesPricing() {
                   />
                   <CompareRow
                     label="Consistency Rule"
-                    values={challengeConfigs.map(() => "Applied")}
+                    values={challengeConfigs.map(() => "40% of net phase profit")}
                   />
                 </>
               )}
@@ -211,8 +213,8 @@ export default function ChallengesPricing() {
             <div>
               <h3 className="text-sm font-semibold mb-1">Global Market Coverage</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Available instruments and markets depend on the selected plan and connected trading provider. Confirm availability in the plan details before purchase.
-                Forex trading is available now. Additional asset classes — including Crypto, Indices, Stocks, Futures, Options, Bonds, and Funds — are being rolled out in future phases.
+                New-account balances are denominated in USD. The exact Forex pair list, leverage, costs and sessions are pending broker verification.
+                No production instruments are approved yet. Crypto and other asset classes are unavailable, with no announced launch date.
               </p>
             </div>
           </div>

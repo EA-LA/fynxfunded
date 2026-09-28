@@ -1,3 +1,5 @@
+export const RULE_POLICY_VERSION = "fynx-funded-v1";
+
 export interface ChallengeConfig {
   accountSize: number;
   label: string;
@@ -20,71 +22,67 @@ export const challengeConfigs: ChallengeConfig[] = [
     accountSize: 5000,
     label: "$5K",
     phases: {
-      "1-phase": { price: 49, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "75%", refundEligible: true, leverageForex: "1:100" },
-      "2-phase": { price: 39, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
-      "3-phase": { price: 29, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
+      "1-phase": { price: 49, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "75%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "2-phase": { price: 39, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "3-phase": { price: 29, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
     },
   },
   {
     accountSize: 10000,
     label: "$10K",
     phases: {
-      "1-phase": { price: 99, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "75%", refundEligible: true, leverageForex: "1:100" },
-      "2-phase": { price: 79, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
-      "3-phase": { price: 59, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
+      "1-phase": { price: 99, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "75%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "2-phase": { price: 79, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "3-phase": { price: 59, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
     },
   },
   {
     accountSize: 25000,
     label: "$25K",
     phases: {
-      "1-phase": { price: 229, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
-      "2-phase": { price: 199, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
-      "3-phase": { price: 149, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "85%", refundEligible: true, leverageForex: "1:100" },
+      "1-phase": { price: 229, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "2-phase": { price: 199, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "3-phase": { price: 149, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "85%", refundEligible: true, leverageForex: "Pending broker verification" },
     },
   },
   {
     accountSize: 50000,
     label: "$50K",
     phases: {
-      "1-phase": { price: 399, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "80%", refundEligible: true, leverageForex: "1:100" },
-      "2-phase": { price: 349, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "85%", refundEligible: true, leverageForex: "1:100" },
-      "3-phase": { price: 279, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "85%", refundEligible: true, leverageForex: "1:100" },
+      "1-phase": { price: 399, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "80%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "2-phase": { price: 349, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "85%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "3-phase": { price: 279, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "85%", refundEligible: true, leverageForex: "Pending broker verification" },
     },
   },
   {
     accountSize: 100000,
     label: "$100K",
     phases: {
-      "1-phase": { price: 699, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "85%", refundEligible: true, leverageForex: "1:100" },
-      "2-phase": { price: 549, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "1:100" },
-      "3-phase": { price: 449, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "1:100" },
+      "1-phase": { price: 699, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "85%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "2-phase": { price: 549, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "3-phase": { price: 449, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "Pending broker verification" },
     },
   },
   {
     accountSize: 200000,
     label: "$200K",
     phases: {
-      "1-phase": { price: 1199, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "85%", refundEligible: true, leverageForex: "1:100" },
-      "2-phase": { price: 999, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "1:100" },
-      "3-phase": { price: 799, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "1:100" },
+      "1-phase": { price: 1199, profitTargets: ["10%"], dailyLoss: "4%", maxLoss: "8%", minDays: 3, profitSplit: "85%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "2-phase": { price: 999, profitTargets: ["8%", "5%"], dailyLoss: "5%", maxLoss: "10%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "Pending broker verification" },
+      "3-phase": { price: 799, profitTargets: ["6%", "5%", "4%"], dailyLoss: "5%", maxLoss: "12%", minDays: 5, profitSplit: "90%", refundEligible: true, leverageForex: "Pending broker verification" },
     },
   },
 ];
 
 export const accountStyles = [
-  { id: "normal", label: "Normal", desc: "Standard rules. No weekend holding restrictions vary by instrument." },
-  { id: "swing", label: "Swing", desc: "Weekend holding allowed on all instruments. Ideal for swing traders." },
+  { id: "normal", label: "Normal", desc: "Overnight and weekend permissions await the verified broker schedule and final account terms." },
+  { id: "swing", label: "Swing", desc: "Swing preference; this does not grant weekend permission. Final instrument restrictions are pending." },
 ] as const;
 
-export const tradingCurrencies = [
-  "USD", "EUR", "GBP", "CAD", "AUD", "CHF", "JPY", "NZD",
-  "SEK", "NOK", "DKK", "SGD", "HKD", "AED", "SAR", "TRY",
-  "ZAR", "INR", "PKR", "MXN", "BRL", "PLN", "CZK", "HUF",
-] as const;
+export const tradingCurrencies = ["USD"] as const;
 
 export const marketCategories = [
-  { id: "forex", label: "Forex", available: true },
+  { id: "forex", label: "Forex", available: false },
   { id: "crypto", label: "Cryptocurrency", available: false },
   { id: "indices", label: "Indices", available: false },
   { id: "stocks", label: "Stocks", available: false },

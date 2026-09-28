@@ -1,3 +1,4 @@
+import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import MarketingLayout from "@/components/MarketingLayout";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
@@ -7,13 +8,13 @@ const phases = [
     num: "Phase 1",
     title: "Evaluation",
     desc: "Demonstrate your trading ability by reaching the profit target while staying within risk limits.",
-    details: ["Hit 8% profit target", "Stay within 5% daily loss", "Stay within 10% max loss", "Trade minimum 5 days", "No time limit"],
+    details: ["Hit 8% profit target", "Stay within 5% daily loss", "Static maximum loss: 10%", "Trade minimum 5 days", "No time limit"],
   },
   {
     num: "Phase 2",
     title: "Verification",
     desc: "Confirm your consistency with a second round of trading under the same risk parameters.",
-    details: ["Hit 5% profit target", "Same risk limits apply", "Trade minimum 5 days", "Prove consistency", "No time limit"],
+    details: ["Hit 5% profit target", "Same risk limits apply", "Trade minimum 5 days", "Best day at most 40% of net phase profit", "No time limit"],
   },
   {
     num: "Funded",
@@ -27,10 +28,11 @@ export default function HowItWorks() {
   return (
     <MarketingLayout>
       <section className="max-w-7xl mx-auto px-6 py-24 md:py-32">
+        <RuleAvailabilityNotice />
         <div className="max-w-2xl mb-16">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight animate-fade-up">How It Works</h1>
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
-            A transparent, straightforward path from evaluation to funded trader.
+            Two-phase program example below. The 1-phase and 3-phase programs have different targets and limits; see Trading Rules. Purchases remain closed.
           </p>
         </div>
 
