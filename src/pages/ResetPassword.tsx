@@ -5,9 +5,12 @@ import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import { auth as firebaseAuth } from "@/lib/firebase";
 import { mapFirebaseError } from "@/lib/auth-error-map";
 
+import { emailActionRedirect } from "@/lib/email-action-routing";
+
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const actionRedirect = emailActionRedirect(searchParams.toString());
   const oobCode = searchParams.get("oobCode") || "";
 
   const [password, setPassword] = useState("");
@@ -21,6 +24,7 @@ export default function ResetPassword() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (actionRedirect) { window.location.replace(actionRedirect); return; }
     if (!oobCode || !firebaseAuth) {
       setVerifying(false);
       setError("Invalid or missing reset link.");
@@ -35,7 +39,7 @@ export default function ResetPassword() {
         setError(mapFirebaseError(err));
       })
       .finally(() => setVerifying(false));
-  }, [oobCode]);
+  }, [oobCode, actionRedirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +73,8 @@ export default function ResetPassword() {
       setLoading(false);
     }
   };
+
+  if (actionRedirect) return <main className="min-h-screen flex items-center justify-center" role="status">Opening your secure account link…</main>;
 
   return (
     <div className="min-h-screen flex items-center justify-center dot-grid relative px-6">
