@@ -1,3 +1,4 @@
+import EcosystemFooter from "./EcosystemFooter";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -134,6 +135,7 @@ export default function DashboardLayout() {
         <main className="p-6 lg:p-8">
           <EmailVerificationBanner />
           <Outlet />
+          <EcosystemFooter />
         </main>
       </div>
     </div>
