@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:functions": "vitest run --config functions/vitest.config.ts",
-    "check:release": "npm run lint && npm test && npm run test:functions && npm --prefix functions run build && npm run build"
+    "check:release": "npm run lint && npm test && npm run test:functions && npm --prefix functions run build && npx tsc --noEmit -p tsconfig.app.json && npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

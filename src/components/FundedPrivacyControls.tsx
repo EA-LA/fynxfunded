@@ -17,7 +17,7 @@ export default function FundedPrivacyControls() {
         const link = document.createElement("a"); link.href = url; link.download = `fynx-funded-data-${new Date().toISOString().slice(0, 10)}.json`; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         setMessage("Your Funded data export has been downloaded. Keep it somewhere private.");
-      } else setMessage(data.status === "none" ? "You have no deletion request on file." : `Deletion request: ${(data.status ?? "pending_review").replaceAll("_", " ")}. Support must review any required records before deletion; this request does not close your account immediately.`);
+      } else setMessage(data.status === "none" ? "You have no deletion request on file." : `Deletion request: ${(data.status ?? "pending_review").replace(/_/g, " ")}. Support must review any required records before deletion; this request does not close your account immediately.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not complete the request. Please contact Support."); }
     finally { setBusy(false); }
   }

@@ -13,7 +13,7 @@ export default function Trades() {
     return true;
   });
   const total=trades.reduce((s,t)=>s+t.pnl,0),wins=trades.filter(t=>t.pnl>=0).length,lots=trades.reduce((s,t)=>s+t.lots,0);
-  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open","Close","Lots","P/L","Pips","Risk %","R:R","Session"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
+  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open","Close","Lots","P/L","Pips","Risk %","R:R","Session"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
 
   return (
     <div className="space-y-6 animate-fade-up">
