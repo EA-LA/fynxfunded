@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  { ignores: ["dist", "functions/lib"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -26,5 +26,11 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
     },
+  },
+  {
+    // These exact files are generated from the canonical JavaScript policy in
+    // FYNX API. Keep arithmetic identical; parity tests exercise both copies.
+    files: ["functions/src/apiRuleEngine.ts", "functions/src/fundedPolicy.ts", "functions/src/purchasedAgreement.ts", "src/services/api-rule-engine.ts", "src/services/funded-policy.ts"],
+    rules: { "@typescript-eslint/ban-ts-comment": ["error", { "ts-nocheck": false }] },
   },
 );

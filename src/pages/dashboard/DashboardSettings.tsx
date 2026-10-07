@@ -1,3 +1,4 @@
+import FundedPrivacyControls from "@/components/FundedPrivacyControls";
 import { useState, useEffect, useCallback, type ElementType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Shield, ShieldCheck, ShieldAlert, Mail, Smartphone, Monitor, Key, CheckCircle2, AlertTriangle, Globe2, Trash2, LogOut, Copy, Download, X } from "lucide-react";
@@ -593,6 +594,8 @@ export default function DashboardSettings() {
           </div>
         </div>
       )}
+
+      <FundedPrivacyControls />
 
       {/* Change Password */}
       <div className="premium-card">

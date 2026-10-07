@@ -19,3 +19,11 @@ export { sendProgressionOutcomeEmail } from "./progressionNotifications";
 export { sendBrokerCredentialsEmail } from "./credentialDelivery";
 
 export { submitLearningQuiz } from "./learningCertificates";
+
+export { fundedMfa } from "./fundedMfa";
+export { fundedCustomerAction } from "./nativeCustomer";
+export { fundedMobileCheckout } from "./nativeCheckout";
+export { fundedMobileIdentity } from "./kyc";
+export { fundedWorkspace } from "./fundedWorkspace";
+export { refreshFundedLeaderboard } from "./fundedLeaderboard";
+export { fundedPrivacy } from "./fundedPrivacy";

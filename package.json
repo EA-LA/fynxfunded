@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:functions": "vitest run --config functions/vitest.config.ts",
+    "check:release": "npm run lint && npm test && npm run test:functions && npm --prefix functions run build && npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -63,7 +65,8 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "decimal.js": "10.6.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
