@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-10-07T17:01:14.036Z",
+  "project": "fynx-c7a28",
+  "identity": "disposable QA; email verification preset by test administrator",
+  "checks": [
+    {
+      "name": "Firebase password authentication",
+      "passed": true
+    },
+    {
+      "name": "Privacy denies anonymous calls",
+      "passed": true
+    },
+    {
+      "name": "Native catalog serves 18 plans with purchases paused",
+      "passed": true
+    },
+    {
+      "name": "Native purchase creation remains blocked",
+      "passed": true
+    },
+    {
+      "name": "Native owned documents loads without fabricated contracts",
+      "passed": true
+    },
+    {
+      "name": "Native profile persists on the authenticated account",
+      "passed": true
+    },
+    {
+      "name": "Operational export is server scoped and contains the QA profile",
+      "passed": true
+    },
+    {
+      "name": "Export excludes passwords and authentication tokens",
+      "passed": true
+    },
+    {
+      "name": "Deletion request is pending review and retry-safe",
+      "passed": true
+    },
+    {
+      "name": "Privacy status returns the recorded request",
+      "passed": true
+    },
+    {
+      "name": "Non-owner cannot use progression controls",
+      "passed": true
+    },
+    {
+      "name": "MFA remains closed pending coordinated activation",
+      "passed": true
+    }
+  ],
+  "cleanup": true,
+  "complete": true,
+  "export": {
+    "documents": 1,
+    "sha256": "3a09ae60c60c1cf3e9227971d9b97ec8e1270f6dc7036122fe13f02b87219ca9",
+    "syntheticAccount": true
+  }
+}

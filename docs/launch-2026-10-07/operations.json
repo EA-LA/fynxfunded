@@ -1,0 +1,252 @@
+{
+  "checkedAt": "2026-10-07T16:51:43.953Z",
+  "project": "fynx-c7a28",
+  "mode": "read-only",
+  "checks": {
+    "database": {
+      "status": "read",
+      "value": {
+        "locationId": "nam5",
+        "pointInTimeRecoveryEnablement": "POINT_IN_TIME_RECOVERY_ENABLED",
+        "earliestVersionTime": "2026-09-30T16:52:00Z",
+        "deleteProtectionState": "DELETE_PROTECTION_DISABLED"
+      }
+    },
+    "backupSchedules": {
+      "status": "read",
+      "value": [
+        {
+          "name": "projects/fynx-c7a28/databases/(default)/backupSchedules/0b1e3b94-2145-483c-a006-923e35fb66ed",
+          "retention": "7257600s",
+          "weeklyRecurrence": {
+            "day": "SUNDAY"
+          }
+        },
+        {
+          "name": "projects/fynx-c7a28/databases/(default)/backupSchedules/2e07c35e-359a-419c-96ff-76fb84599db1",
+          "retention": "2419200s",
+          "dailyRecurrence": {}
+        }
+      ]
+    },
+    "backups": {
+      "status": "read",
+      "value": [
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/02c99f7b-0908-4908-923c-094360f3ba37",
+          "state": "READY",
+          "snapshotTime": "2026-10-03T09:08:46.661347Z",
+          "expireTime": "2026-10-31T09:08:46.661347Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/0f693ac4-0fb3-48ff-a3be-b041707011dd",
+          "state": "READY",
+          "snapshotTime": "2026-10-06T09:34:30.753864Z",
+          "expireTime": "2026-11-03T09:34:30.753864Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/14078003-ef74-430c-bcaf-a130f16d823a",
+          "state": "READY",
+          "snapshotTime": "2026-09-24T07:43:43.018456Z",
+          "expireTime": "2026-10-22T07:43:43.018456Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/2ae9856a-78b4-4009-b7b6-bcf5262204c5",
+          "state": "READY",
+          "snapshotTime": "2026-09-30T08:40:29.400792Z",
+          "expireTime": "2026-10-28T08:40:29.400792Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/325302df-90c7-4846-b0f9-00f9d82a9505",
+          "state": "READY",
+          "snapshotTime": "2026-09-27T08:12:48.445163Z",
+          "expireTime": "2026-10-25T08:12:48.445163Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/38d8abc5-d6af-4941-ab73-a3e5ab7e9d45",
+          "state": "READY",
+          "snapshotTime": "2026-09-23T07:37:29.331323Z",
+          "expireTime": "2026-10-21T07:37:29.331323Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/44bd7e46-773d-48ce-8ad9-b3b9a2603685",
+          "state": "READY",
+          "snapshotTime": "2026-10-04T09:15:41.547996Z",
+          "expireTime": "2026-11-01T09:15:41.547996Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/949fdb23-d8b3-4882-9981-42a5ee662ae2",
+          "state": "READY",
+          "snapshotTime": "2026-09-28T08:22:09.808224Z",
+          "expireTime": "2026-10-26T08:22:09.808224Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/99ed1a6a-6615-4bc5-9736-3531e69da94a",
+          "state": "READY",
+          "snapshotTime": "2026-10-05T09:26:21.377402Z",
+          "expireTime": "2026-11-02T09:26:21.377402Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/a57779a9-cfca-439a-895f-b234c9ed7d1b",
+          "state": "READY",
+          "snapshotTime": "2026-10-04T09:15:41.547996Z",
+          "expireTime": "2026-12-27T09:15:41.547996Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/ba6d23e0-efb4-4610-8bb7-4cb8f2746100",
+          "state": "READY",
+          "snapshotTime": "2026-09-29T08:30:49.709781Z",
+          "expireTime": "2026-10-27T08:30:49.709781Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/bda0358d-67bc-4c66-8ca5-bb678c723769",
+          "state": "READY",
+          "snapshotTime": "2026-09-27T08:12:48.445163Z",
+          "expireTime": "2026-12-20T08:12:48.445163Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/cc37c7de-b63a-4a2e-99e6-eeacc68ee730",
+          "state": "READY",
+          "snapshotTime": "2026-09-26T08:05:59.693772Z",
+          "expireTime": "2026-10-24T08:05:59.693772Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/d4be2816-e81d-4f72-8c61-66d9b407b648",
+          "state": "READY",
+          "snapshotTime": "2026-09-25T07:54:04.266484Z",
+          "expireTime": "2026-10-23T07:54:04.266484Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/d5781ca1-05e1-40ea-9251-6243519ce82c",
+          "state": "READY",
+          "snapshotTime": "2026-10-02T08:58:00.227028Z",
+          "expireTime": "2026-10-30T08:58:00.227028Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/e9f3d544-e005-47c2-a726-5985a1571e90",
+          "state": "READY",
+          "snapshotTime": "2026-09-22T07:27:03.339860Z",
+          "expireTime": "2026-10-20T07:27:03.339860Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/f341b619-5647-4c33-be59-bd4ca7a445e2",
+          "state": "READY",
+          "snapshotTime": "2026-10-01T08:50:41.195074Z",
+          "expireTime": "2026-10-29T08:50:41.195074Z"
+        },
+        {
+          "name": "projects/fynx-c7a28/locations/nam5/backups/f7ad41a6-e28a-4b74-9f3c-3e336b58b912",
+          "state": "READY",
+          "snapshotTime": "2026-10-07T09:42:51.802783Z",
+          "expireTime": "2026-11-04T09:42:51.802783Z"
+        }
+      ]
+    },
+    "alertPolicies": {
+      "status": "read",
+      "value": [
+        {
+          "displayName": "FYNX website: save failures (server)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX API: engine unavailable",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX API: server or backup failures",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX website: feed failures (browser)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX API: backup inspection missing",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX website: upload failures (browser)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX website: feed failures (probe)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX website: runtime failures (browser)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX website: auth failures (browser)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        },
+        {
+          "displayName": "FYNX website: save failures (browser)",
+          "enabled": true,
+          "notificationChannelCount": 1
+        }
+      ]
+    },
+    "notificationChannels": {
+      "status": "read",
+      "value": [
+        {
+          "displayName": "FYNX website operations",
+          "type": "email",
+          "enabled": true
+        }
+      ]
+    },
+    "challenges": {
+      "status": "read",
+      "count": 5
+    },
+    "accounts": {
+      "status": "read",
+      "count": 0
+    },
+    "trades": {
+      "status": "read",
+      "count": 0
+    },
+    "rule_events": {
+      "status": "read",
+      "count": 0
+    },
+    "contracts": {
+      "status": "read",
+      "count": 0
+    },
+    "funded_memberships": {
+      "status": "read",
+      "count": 0
+    },
+    "funded_mfa_rollout/current": {
+      "status": "read",
+      "exists": false,
+      "ready": false,
+      "progressionApproved": false
+    },
+    "funded_release/current": {
+      "status": "read",
+      "exists": false,
+      "ready": false,
+      "progressionApproved": false
+    }
+  },
+  "limitations": [
+    "Alert configuration does not prove alert delivery.",
+    "Backup presence does not prove restoration.",
+    "Counts do not establish complete broker equity coverage."
+  ]
+}

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,6 +19,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm ci --prefix functions
       - run: npm run lint
       - run: npm test
+      - run: npm run test:functions
+      - run: npm --prefix functions run build
+      - run: npx tsc --noEmit -p tsconfig.app.json
       - run: npm run build
