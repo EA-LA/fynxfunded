@@ -5,7 +5,8 @@ const admin = require('../functions/node_modules/firebase-admin');
 const project = 'fynx-c7a28';
 async function main() {
   if (!process.argv.includes('--run-production')) throw Error('Explicit --run-production required.');
-  const env = fs.readFileSync(path.join(__dirname, '../.env.local'), 'utf8');
+  const envPath = path.join(__dirname, '../.env.local');
+  const env = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
   const publicConfig = fs.readFileSync(path.join(__dirname, '../src/lib/firebase.ts'), 'utf8');
   const apiKey = env.match(/^VITE_FIREBASE_API_KEY=["']?([^\s"']+)/m)?.[1] || publicConfig.match(/VITE_FIREBASE_API_KEY\s*\|\|\s*"([^"]+)"/)?.[1];
   if (!apiKey) throw Error('Firebase public configuration missing.');
