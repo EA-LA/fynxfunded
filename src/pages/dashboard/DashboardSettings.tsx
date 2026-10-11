@@ -409,7 +409,7 @@ export default function DashboardSettings() {
             </label>
             <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-background border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 appearance-none">
               <option value="">Select country...</option>
-              {country && !countries.includes(country) && <option value={country}>{/^[A-Z]{2}$/.test(country) ? new Intl.DisplayNames(["en"], { type: "region" }).of(country) : country}</option>}
+              {country && !countries.some((name) => name === country) && <option value={country}>{/^[A-Z]{2}$/.test(country) ? new Intl.DisplayNames(["en"], { type: "region" }).of(country) : country}</option>}
               {countries.map((c) => (<option key={c} value={c}>{c}</option>))}
             </select>
             <p className="text-[10px] text-muted-foreground mt-1">Your country of trading residence.</p>
