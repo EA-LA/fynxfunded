@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Deploy only the website payment endpoints and admin evaluation safeguard.
+// Deploy only website payments, the admin evaluation safeguard and compatible privacy export.
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
@@ -18,7 +18,7 @@ try {
   hashFiles(path.join(stage, 'functions/src'));
   execFileSync('npm', ['run', 'build'], { cwd: path.join(stage, 'functions'), stdio: 'inherit' });
   if (process.argv.includes('--deploy')) {
-    execFileSync('firebase', ['deploy', '--only', names.map(name => `functions:${name}`).join(','), '--project', 'fynx-c7a28', '--non-interactive'], { cwd: stage, stdio: 'inherit' });
+    execFileSync('firebase', ['deploy', '--only', names.map(name => `functions:${name}`).join(','), '--project', 'fynx-c7a28', '--non-interactive'], { cwd: stage, stdio: 'inherit', env: { ...process.env, FUNCTIONS_DISCOVERY_TIMEOUT: process.env.FUNCTIONS_DISCOVERY_TIMEOUT || '120' } });
     report.deployed = true; report.completedAt = new Date().toISOString();
   }
 } finally {

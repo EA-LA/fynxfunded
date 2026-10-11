@@ -45,6 +45,22 @@
       "width": 1440,
       "route": "settings",
       "scrollWidth": 1440
+    },
+    {
+      "width": 320,
+      "route": "account-workspace",
+      "scrollWidth": 320
+    },
+    {
+      "width": 390,
+      "route": "account-workspace",
+      "scrollWidth": 390
+    },
+    {
+      "width": 1440,
+      "route": "account-workspace",
+      "scrollWidth": 1440
     }
-  ]
+  ],
+  "historyPhaseSelection": "Phase 2 selected; deployed service returned awaiting history; no fabricated equity"
 }

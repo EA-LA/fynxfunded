@@ -1,11 +1,11 @@
 {
-  "checkedAt": "2026-10-11T18:22:43.261Z",
+  "checkedAt": "2026-10-11T19:08:34.133Z",
   "mode": "read-only; no payments created",
   "functions": {
     "createCheckoutSession": {
       "state": "ACTIVE",
-      "updatedAt": "2026-09-21T13:42:37.193021439Z",
-      "runtime": "nodejs20",
+      "updatedAt": "2026-10-11T19:07:24.885239321Z",
+      "runtime": "nodejs22",
       "secrets": [
         {
           "name": "STRIPE_SECRET_KEY",
@@ -16,8 +16,8 @@
     },
     "verifySession": {
       "state": "ACTIVE",
-      "updatedAt": "2026-09-08T16:56:17.328051547Z",
-      "runtime": "nodejs20",
+      "updatedAt": "2026-10-11T19:07:36.796524470Z",
+      "runtime": "nodejs22",
       "secrets": [
         {
           "name": "STRIPE_SECRET_KEY",
@@ -28,8 +28,8 @@
     },
     "stripeWebhook": {
       "state": "ACTIVE",
-      "updatedAt": "2026-09-14T14:20:43.086610968Z",
-      "runtime": "nodejs20",
+      "updatedAt": "2026-10-11T19:07:36.397806352Z",
+      "runtime": "nodejs22",
       "secrets": [
         {
           "name": "STRIPE_SECRET_KEY",
