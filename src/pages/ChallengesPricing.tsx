@@ -194,7 +194,7 @@ export default function ChallengesPricing() {
                   />
                   <CompareRow
                     label="News Trading"
-                    values={challengeConfigs.map(() => "Allowed")}
+                    values={challengeConfigs.map(() => "Pending account terms")}
                   />
                   <CompareRow
                     label="Consistency Rule"
