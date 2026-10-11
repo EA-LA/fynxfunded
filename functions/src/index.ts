@@ -27,3 +27,5 @@ export { fundedMobileIdentity } from "./kyc";
 export { fundedWorkspace } from "./fundedWorkspace";
 export { refreshFundedLeaderboard } from "./fundedLeaderboard";
 export { fundedPrivacy } from "./fundedPrivacy";
+export { fundedAccountInsights } from "./fundedAccountInsights";
+export { fundedNotifications, fundedAccountUpdated, fundedChallengeUpdated, fundedPayoutUpdated } from "./fundedNotifications";

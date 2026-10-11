@@ -1,3 +1,4 @@
+import { requireFundedMfa } from "./fundedMfa";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
@@ -79,6 +80,7 @@ function loginAlertHtml(alert: { device: string; browser: string; ip: string; lo
 
 export const sendLoginAlert = onCall({ secrets: [mailgunApiKey] }, async (request) => {
   if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Auth required");
+  await requireFundedMfa(request);
 
   const uid = request.auth.uid;
   const userSnap = await admin.firestore().collection("users").doc(uid).get();

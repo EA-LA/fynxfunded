@@ -28,11 +28,17 @@ export async function exportFundedData(db: Firestore, uid: string, limit = 2000)
   add(await db.doc(`users/${uid}`).get(), ["displayName", "fullName", "email", "nickname", "country", "createdAt", "kycStatus", "kycProvider", "kycSubmittedAt", "kycVerifiedAt", "twoFactorEnabled", "loginAlertsEnabled"]);
   for (const name of ["funded_memberships", "funded_membership_requests", "funded_leaderboard_consent", "funded_privacy_requests"]) add(await db.doc(`${name}/${uid}`).get());
   const challenges: string[] = [];
-  for (const name of ["orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_coaching_bookings"]) {
+  for (const name of ["orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_coaching_bookings", "funded_push_devices"]) {
     const rows = await db.collection(name).where("userId", "==", uid).limit(limit + 1).get();
     for (const row of rows.docs) { add(row); if (name === "challenges") challenges.push(row.id); }
   }
+  for (const row of (await db.collection(`funded_notice_inboxes/${uid}/items`).limit(limit + 1).get()).docs) add(row);
   for (const challengeId of challenges) {
+    const phases = await db.collection(`funded_phase_archives/${challengeId}/phases`).limit(5).get();
+    for (const phase of phases.docs) {
+      add(phase);
+      for (const row of (await db.collection(`${phase.ref.path}/events`).limit(limit + 1).get()).docs) add(row);
+    }
     for (const name of ["rule_events", "rule_evaluations", "audit_logs"]) {
       const rows = await db.collection(name).where("challengeId", "==", challengeId).limit(limit + 1).get();
       for (const row of rows.docs) add(row);

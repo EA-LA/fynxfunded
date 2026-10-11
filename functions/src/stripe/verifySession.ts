@@ -1,3 +1,4 @@
+import { requireFundedMfa } from "../fundedMfa";
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
@@ -20,7 +21,11 @@ export const verifySession = onRequest(
     const authorization = req.headers.authorization;
     if (!authorization?.startsWith("Bearer ")) { res.status(401).json({ error: "Authentication required" }); return; }
     let uid = "";
-    try { uid = (await admin.auth().verifyIdToken(authorization.slice(7))).uid; }
+    try {
+      const token = await admin.auth().verifyIdToken(authorization.slice(7), true);
+      uid = token.uid;
+      await requireFundedMfa({ auth: { uid, token } });
+    }
     catch { res.status(401).json({ error: "Invalid authentication" }); return; }
     const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId : "";
     if (!sessionId.startsWith("cs_")) { res.status(400).json({ error: "Invalid session" }); return; }

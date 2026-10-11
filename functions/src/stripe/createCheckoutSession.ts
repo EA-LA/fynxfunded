@@ -3,6 +3,8 @@ import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import Stripe from "stripe";
 import { getPlan } from "./priceMap";
+import { requireFundedMfa } from "../fundedMfa";
+import { paymentsPaused } from "./paymentAvailability";
 
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const allowedOrigins = new Set(["https://fynxfunded.com", "https://www.fynxfunded.com", "https://fynxfunded.vercel.app"]);
@@ -28,6 +30,9 @@ export const createCheckoutSession = onRequest(
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
     const user = await authenticatedUser(req.headers.authorization);
     if (!user?.uid || !user.email) { res.status(401).json({ error: "Authentication required" }); return; }
+    try { await requireFundedMfa({ auth: { uid: user.uid, token: user } }); }
+    catch { res.status(403).json({ error: "Two-factor verification required" }); return; }
+    if (paymentsPaused()) { res.status(503).json({ error: "Challenge purchases are temporarily paused while launch checks are completed." }); return; }
     const plan = getPlan(req.body?.accountSize, req.body?.phase);
     if (!plan) { res.status(400).json({ error: "Invalid challenge plan" }); return; }
     const style = req.body?.style === "swing" ? "swing" : "normal";

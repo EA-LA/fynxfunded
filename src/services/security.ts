@@ -2,20 +2,20 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
   serverTimestamp,
   onSnapshot,
   type Unsubscribe,
 } from "firebase/firestore";
-import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, signInWithCustomToken } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { auth as firebaseAuth, db as firebaseDb, functions as firebaseFunctions, isFirebaseConfigured } from "@/lib/firebase";
 import type { LoginSession } from "@/services/session-tracker";
 
 export interface UserSecuritySettings {
   twoFactorEnabled: boolean;
-  twoFactorSecret?: string;
   loginAlertsEnabled: boolean;
   backupCodesGeneratedAt: string;
   activeSessions: number;
@@ -31,7 +31,6 @@ export interface TwoFactorSetup {
 const LOCAL_SETTINGS_KEY = "fynx_security_settings";
 const DEFAULT_SETTINGS: UserSecuritySettings = {
   twoFactorEnabled: false,
-  twoFactorSecret: "",
   loginAlertsEnabled: false,
   backupCodesGeneratedAt: "",
   activeSessions: 0,
@@ -68,7 +67,6 @@ function fromDoc(data: Record<string, any> | undefined): UserSecuritySettings {
   return {
     ...DEFAULT_SETTINGS,
     twoFactorEnabled: !!data?.twoFactorEnabled,
-    twoFactorSecret: data?.twoFactorSecret || "",
     loginAlertsEnabled: !!data?.loginAlertsEnabled,
     backupCodesGeneratedAt: toIso(data?.backupCodesGeneratedAt),
     activeSessions: Number(data?.activeSessions || 0),
@@ -95,15 +93,13 @@ async function ensureSettingsDoc(userId: string): Promise<UserSecuritySettings> 
   assertAuthed(userId);
   if (!isFirebaseConfigured || !firebaseDb) return getLocal(userId);
 
+  await mfaStatus();
   const ref = settingsRef(userId);
   const snap = await getDoc(ref);
   if (snap.exists()) return fromDoc(snap.data());
 
   await setDoc(ref, {
-    twoFactorEnabled: false,
-    twoFactorSecret: "",
     loginAlertsEnabled: false,
-    backupCodesGeneratedAt: null,
     activeSessions: 0,
     lastSecurityUpdate: serverTimestamp(),
     createdAt: serverTimestamp(),
@@ -151,128 +147,65 @@ export async function setActiveSessionCount(userId: string): Promise<number> {
   return count;
 }
 
-const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-
-export function generateBase32Secret(length = 20): string {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => BASE32_ALPHABET[b % BASE32_ALPHABET.length]).join("");
+export async function mfaCall(action: string, extra: Record<string, unknown> = {}): Promise<any> {
+  if (!firebaseFunctions || !firebaseAuth?.currentUser) throw new Error("Sign in to manage account security.");
+  const uid = firebaseAuth.currentUser.uid;
+  const result = await httpsCallable(firebaseFunctions, "fundedMfa")({ action, ...extra });
+  if (firebaseAuth.currentUser?.uid !== uid) throw new Error("Your account changed. Sign in again.");
+  const data = result.data as any;
+  if (typeof data?.customToken === "string" && data.customToken) await signInWithCustomToken(firebaseAuth, data.customToken);
+  return data;
 }
-
-function base32ToBytes(secret: string): Uint8Array {
-  const clean = secret.replace(/=+$/g, "").replace(/\s+/g, "").toUpperCase();
-  let bits = "";
-  for (const char of clean) {
-    const val = BASE32_ALPHABET.indexOf(char);
-    if (val === -1) continue;
-    bits += val.toString(2).padStart(5, "0");
+export async function mfaStatus(): Promise<{ required: boolean; verified: boolean; expiresAt: number | null }> {
+  let status;
+  try { status = await mfaCall("status"); }
+  catch (error) {
+    const code = (error as { code?: string })?.code;
+    const uid = firebaseAuth?.currentUser?.uid;
+    const rolloutPending = code === "functions/not-found" || (code === "functions/failed-precondition" && (error as Error).message === "Server verification is awaiting activation.");
+    if (!rolloutPending || !uid || !firebaseDb) throw error;
+    // Migration-compatible for non-MFA users only. Never trust a cached factor flag.
+    const [profile, security] = await Promise.all([getDocFromServer(doc(firebaseDb, "users", uid)), getDocFromServer(settingsRef(uid))]);
+    if (firebaseAuth?.currentUser?.uid !== uid || profile.data()?.twoFactorEnabled === true || security.data()?.twoFactorEnabled === true) throw error;
+    return { required: false, verified: true, expiresAt: null };
   }
-  const bytes = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
-  return new Uint8Array(bytes);
+  if (typeof status?.required !== "boolean" || typeof status?.verified !== "boolean" ||
+      (status.required && status.verified && (!Number.isFinite(status.expiresAt) || status.expiresAt <= Date.now()))) {
+    throw new Error("Could not confirm your secure session. Sign in again.");
+  }
+  return status;
 }
-
-async function hmacSha1(keyBytes: Uint8Array, message: ArrayBuffer): Promise<ArrayBuffer> {
-  const keyMaterial = keyBytes.buffer.slice(keyBytes.byteOffset, keyBytes.byteOffset + keyBytes.byteLength) as ArrayBuffer;
-  const key = await crypto.subtle.importKey("raw", keyMaterial, { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
-  return crypto.subtle.sign("HMAC", key, message);
-}
-
-export async function generateTotp(secret: string, timestamp = Date.now()): Promise<string> {
-  const counter = Math.floor(timestamp / 30000);
-  const buffer = new ArrayBuffer(8);
-  const view = new DataView(buffer);
-  view.setUint32(4, counter, false);
-  const hash = new Uint8Array(await hmacSha1(base32ToBytes(secret), buffer));
-  const offset = hash[hash.length - 1] & 0xf;
-  const binary = ((hash[offset] & 0x7f) << 24) | ((hash[offset + 1] & 0xff) << 16) | ((hash[offset + 2] & 0xff) << 8) | (hash[offset + 3] & 0xff);
-  return String(binary % 1_000_000).padStart(6, "0");
-}
-
-export async function verifyTotp(secret: string, code: string): Promise<boolean> {
-  const normalized = code.replace(/\s+/g, "");
-  if (!/^\d{6}$/.test(normalized)) return false;
-  const now = Date.now();
-  const windows = [-30000, 0, 30000];
-  const expected = await Promise.all(windows.map((drift) => generateTotp(secret, now + drift)));
-  return expected.includes(normalized);
-}
-
-export function createTwoFactorSetup(email: string): TwoFactorSetup {
-  const secret = generateBase32Secret();
-  const label = encodeURIComponent(`FYNX Funded:${email}`);
-  const issuer = encodeURIComponent("FYNX Funded");
-  const otpauthUrl = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(otpauthUrl)}`;
-  return { secret, otpauthUrl, qrCodeUrl };
-}
-
-export async function enableTwoFactor(userId: string, secret: string, code: string): Promise<void> {
+export async function verifySignInTwoFactor(userId: string, code: string): Promise<void> {
   assertAuthed(userId);
-  const valid = await verifyTotp(secret, code);
-  if (!valid) throw new Error("Invalid 6-digit authenticator code.");
-  if (!isFirebaseConfigured || !firebaseDb) {
-    setLocal(userId, { twoFactorEnabled: true, twoFactorSecret: secret });
-    return;
-  }
-  await setDoc(settingsRef(userId), { twoFactorEnabled: true, twoFactorSecret: secret, lastSecurityUpdate: serverTimestamp() }, { merge: true });
-  await mirrorUserSecurityFields(userId, { twoFactorEnabled: true });
+  await mfaCall("verify", { code });
 }
-
+export async function createTwoFactorSetup(_email: string): Promise<TwoFactorSetup> {
+  const setup = await mfaCall("enrollStart");
+  // Authenticator secrets are never sent to a third-party QR image service.
+  return { secret: setup.secret, otpauthUrl: setup.otpauthUrl, qrCodeUrl: "" };
+}
+export async function enableTwoFactor(userId: string, _secret: string, code: string): Promise<void> {
+  assertAuthed(userId);
+  await mfaCall("enrollConfirm", { code });
+}
 export async function confirmPassword(password: string): Promise<void> {
   const current = firebaseAuth?.currentUser;
-  if (!isFirebaseConfigured) return;
-  if (!current?.email) throw new Error("Password confirmation requires an email/password account.");
+  if (!current?.email) throw new Error("Sign in again to confirm this security change.");
   await reauthenticateWithCredential(current, EmailAuthProvider.credential(current.email, password));
 }
-
-export async function disableTwoFactor(userId: string, password: string): Promise<void> {
+export async function disableTwoFactor(userId: string, password: string, code: string): Promise<void> {
   assertAuthed(userId);
   await confirmPassword(password);
-  if (!isFirebaseConfigured || !firebaseDb) {
-    setLocal(userId, { twoFactorEnabled: false, twoFactorSecret: "" });
-    return;
-  }
-  await setDoc(settingsRef(userId), { twoFactorEnabled: false, twoFactorSecret: "", lastSecurityUpdate: serverTimestamp() }, { merge: true });
-  await mirrorUserSecurityFields(userId, { twoFactorEnabled: false });
+  await verifySignInTwoFactor(userId, code);
+  await mfaCall("disable");
 }
-
-function randomCode(): string {
-  const bytes = new Uint8Array(8);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => (b % 36).toString(36).toUpperCase()).join("").replace(/(.{4})/g, "$1-").slice(0, -1);
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-export async function generateRecoveryCodes(userId: string, password?: string): Promise<string[]> {
+export async function generateRecoveryCodes(userId: string, password?: string, code?: string): Promise<string[]> {
   assertAuthed(userId);
-  const existing = await getSecuritySettings(userId);
-  if (existing.backupCodesGeneratedAt) {
-    if (!password) throw new Error("Password confirmation is required to regenerate recovery codes.");
+  if (password) {
     await confirmPassword(password);
+    await verifySignInTwoFactor(userId, code ?? "");
   }
-  const codes = Array.from({ length: 10 }, randomCode);
-  const backupCodeHashes = await Promise.all(codes.map(sha256));
-  if (!isFirebaseConfigured || !firebaseDb) {
-    setLocal(userId, { backupCodesGeneratedAt: new Date().toISOString() });
-    localStorage.setItem(`fynx_backup_hashes_${userId}`, JSON.stringify(backupCodeHashes));
-    return codes;
-  }
-  await setDoc(settingsRef(userId), { backupCodeHashes, backupCodesGeneratedAt: serverTimestamp(), lastSecurityUpdate: serverTimestamp() }, { merge: true });
-  await mirrorUserSecurityFields(userId, { backupCodesGeneratedAt: serverTimestamp() });
-  return codes;
-}
-
-export async function verifySignInTwoFactor(userId: string, code: string): Promise<void> {
-  const settings = await getSecuritySettings(userId);
-  if (!settings.twoFactorEnabled) return;
-  if (!settings.twoFactorSecret) throw new Error("2FA is enabled but no authenticator secret is configured.");
-  const valid = await verifyTotp(settings.twoFactorSecret, code);
-  if (!valid) throw new Error("Invalid two-factor authentication code.");
+  return (await mfaCall("recovery")).codes;
 }
 
 export async function maybeSendLoginAlert(userId: string, session: LoginSession): Promise<void> {

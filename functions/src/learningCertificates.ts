@@ -1,3 +1,4 @@
+import { requireFundedMfa } from "./fundedMfa";
 import * as admin from "firebase-admin";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 
@@ -16,6 +17,7 @@ function stableId(seed: string) {
 
 export const submitLearningQuiz = onCall(async (request) => {
   if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in to save learning progress.");
+  await requireFundedMfa(request);
   const quizId = String(request.data?.quizId || "");
   const answers: number[] = Array.isArray(request.data?.answers) ? request.data.answers.map((answer: unknown) => Number(answer)) : [];
   const quiz = QUIZZES[quizId];

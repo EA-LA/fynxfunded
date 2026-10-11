@@ -1,0 +1,165 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function mfaRequired(uid) {
+      let privatePath = /databases/$(database)/documents/funded_mfa_private/$(uid);
+      let userPath = /databases/$(database)/documents/users/$(uid);
+      let legacyPath = /databases/$(database)/documents/users/$(uid)/security/settings;
+      return exists(privatePath) ? get(privatePath).data.enabled == true :
+        ((exists(userPath) && get(userPath).data.get('twoFactorEnabled', false) == true) ||
+         (exists(legacyPath) && get(legacyPath).data.get('twoFactorEnabled', false) == true));
+    }
+    function fundedVerified() {
+      let uid = request.auth.uid;
+      let sessionId = request.auth.token.get('funded_mfa', 'missing');
+      let sessionPath = /databases/$(database)/documents/funded_mfa_sessions/$(sessionId);
+      let privatePath = /databases/$(database)/documents/funded_mfa_private/$(uid);
+      return signedIn() && (!mfaRequired(uid) ||
+        (sessionId is string && sessionId.matches('^[a-f0-9]{64}$') && exists(sessionPath) && exists(privatePath) &&
+         get(sessionPath).data.uid == uid &&
+         get(sessionPath).data.version == get(privatePath).data.version &&
+         get(sessionPath).data.expiresAt > request.time.toMillis()));
+    }
+    function protectedOwner(uid) { return isOwner(uid) && fundedVerified(); }
+    function isAdmin() {
+      return signedIn() && fundedVerified() && (
+        request.auth.token.admin == true ||
+        (request.auth.token.email_verified == true && request.auth.token.email in ["ha6876122@gmail.com", "fynxteam5@gmail.com"])
+      );
+    }
+    function verifiedForPayout(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.kycStatus == "verified";
+    }
+    function kycFields() {
+      return [
+        "kycStatus",
+        "kycProvider",
+        "kycSessionId",
+        "kycSubmittedAt",
+        "kycVerifiedAt",
+        "kycRejectionReason"
+      ];
+    }
+    function userKycFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(kycFields().concat(['twoFactorEnabled', 'twoFactorSecret', 'backupCodeHashes', 'mfaVersion']));
+    }
+    function userCreateDoesNotSelfVerify() {
+      return !(request.resource.data.keys().hasAny(kycFields()))
+        || request.resource.data.kycStatus == "not_started";
+    }
+
+    match /users/{userId} {
+      allow read: if protectedOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && userCreateDoesNotSelfVerify() && request.resource.data.get('twoFactorEnabled', false) == false && !request.resource.data.keys().hasAny(['twoFactorSecret','backupCodeHashes','mfaVersion']);
+      allow update: if isAdmin() || (protectedOwner(userId) && userKycFieldsUnchanged());
+
+      // Website-owned records; other product collections keep their existing rules.
+      match /account/{documentId} {
+        allow read, write: if isOwner(userId) && documentId in ['profile', 'preferences', 'notificationPreferences', 'security'];
+      }
+      match /trades/{tradeId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.symbol is string
+          && request.resource.data.pl is number;
+      }
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /sessions/{websiteSessionId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.sessionId == websiteSessionId
+          && request.resource.data.keys().hasOnly(['sessionId','userAgent','platform','language','timezone','status','lastActiveAt','createdAt','updatedAt','revokedAt']);
+      }
+      match /security/{documentId} {
+        allow read: if documentId == 'settings' && (isOwner(userId) || isAdmin())
+          && !resource.data.keys().hasAny(['twoFactorSecret', 'backupCodeHashes']);
+        allow create: if isOwner(userId) && documentId == 'settings'
+          && request.resource.data.keys().hasOnly(['loginAlertsEnabled','activeSessions','lastSecurityUpdate','createdAt']);
+        allow update: if protectedOwner(userId) && documentId == 'settings'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['loginAlertsEnabled','activeSessions','lastSecurityUpdate']);
+        allow delete: if false;
+      }
+
+      match /sessions/{sessionId} {
+        allow read: if protectedOwner(userId) || isAdmin();
+        allow create: if isOwner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.keys().hasOnly(["userId", "device", "browser", "ip", "location", "createdAt", "lastActive", "isCurrent"]);
+        allow update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /securityEvents/{eventId} {
+        allow read: if protectedOwner(userId) || isAdmin();
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    match /kyc_profiles/{userId} {
+      allow read: if protectedOwner(userId) || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /payouts/{payoutId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && fundedVerified()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "requested"
+        && verifiedForPayout(request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /accounts/{accountId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /trades/{tradeId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /certificates/{certificateId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /public_certificates/{certificateId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isAdmin() || (signedIn() && fundedVerified() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && fundedVerified()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == "open";
+      allow update: if isAdmin() || (
+        signedIn() && fundedVerified()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["messages", "status", "updatedAt"])
+        && request.resource.data.status in ["open", "waiting", "closed"]
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /{collection}/{document=**} {
+      allow read, write: if isAdmin() && !(collection in ['funded_mfa_private','funded_mfa_sessions','funded_mfa_rollout']);
+    }
+  }
+}
