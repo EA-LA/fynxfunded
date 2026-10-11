@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-11T18:44:20.546Z",
+  "checkedAt": "2026-10-11T19:08:32.480Z",
   "environment": "production services, disposable QA identities; email verification preset",
   "checks": [
     {
@@ -57,7 +57,7 @@
   ],
   "complete": true,
   "export": {
-    "documents": 3,
-    "sha256": "9f5dc061f808024d9fd2714d4102f70dca1c82db1d6d3831aa87086574e1336d"
+    "documents": 5,
+    "sha256": "f2a4bd0f99167e2ddf6d3f05f6db5fdae436f4fd2a5a271717b2795505b0d844"
   }
 }

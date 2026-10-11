@@ -1,0 +1,99 @@
+{
+  "checkedAt": "2026-10-11T19:08:33.380Z",
+  "phase": "after",
+  "functions": {
+    "createCheckoutSession": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:24.885239321Z",
+      "runtime": "nodejs22",
+      "build": "projects/1011050657868/locations/us-central1/builds/e7737090-c17e-42d4-8f7b-1913f9ee56a0",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "createCheckoutSession/function-source.zip",
+        "generation": "1791745570935686"
+      },
+      "revision": "createcheckoutsession-00005-buj",
+      "service": "projects/fynx-c7a28/locations/us-central1/services/createcheckoutsession",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        }
+      ]
+    },
+    "verifySession": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:36.796524470Z",
+      "runtime": "nodejs22",
+      "build": "projects/1011050657868/locations/us-central1/builds/e7737090-c17e-42d4-8f7b-1913f9ee56a0",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "verifySession/function-source.zip",
+        "generation": "1791745631700273"
+      },
+      "revision": "verifysession-00003-nen",
+      "service": "projects/fynx-c7a28/locations/us-central1/services/verifysession",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        }
+      ]
+    },
+    "stripeWebhook": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:36.397806352Z",
+      "runtime": "nodejs22",
+      "build": "projects/1011050657868/locations/us-central1/builds/e7737090-c17e-42d4-8f7b-1913f9ee56a0",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "stripeWebhook/function-source.zip",
+        "generation": "1791745632350740"
+      },
+      "revision": "stripewebhook-00005-jaj",
+      "service": "projects/fynx-c7a28/locations/us-central1/services/stripewebhook",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "version": "2"
+        },
+        {
+          "name": "MAILGUN_API_KEY",
+          "version": "1"
+        }
+      ]
+    },
+    "adminChallengeProgression": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:36.141247282Z",
+      "runtime": "nodejs22",
+      "build": "projects/1011050657868/locations/us-central1/builds/e7737090-c17e-42d4-8f7b-1913f9ee56a0",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "adminChallengeProgression/function-source.zip",
+        "generation": "1791745632008879"
+      },
+      "revision": "adminchallengeprogression-00005-vuv",
+      "service": "projects/fynx-c7a28/locations/us-central1/services/adminchallengeprogression",
+      "secrets": []
+    },
+    "fundedPrivacy": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:30.350882532Z",
+      "runtime": "nodejs22",
+      "build": "projects/1011050657868/locations/us-central1/builds/e7737090-c17e-42d4-8f7b-1913f9ee56a0",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "fundedPrivacy/function-source.zip",
+        "generation": "1791745632123169"
+      },
+      "revision": "fundedprivacy-00004-vih",
+      "service": "projects/fynx-c7a28/locations/us-central1/services/fundedprivacy",
+      "secrets": []
+    }
+  }
+}

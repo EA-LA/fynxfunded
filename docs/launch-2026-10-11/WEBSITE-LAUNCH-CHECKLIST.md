@@ -60,7 +60,7 @@ The fresh production inventory found five challenges and zero broker accounts, t
 ## 7. Desktop/mobile customer and beta journeys — partial
 
 - [x] Exercise website password authentication with disposable pre-verified QA accounts, Billing isolation, export, deletion request, logout and protected routes.
-- [x] Fix Billing/Trades/Settings page overflow and verify those routes at 320px, 390px and 1440px.
+- [x] Fix Billing/Trades/Settings page overflow and verify those routes plus the account workspace at 320px, 390px and 1440px. Select another history phase against the deployed service.
 - [x] Add regression coverage for stale responses after session changes, failed-order receipts, KYC return states, absent/stale equity and phase selection.
 - [x] Support stored country codes and remove the unscoped local-storage country preference. Correct misleading sign-in-history wording: removing a saved record does not revoke another device's token.
 - [ ] Test real email verification/reset, Google/Apple login, MFA enrollment/recovery, token/session expiry, offline recovery, KYC capture and real broker/payment records on desktop and physical mobile browsers.
@@ -74,10 +74,13 @@ The fresh production inventory found five challenges and zero broker accounts, t
 - [ ] Confirm alert receipt, incident escalation/support ownership and actual recovery. Enabled configuration is not delivery evidence.
 - [ ] Review Funded-specific coverage for webhook failures, reconciliation gaps and stale broker data; configure approved missing coverage.
 
-## 9. Deployment, CI and final launch — in progress
+## 9. Deployment, CI and final launch — engineering release deployed; commercial launch held
 
 - [x] Isolate the website release; preserve purchases/progression holds and avoid activating MFA or replacing shared Firestore rules.
-- [ ] Deploy this release and selected supporting functions; record exact commits/deployments and verify remote CI and production behavior.
+- [x] Merge website PR #13 after remote GitHub CI and Vercel checks passed. Production commit: `1df49f8a3f67bd392858e9d2291eb8268fa78f3a`. The public domain serves the new account-history and Settings code.
+- [x] Deploy the five selected functions on Node.js 22; all five report ACTIVE. Pass thirteen live service checks after deployment, including export ownership, retry-safe deletion requests, invalid webhook rejection and the purchase hold.
+- [x] Record immutable before/after function source generations and revisions. Pass 71 frontend tests, 70 function tests, lint, TypeScript and both builds. GitHub Actions run `38166149539` passed every step.
+- [x] Replace the two blocked inline startup scripts with one same-origin file while preserving the Content Security Policy. Follow-up release checks cover the published script and browser console.
 - [ ] Approve commercial launch only after all outstanding broker, payment, legal, data, beta and operational gates pass.
 
 ## What we do together next
@@ -91,8 +94,19 @@ The fresh production inventory found five challenges and zero broker accounts, t
 
 ## Evidence and reproduction
 
-Reports beside this file: `operations.json`, `payments-configuration.json`, `retention-rehearsal.json`, `browser-layout.json`, `live-web-services.json`, `backend-deployment.json`. Read timestamps and `complete`/`deployed` flags; preparation is not deployment.
+Reports beside this file: `operations.json`, `payments-configuration.json`, `retention-rehearsal.json`, `browser-layout.json`, `live-web-services.json`, `backend-deployment.json`, `functions-before.json`, `functions-after.json`. Read timestamps and `complete`/`deployed` flags; preparation is not deployment. [Website release PR #13](https://github.com/EA-LA/fynxfunded/pull/13).
 
 Run `npm run check:release`. Retention validation: `node scripts/apply-funded-retention.cjs --plan /absolute/reviewed-plan.json`. Execution additionally requires `--execute --approved-hash <exact-reviewed-hash> --ledger-bucket <private-independent-bucket>`; this release runs no production deletion. Emulator rehearsal requires Java and refuses nonlocal emulator endpoints.
 
 Implementation references: [Stripe fulfillment](https://docs.stripe.com/checkout/fulfillment) and [webhook signatures/retries](https://docs.stripe.com/webhooks). A success-page redirect alone is insufficient payment evidence.
+
+## Engineering rollback procedure — pending owner rehearsal
+
+The release owner is Elham Amini. This procedure keeps purchases and progression closed during recovery. It is prepared guidance, not a claim of an approved or exercised production rollback.
+
+1. Stop a rollout if authenticated customers lose access, ownership checks fail, exports leak or omit data, or payment/progression holds stop working. Record the failing request time, endpoint and deployment revision without tokens or exported customer data.
+2. For a frontend-only fault, restore the previous healthy Vercel production deployment from the Fynx Funded project. The pre-release repository baseline is `5ea7cf3e73f59d3e987781f3caa7c38574a96655`. Keep the new server purchase hold in place and recheck login, logout, Billing isolation and checkout HTTP 503.
+3. For a function fault, use `functions-before.json` and `functions-after.json` to identify the exact affected function, immutable source generation, secret-version bindings and Cloud Run revision. Prefer a narrow forward fix; the historical payment/progression code predates safeguards and must not be restored blindly. Rebuild only reviewed selected functions with `scripts/deploy-funded-web.cjs --deploy`; do not deploy shared rules or all services as a rollback shortcut.
+4. Keep order IDs, webhook event IDs, purchased agreements and existing challenge state intact. Reconciliation must precede replay. A retry must not create a second entitlement, reset a breach or move a phase.
+5. Do not restore the shared live database to undo an application release. Restore a selected cloud backup into an isolated `funded-restore-*` database, apply the independent completed deletion ledger, then verify record ownership, counts, agreements and excluded retained records. The current release has only rehearsed this locally; cloud access, full record inventory and operational approval remain outstanding.
+6. Resume only after the failing checks and production ownership/hold checks pass, the incident owner records the result, and the owner separately approves any payment/progression activation. No recovery step itself authorizes commercial launch.
