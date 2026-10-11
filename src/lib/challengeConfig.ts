@@ -74,6 +74,17 @@ export const challengeConfigs: ChallengeConfig[] = [
   },
 ];
 
+// Featured cards use the same approved two-phase catalog as the builder.
+export const marketingPlans = challengeConfigs.filter(config => [10000, 25000, 50000, 100000].includes(config.accountSize)).map(config => {
+  const phase = config.phases["2-phase"];
+  return {
+    name: `${config.label} 2-phase`, phase: "2-phase" as const, accountValue: config.accountSize,
+    price: phase.price, accountSize: config.accountSize.toLocaleString("en-US"),
+    profitTarget: phase.profitTargets.join(" / "), dailyLoss: phase.dailyLoss, maxLoss: phase.maxLoss,
+    minDays: phase.minDays, profitSplit: phase.profitSplit, refund: phase.refundEligible, popular: config.accountSize === 25000,
+  };
+});
+
 export const accountStyles = [
   { id: "normal", label: "Normal", desc: "Overnight and weekend permissions await the verified broker schedule and final account terms." },
   { id: "swing", label: "Swing", desc: "Swing preference; this does not grant weekend permission. Final instrument restrictions are pending." },

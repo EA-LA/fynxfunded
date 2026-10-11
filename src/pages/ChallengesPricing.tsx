@@ -1,8 +1,7 @@
 import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import { useState } from "react";
 import MarketingLayout from "@/components/MarketingLayout";
-import { plans, aggressivePlans } from "@/lib/mockData";
-import { challengeConfigs } from "@/lib/challengeConfig";
+import { challengeConfigs, marketingPlans } from "@/lib/challengeConfig";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Globe2 } from "lucide-react";
 
@@ -10,10 +9,8 @@ type CompareView = "quick" | "full";
 type PhaseType = "1-phase" | "2-phase" | "3-phase";
 
 export default function ChallengesPricing() {
-  const [mode, setMode] = useState<"normal" | "aggressive">("normal");
   const [compareView, setCompareView] = useState<CompareView>("quick");
   const [comparePhase, setComparePhase] = useState<PhaseType>("2-phase");
-  const activePlans = mode === "normal" ? plans : aggressivePlans;
 
   return (
     <MarketingLayout>
@@ -24,33 +21,14 @@ export default function ChallengesPricing() {
             Challenges & Pricing
           </h1>
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
-            Choose the evaluation that matches your trading style.
+            Featured two-phase evaluations. Compare all phase options below.
           </p>
 
-          {/* Toggle */}
-          <div className="mt-8 inline-flex items-center gap-1 bg-secondary rounded-md p-1 animate-fade-up delay-300">
-            <button
-              onClick={() => setMode("normal")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                mode === "normal" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Normal
-            </button>
-            <button
-              onClick={() => setMode("aggressive")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                mode === "aggressive" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Aggressive
-            </button>
-          </div>
         </div>
 
         {/* Plan cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-24">
-          {activePlans.map((plan, i) => (
+          {marketingPlans.map((plan, i) => (
             <div
               key={plan.name}
               className={`premium-card hover-lift relative animate-fade-up delay-${(i + 1) * 100} ${
@@ -69,7 +47,7 @@ export default function ChallengesPricing() {
               </div>
               <div className="space-y-3 text-sm">
                 <PlanRow label="Account Size" value={`$${plan.accountSize}`} />
-                <PlanRow label="Profit Target" value={plan.profitTarget} />
+                <PlanRow label="Phase Targets" value={plan.profitTarget} />
                 <PlanRow label="Daily Loss Limit" value={plan.dailyLoss} />
                 <PlanRow label="Max Loss Limit" value={plan.maxLoss} />
                 <PlanRow label="Min Trading Days" value={`${plan.minDays} days`} />
