@@ -69,7 +69,7 @@ export default function ChallengesPricing() {
         {/* Compare Plans — Enhanced */}
         <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-up">
           <h2 className="text-2xl font-bold">Compare Plans</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Phase filter */}
             <div className="inline-flex items-center gap-1 bg-secondary rounded-md p-0.5">
               {(["1-phase", "2-phase", "3-phase"] as PhaseType[]).map((pt) => (
