@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/MarketingLayout";
 import CinematicBackground from "@/components/CinematicBackground";
-import { plans, faqItems } from "@/lib/mockData";
+import { faqItems } from "@/lib/mockData";
+import { marketingPlans } from "@/lib/challengeConfig";
 import {
   ArrowRight,
   Zap,
@@ -115,7 +116,7 @@ export default function Index() {
           </p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans.map((plan, i) => (
+          {marketingPlans.map((plan, i) => (
             <div
               key={plan.name}
               className={`premium-card hover-lift relative animate-fade-up delay-${(i + 1) * 100} ${
@@ -137,7 +138,7 @@ export default function Index() {
                   <span className="text-foreground">${plan.accountSize}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Profit Target</span>
+                  <span>Phase Targets</span>
                   <span className="text-foreground">{plan.profitTarget}</span>
                 </div>
                 <div className="flex justify-between">

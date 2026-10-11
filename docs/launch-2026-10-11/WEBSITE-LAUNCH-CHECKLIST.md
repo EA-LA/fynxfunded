@@ -6,6 +6,7 @@ Scope: website and supporting services, not iOS completion. Previously confirmed
 
 - [x] Preserve the versioned numerical schedule and existing purchased agreements.
 - [x] Remove unconfirmed news-trading, EA, copying, strategy and VPN permissions from public rules. Remove the dashboard's fabricated account number and distinguish provisioned credentials from a live connection.
+- [x] Remove the unsupported Aggressive sample offer. Use the challenge-builder catalog for homepage and pricing cards, clearly label two-phase plans and both targets, and reconcile every price/objective with server checkout and purchased policy in regression checks. The $10K two-phase fee is $79 across these surfaces.
 - [ ] Choose the production broker/platform/server and obtain explicit permission for the intended evaluation/funded program.
 - [ ] Obtain a dated instrument catalog covering contracts, precision, leverage, costs, sessions, timezone/reset behavior and holding restrictions; approve the resulting wording.
 

@@ -92,7 +92,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               </Link>
             ))}
             <a href="https://www.fynxfinanceworld.com/api/" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-muted-foreground hover:text-foreground">API</a>
-            <div className="pt-3 border-t border-border flex items-center gap-3">
+            <div className="pt-3 border-t border-border flex flex-wrap items-center gap-3">
               <LanguageSelector />
               <ThemeToggle />
               <Link to="/login" onClick={() => setMobileOpen(false)} className="text-sm text-muted-foreground hover:text-foreground">
@@ -148,7 +148,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               <div className="space-y-2">
                 <span className="block text-sm text-muted-foreground">Discord</span>
                 <span className="block text-sm text-muted-foreground">Twitter</span>
-                <span className="block text-sm text-muted-foreground">support@fynxfunded.com</span>
+                <span className="block break-all text-sm text-muted-foreground">support@fynxfunded.com</span>
               </div>
             </div>
           </div>
