@@ -50,6 +50,7 @@ export type PaymentMethodType = "card" | "paypal" | "apple" | "crypto";
 
 // ── Challenges ────────────────────────────────────────────
 export interface Challenge {
+  currentPhase?: number;
   challengeId: string;
   accountReference?: string;
   userId: string;

@@ -29,21 +29,21 @@ export const config = {
 
   // ── Crypto (Coinbase Commerce / custom) ─────────────────
   crypto: {
-    apiKey: import.meta.env.VITE_CRYPTO_PROVIDER_KEY || "",
+    // Private provider keys belong in server-side Secret Manager.
     provider: (import.meta.env.VITE_CRYPTO_PROVIDER || "coinbase") as string,
   },
 
   // ── Broker / Trading Platform ───────────────────────────
   broker: {
     apiUrl: import.meta.env.VITE_BROKER_API_URL || "",
-    apiKey: import.meta.env.VITE_BROKER_API_KEY || "",
+    // Broker credentials must never be bundled into a browser application.
     platform: (import.meta.env.VITE_BROKER_PLATFORM || "mt5") as "mt5" | "tradelocker" | "matchtrader",
   },
 
   // ── KYC Provider ────────────────────────────────────────
   kyc: {
     provider: import.meta.env.VITE_KYC_PROVIDER || "",
-    apiKey: import.meta.env.VITE_KYC_API_KEY || "",
+    // Identity API keys are consumed only by the KYC backend.
   },
 
   // ── App ─────────────────────────────────────────────────
@@ -59,7 +59,7 @@ export const isConfigured = {
   firebase: () => !!config.firebase.apiKey,
   stripe: () => !!config.stripe.publishableKey,
   paypal: () => !!config.paypal.clientId,
-  crypto: () => !!config.crypto.apiKey,
-  broker: () => !!config.broker.apiUrl,
-  kyc: () => !!config.kyc.provider,
+  crypto: () => false, // No production payment adapter is activated.
+  broker: () => false, // A URL alone does not prove a live feed.
+  kyc: () => false, // Live readiness is verified by the server, not this hint.
 };

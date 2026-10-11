@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-10-11T18:33:38.659Z",
+  "environment": "local Firestore emulator; synthetic records only",
+  "checks": [
+    {
+      "name": "Approved synthetic ticket deleted",
+      "passed": true
+    },
+    {
+      "name": "Retained billing record and shared profile preserved",
+      "passed": true
+    },
+    {
+      "name": "Request records completion and exact plan hash",
+      "passed": true
+    },
+    {
+      "name": "Missing completion ledger blocks restoration",
+      "passed": true
+    },
+    {
+      "name": "Restored deleted record suppressed before release",
+      "passed": true
+    },
+    {
+      "name": "Restoration does not remove retained records or approve launch",
+      "passed": true
+    }
+  ],
+  "productionRestore": false,
+  "complete": true,
+  "cleanup": true
+}

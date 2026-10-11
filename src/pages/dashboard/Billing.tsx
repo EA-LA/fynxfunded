@@ -16,24 +16,36 @@ function money(value: unknown, currency: unknown="USD") { return new Intl.Number
 export default function Billing() {
   const { user } = useAuth();
   const [holdOpen, setHoldOpen] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [records, setRecords] = useState<{userId: string; orders: Order[]}>({userId: "", orders: []});
+  const orders = useMemo(() => records.userId === user?.userId ? records.orders : [], [records, user?.userId]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [error, setError] = useState("");
   useEffect(() => {
-    if (!db || !user?.userId) return;
-    return onSnapshot(query(collection(db, "orders"), where("userId", "==", user.userId)), snap => { setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setError(""); }, e => setError(e.message));
+    setRecords({userId: user?.userId || "", orders: []}); setError(""); setLoading(true);
+    if (!db || !user?.userId) { setLoading(false); return; }
+    let active = true;
+    const stop = onSnapshot(query(collection(db, "orders"), where("userId", "==", user.userId)), snap => {
+      if (!active) return;
+      setRecords({userId: user.userId, orders: snap.docs.map(d => ({...d.data(), id: d.id}))}); setError(""); setLoading(false);
+    }, () => {
+      if (!active) return;
+      setRecords({userId: user.userId, orders: []}); setLoading(false); setError("Orders could not be loaded. Please retry or contact support.");
+    });
+    return () => { active = false; stop(); };
   }, [user?.userId]);
   const visible = useMemo(() => orders.filter(o => (status === "all" || o.status === status) && (!search || [o.challenge,o.id,o.status,o.stripeSessionId].some(v => String(v || "").toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>(toDate(b.createdAt)?.getTime()||0)-(toDate(a.createdAt)?.getTime()||0)), [orders,search,status]);
   const paid = orders.filter(o => o.status === "paid");
   const resume = () => setHoldOpen(true);
   return <div className="space-y-6">
     <PaymentHold open={holdOpen} onOpenChange={setHoldOpen} />
-    <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-muted-foreground">Orders & payments</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Billing</h1><p className="mt-2 text-sm text-muted-foreground">Review purchases and access order records. Payments are on hold while we finish the final step.</p></div>
-    {error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">{error}</div>}
+    <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-muted-foreground">Orders & payments</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Billing</h1><p className="mt-2 text-sm text-muted-foreground">Review purchases and access order records. Challenge fees are one-time purchases, with no automatic renewal. New payments are currently paused.</p></div>
+    {loading && <p role="status">Loading orders…</p>}
+    {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">{error}</div>}
     <div className="grid gap-4 sm:grid-cols-3"><Summary icon={ReceiptText} title="Total orders" value={orders.length}/><Summary icon={CreditCard} title="Paid orders" value={paid.length}/><Summary icon={FileText} title="Total paid" value={money(paid.reduce((s,o)=>s+Number(o.amount||0),0))}/></div>
     <div className="overflow-hidden rounded-lg border border-border bg-card"><div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="relative max-w-sm flex-1"><Search size={15} className="absolute left-3 top-2.5 text-muted-foreground"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search orders..." className="h-9 w-full rounded-md border border-border bg-secondary/30 pl-9 pr-3 text-sm outline-none"/></div><div className="flex gap-1">{["all","pending","paid","failed","refunded"].map(x=><button key={x} onClick={()=>setStatus(x)} className={`rounded-md px-3 py-2 text-xs capitalize ${status===x?"bg-primary text-primary-foreground":"bg-secondary text-muted-foreground"}`}>{x}</button>)}</div></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="bg-secondary/30 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Challenge / receipt</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr></thead><tbody>{visible.map(o=><tr key={o.id} className="border-t border-border"><td className="px-4 py-4"><p className="font-medium">{typeof o.challenge === "string" && o.challenge ? o.challenge : `${money(o.accountSize)} challenge`}</p><p className="mt-1 font-mono text-xs text-muted-foreground">Receipt {publicOrderReference(o)}</p></td><td className="px-4 py-4">{date(o.paidAt || o.createdAt)}</td><td className="px-4 py-4 font-semibold">{money(o.amount,o.currency)}</td><td className="px-4 py-4 capitalize">{typeof o.paymentMethod === "string" ? o.paymentMethod : "card"}</td><td className="px-4 py-4"><Badge value={typeof o.status === "string" ? o.status : "pending"}/></td><td className="px-4 py-4">{o.status === "pending" ? <button onClick={()=>resume()} className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">Pay now</button> : <button onClick={()=>void downloadReceipt({...o,orderId:o.id})} className="rounded-md border border-border px-3 py-2 text-xs">Download PDF</button>}</td></tr>)}</tbody></table>{!visible.length&&<div className="py-16 text-center"><ReceiptText className="mx-auto mb-3 text-muted-foreground"/><p className="text-sm font-medium">No orders found</p><p className="mt-1 text-xs text-muted-foreground">New and completed checkout orders will appear here.</p></div>}</div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="bg-secondary/30 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Challenge / receipt</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr></thead><tbody>{visible.map(o=><tr key={o.id} className="border-t border-border"><td className="px-4 py-4"><p className="font-medium">{String(o.challenge || `${money(o.accountSize)} challenge`)}</p><p className="mt-1 font-mono text-xs text-muted-foreground">Receipt {publicOrderReference(o)}</p></td><td className="px-4 py-4">{date(o.paidAt || o.createdAt)}</td><td className="px-4 py-4 font-semibold">{money(o.amount,o.currency)}</td><td className="px-4 py-4 capitalize">{String(o.paymentMethod || "card")}</td><td className="px-4 py-4"><Badge value={String(o.status || "pending")}/></td><td className="px-4 py-4">{o.status === "pending" ? <button onClick={()=>resume()} className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">Pay now</button> : o.status === "paid" ? <button onClick={()=>void downloadReceipt({...o,orderId:o.id,status:"paid"}).catch(()=>setError("Receipt could not be downloaded. Please try again."))} className="rounded-md border border-border px-3 py-2 text-xs">Download PDF</button> : <span className="text-xs text-muted-foreground">No payment receipt</span>}</td></tr>)}</tbody></table>{!loading&&!error&&!visible.length&&<div className="py-16 text-center"><ReceiptText className="mx-auto mb-3 text-muted-foreground"/><p className="text-sm font-medium">No orders found</p><p className="mt-1 text-xs text-muted-foreground">New and completed checkout orders will appear here.</p></div>}</div>
     </div>
   </div>;
 }

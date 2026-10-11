@@ -28,7 +28,7 @@ const rules = [
   {
     icon: Newspaper,
     title: "News Trading",
-    desc: "Trading during high-impact news events is permitted. However, we reserve the right to review trades placed within 2 minutes of major releases.",
+    desc: "News-trading permissions and restricted release windows require confirmation in your purchased agreement and approved broker specifications.",
     tip: "Check the economic calendar before placing trades near major events.",
   },
   {
@@ -40,8 +40,8 @@ const rules = [
   {
     icon: Copy,
     title: "Copy Trading",
-    desc: "Copy trading from external signals or other FYNX accounts is not permitted. All trades must be independently executed.",
-    tip: "Automated EAs are allowed if they are your own strategy.",
+    desc: "Copy-trading and signal-use restrictions must be stated in the approved agreement before purchases open.",
+    tip: "Do not assume an EA or copying service is permitted before the approved rules are published.",
   },
   {
     icon: ShieldAlert,
@@ -52,14 +52,14 @@ const rules = [
   {
     icon: Globe,
     title: "Martingale / Grid / HFT",
-    desc: "Martingale strategies, grid trading without stop losses, and high-frequency trading (latency arbitrage) are prohibited.",
-    tip: "Standard automated strategies with proper risk management are welcome.",
+    desc: "The final agreement will define prohibited strategies, automation limits and execution restrictions after broker review.",
+    tip: "Strategy permission is not established by the numerical loss schedule.",
   },
   {
     icon: Monitor,
     title: "IP & Device Policy",
-    desc: "Your account should be accessed from a consistent IP and device. Significant changes may trigger a security review.",
-    tip: "Using a VPN is allowed but keep it consistent.",
+    desc: "Device, location and account-access requirements must follow the approved security and trading agreement.",
+    tip: "Confirm VPN and location requirements with Support before trading.",
   },
 ];
 

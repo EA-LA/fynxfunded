@@ -156,6 +156,7 @@ export default function Checkout() {
                 <SummaryRow label="Phase" value={phase.replace("-", " ")} />
                 <SummaryRow label="Style" value={style === "swing" ? "Swing" : "Normal"} />
                 <SummaryRow label="Currency" value={currency} />
+                <SummaryRow label="Billing" value="One-time challenge fee" />
                 <SummaryRow label="Target" value={phaseConfig.profitTargets.join(" → ")} />
                 <SummaryRow label="Profit Split" value={phaseConfig.profitSplit} />
                 <div className="glow-line my-3" />
@@ -165,7 +166,7 @@ export default function Checkout() {
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground mt-4">
-                By completing this purchase, you agree to our Terms & Conditions, Refund Policy, and Risk Disclosure.
+                Purchases are paused. Before checkout opens, you will be asked to review and explicitly accept the published terms, refund policy and risk disclosure, and acknowledge the privacy notice. No acceptance is recorded on this preview.
               </p>
             </div>
           </div>

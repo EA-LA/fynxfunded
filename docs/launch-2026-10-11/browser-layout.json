@@ -1,0 +1,50 @@
+{
+  "environment": "local website, production Firebase, disposable QA identity",
+  "checks": [
+    {
+      "width": 320,
+      "route": "billing",
+      "scrollWidth": 320
+    },
+    {
+      "width": 320,
+      "route": "trades",
+      "scrollWidth": 320
+    },
+    {
+      "width": 320,
+      "route": "settings",
+      "scrollWidth": 320
+    },
+    {
+      "width": 390,
+      "route": "billing",
+      "scrollWidth": 390
+    },
+    {
+      "width": 390,
+      "route": "trades",
+      "scrollWidth": 390
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "scrollWidth": 390
+    },
+    {
+      "width": 1440,
+      "route": "billing",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 1440,
+      "route": "trades",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 1440,
+      "route": "settings",
+      "scrollWidth": 1440
+    }
+  ]
+}

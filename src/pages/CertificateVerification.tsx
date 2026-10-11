@@ -24,16 +24,19 @@ export default function CertificateVerification() {
   const { certificateId = "" } = useParams();
   const [certificate, setCertificate] = useState<Certificate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true); setCertificate(null); setError("");
     getCertificateByPublicId(certificateId)
       .then((record) => mounted && setCertificate(record))
+      .catch(() => { if (mounted) setError("Certificate verification is temporarily unavailable. Please try again later."); })
       .finally(() => mounted && setLoading(false));
     return () => { mounted = false; };
   }, [certificateId]);
 
-  const isValid = certificate && certificate.status !== "revoked";
+  const isValid = certificate && certificate.status === "issued";
 
   return (
     <main className="min-h-screen bg-black px-4 py-10 text-white sm:px-6">
@@ -82,8 +85,8 @@ export default function CertificateVerification() {
             <div className="grid min-h-[320px] place-items-center text-center">
               <div>
                 <BadgeCheck className="mx-auto text-white/30" size={48} />
-                <h1 className="mt-4 text-3xl font-semibold">Certificate not verified</h1>
-                <p className="mt-2 max-w-md text-white/60">No active public certificate was found for ID {certificateId}. It may have been revoked or the ID may be incorrect.</p>
+                <h1 className="mt-4 text-3xl font-semibold">{error ? "Unable to verify certificate" : "Certificate not verified"}</h1>
+                <p className="mt-2 max-w-md text-white/60">{error || `No active public certificate was found for ID ${certificateId}. It may have been revoked or the ID may be incorrect.`}</p>
               </div>
             </div>
           )}

@@ -18,10 +18,7 @@ export type KycProvider = "stripe_identity" | "sumsub" | "persona" | "veriff" | 
 export type KycDocumentType = "passport" | "drivers_license" | "national_id";
 
 export interface KycProfileInput {
-  legalFullName: string;
-  dateOfBirth: string;
   countryOfResidence: string;
-  address: string;
   documentType: KycDocumentType;
 }
 
@@ -42,7 +39,7 @@ export interface KycSessionResult {
   sessionId: string;
   provider: KycProvider;
   redirectUrl?: string;
-  clientSecret?: string;
+  status?: "requires_input" | "processing" | "verified" | "canceled";
 }
 
 interface KycProviderAdapter {
@@ -70,7 +67,7 @@ class StripeIdentityAdapter implements KycProviderAdapter {
       sessionId: data.sessionId,
       provider: (data.provider as KycProvider) || this.provider,
       redirectUrl: data.redirectUrl,
-      clientSecret: data.clientSecret,
+      status: data.status,
     };
   }
 }
