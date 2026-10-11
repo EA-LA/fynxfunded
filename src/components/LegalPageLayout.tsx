@@ -21,6 +21,9 @@ export default function LegalPageLayout({ title, lastUpdated, disclaimer, sectio
         <div className="mb-12 animate-fade-up">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">{title}</h1>
           <p className="text-sm text-muted-foreground">Last updated: {lastUpdated}</p>
+          <div className="mt-4 rounded-md border border-border bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
+            New purchases are paused while the launch terms and billing policies complete their final review. Existing purchases remain subject to the terms accepted at purchase.
+          </div>
           {disclaimer && (
             <div className="mt-4 border border-border bg-accent/30 rounded-md px-4 py-3">
               <p className="text-xs text-muted-foreground italic">⚠ {disclaimer}</p>

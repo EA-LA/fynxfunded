@@ -5,25 +5,27 @@ import { Search, Download, ListX, Radio, ShieldCheck } from "lucide-react";
 export default function Trades() {
   const data = useTradingData(); const { hasTrades, trades } = data;
   const [symbolFilter, setSymbolFilter] = useState("");
-  const [resultFilter, setResultFilter] = useState<"" | "Win" | "Loss">("");
+  const [resultFilter, setResultFilter] = useState<"" | "Win" | "Loss" | "Breakeven">("");
 
   const filtered = trades.filter((t) => {
     if (symbolFilter && !t.symbol.toLowerCase().includes(symbolFilter.toLowerCase())) return false;
     if (resultFilter && t.result !== resultFilter) return false;
     return true;
   });
-  const total=trades.reduce((s,t)=>s+t.pnl,0),wins=trades.filter(t=>t.pnl>=0).length,lots=trades.reduce((s,t)=>s+t.lots,0);
+  const total=trades.reduce((s,t)=>s+t.pnl,0),wins=trades.filter(t=>t.pnl>0).length,lots=trades.reduce((s,t)=>s+t.lots,0);
   const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open","Close","Lots","P/L","Pips","Risk %","R:R","Session"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
 
+  if (data.loading || data.error) return <div className="space-y-4"><h1 className="text-2xl font-bold">Trades</h1><p role={data.error ? "alert" : "status"}>{data.error || "Loading account records…"}</p></div>;
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Trades</h1>
-        <p className="text-sm text-muted-foreground mt-1">Full trade history for your active account.</p>
+        <p className="text-sm text-muted-foreground mt-1">Recorded closed trades · {data.accountName}</p>
       </div>
 
+      {data.loading && <p role="status">Loading trading records…</p>}{data.error && <p role="alert">{data.error}</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Trades",trades.length],["Net P/L",`${total>=0?"+":""}$${total.toFixed(2)}`],["Win rate",`${trades.length?(wins/trades.length*100).toFixed(1):"0.0"}%`],["Volume",`${lots.toFixed(2)} lots`]].map(([k,v])=><div className="premium-card" key={k}><p className="text-xs text-muted-foreground">{k}</p><p className="mt-2 text-2xl font-bold">{v}</p></div>)}</div>
-      <div className="premium-card flex flex-wrap items-center gap-3"><Radio size={17}/><div className="mr-auto"><p className="text-sm font-semibold">{data.brokerConnected?"Broker feed connected":"Broker feed not connected"}</p><p className="text-xs text-muted-foreground">Closed trades appear here automatically after the broker writes verified records.</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs">{data.brokerConnected?"Listening live":"Waiting for setup"}</span></div>
+      <div className="premium-card flex flex-wrap items-center gap-3"><Radio size={17}/><div className="mr-auto"><p className="text-sm font-semibold">{data.brokerConnected?"Broker feed connected":"Live broker feed unverified"}</p><p className="text-xs text-muted-foreground">Closed trades appear here automatically after the broker writes verified records.</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs">{data.brokerConnected?"Listening live":"Recorded data"}</span></div>
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative max-w-xs">
@@ -38,7 +40,7 @@ export default function Trades() {
             </div>
             <select
               value={resultFilter}
-              onChange={(e) => setResultFilter(e.target.value as "" | "Win" | "Loss")}
+              onChange={(e) => setResultFilter(e.target.value as "" | "Win" | "Loss" | "Breakeven")}
               className="bg-card border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 appearance-none"
             >
               <option value="">All Results</option>

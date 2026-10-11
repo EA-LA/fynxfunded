@@ -25,3 +25,8 @@ functions/lib
 *.sw?
 .vercel
 .env*
+
+# Local browser evidence and emulator state
+.playwright-cli/
+output/
+.firebase/

@@ -26,6 +26,7 @@ function currency(amount = 0, code = "USD") {
 }
 
 export async function createReceiptPdf(order: ReceiptOrder) {
+  if (order.status !== "paid") throw new Error("A payment receipt is only available for a paid order.");
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const receiptNumber = publicOrderReference(order);

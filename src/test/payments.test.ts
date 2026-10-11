@@ -42,3 +42,9 @@ describe("PDF receipt", () => {
     expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe("%PDF");
   });
 });
+
+describe("unpaid orders", () => {
+  it.each(["pending", "failed", "refunded", undefined])("does not issue a payment confirmation for %s", async status => {
+    await expect(createReceiptPdf({...order,status})).rejects.toThrow("only available for a paid order");
+  });
+});

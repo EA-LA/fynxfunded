@@ -1,3 +1,4 @@
+import { bind as bindPurchasedRules } from "../purchasedAgreement";
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
@@ -30,25 +31,25 @@ export const stripeWebhook = onRequest(
       const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2023-10-16" });
       event = stripe.webhooks.constructEvent(req.rawBody, signature, webhookSecret.value());
     } catch (error) {
-      console.error("[Stripe Webhook] Signature verification failed", error);
+      console.error("[Stripe Webhook] Signature verification failed");
       res.status(400).send("Invalid webhook signature");
       return;
     }
 
     try {
-      if (event.type === "checkout.session.completed") {
+      if (["checkout.session.completed", "checkout.session.async_payment_succeeded"].includes(event.type)) {
         await recordCompletedCheckout(event.data.object as Stripe.Checkout.Session, event.id);
       }
       res.status(200).json({ received: true });
     } catch (error) {
-      console.error("[Stripe Webhook] Event processing failed", { eventId: event.id, error });
+      console.error("[Stripe Webhook] Event processing failed", { eventId: event.id });
       res.status(500).send("Webhook processing failed");
     }
   },
 );
 
-async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId: string) {
-  if (session.payment_status !== "paid") return;
+export async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId: string) {
+  if (session.payment_status !== "paid" || (!session.livemode && process.env.FUNCTIONS_EMULATOR !== "true")) return;
 
   const userId = session.metadata?.userId;
   const accountSize = Number(session.metadata?.accountSize);
@@ -68,40 +69,42 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
 
   const email = session.customer_details?.email || session.customer_email || "";
   const shouldSendEmail = await db.runTransaction(async (transaction) => {
-    const eventSnapshot = await transaction.get(eventRef);
-    if (eventSnapshot.exists && eventSnapshot.data()?.emailStatus === "sent") return false;
-
-    transaction.set(orderRef, {
-      userId,
-      orderNumber,
-      challengeId: challengeRef.id,
-      amount: (session.amount_total || 0) / 100,
-      currency: (session.currency || "usd").toUpperCase(),
-      paymentMethod: "card",
-      status: "paid",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-      challenge: challengeName,
-      accountSize,
-      phase: phaseLabel,
-      style: session.metadata?.style === "swing" ? "swing" : "normal",
-      stripeSessionId: session.id,
-      stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
-    }, { merge: true });
-
-    transaction.set(challengeRef, {
-      userId,
-      accountReference,
-      orderId: orderRef.id,
-      name: challengeName,
-      phase: phaseLabel,
-      accountSize,
-      style: session.metadata?.style === "swing" ? "swing" : "normal",
-      status: "active",
-      startDate: admin.firestore.FieldValue.serverTimestamp(),
-      brokerAccountId: null,
-      currency: (session.currency || "usd").toUpperCase(),
-    }, { merge: true });
+    const [eventSnapshot, orderSnapshot, challengeSnapshot] = await Promise.all([
+      transaction.get(eventRef), transaction.get(orderRef), transaction.get(challengeRef),
+    ]);
+    const recordedOrder = orderSnapshot.data();
+    const attemptId = session.metadata?.checkout_attempt;
+    const attempt = attemptId && /^[A-Za-z0-9_-]{1,220}$/.test(attemptId)
+      ? (await transaction.get(db.doc(`web_checkout_attempts/${attemptId}`))).data() : undefined;
+    const source = recordedOrder ?? (attempt ? { ...attempt, amount: attempt.plan.amountCents / 100, amountCents: attempt.plan.amountCents, currency: "USD", accountSize: attempt.plan.accountSize, phase: `${attempt.plan.phase}-phase` } : undefined);
+    if (!source || source.userId !== userId || source.accountSize !== accountSize || source.phase !== phaseLabel
+      || source.currency?.toLowerCase() !== session.currency || Math.round(Number(source.amount) * 100) !== session.amount_total
+      || (session.client_reference_id && session.client_reference_id !== userId)) throw Error("Payment does not match the reserved order.");
+    if (challengeSnapshot.exists && (challengeSnapshot.data()?.userId !== userId || challengeSnapshot.data()?.orderId !== orderRef.id)) throw Error("Challenge ownership conflict.");
+    const alreadyFulfilled = recordedOrder?.fulfillmentStatus === "complete" || challengeSnapshot.exists;
+    if (!alreadyFulfilled) {
+      // First fulfillment always needs the purchase snapshot; never infer historical acceptance.
+      const rulePolicy = bindPurchasedRules(source.purchasedRules, { uid: userId, order_id: session.id, program: phaseLabel,
+        starting_balance: String(accountSize), start_timestamp: new Date().toISOString(), expected_hash: session.metadata?.rule_document_sha256 });
+      if (!source.legalAcceptance || source.legalAcceptance.uid !== userId || source.legalAcceptance.releaseVersion !== session.metadata?.legal_version) throw Error("Recorded legal acceptance does not match checkout.");
+      transaction.set(orderRef, {
+        userId, orderNumber, challengeId: challengeRef.id, amount: session.amount_total! / 100, amountCents: session.amount_total,
+        currency: session.currency!.toUpperCase(), paymentMethod: "card", status: "paid", fulfillmentStatus: "complete",
+        purchasedRules: source.purchasedRules, legalAcceptance: source.legalAcceptance,
+        createdAt: recordedOrder?.createdAt ?? admin.firestore.FieldValue.serverTimestamp(), paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        challenge: challengeName, accountSize, phase: phaseLabel, style: source.style,
+        stripeSessionId: session.id, stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
+      }, { merge: true });
+      transaction.create(challengeRef, {
+        userId, accountReference, orderId: orderRef.id, rulePolicyVersion: rulePolicy.policy_version, rulePolicy,
+        currentPhase: 1, progressionMode: "manual", name: challengeName, phase: phaseLabel, accountSize, style: source.style,
+        status: "active", startDate: admin.firestore.FieldValue.serverTimestamp(), brokerAccountId: null, currency: session.currency!.toUpperCase(),
+      });
+    }
+    // Delivery retries never reset challenge progress, failure, broker binding, refund status or payment dates.
+    if (recordedOrder?.confirmationEmailStatus === "sent" || eventSnapshot.data()?.emailStatus === "sent") return false;
+    if (recordedOrder?.confirmationEmailLeaseUntil > Date.now()) throw Error("Confirmation is being delivered; retry later.");
+    if (email) transaction.set(orderRef, { confirmationEmailStatus: "pending", confirmationEmailLeaseUntil: Date.now() + 120000 }, { merge: true });
 
     transaction.set(eventRef, {
       type: "checkout.session.completed",
@@ -114,15 +117,15 @@ async function recordCompletedCheckout(session: Stripe.Checkout.Session, eventId
   });
 
   if (!shouldSendEmail) return;
-  await sendPurchaseConfirmation(email, {
-    challengeName,
-    orderReference: orderNumber,
-    amount: (session.amount_total || 0) / 100,
-    currency: (session.currency || "usd").toUpperCase(),
-  });
+  try {
+    await sendPurchaseConfirmation(email, { challengeName, orderReference: orderNumber, amount: session.amount_total! / 100, currency: session.currency!.toUpperCase() });
+  } catch {
+    await orderRef.set({ confirmationEmailLeaseUntil: 0, confirmationEmailStatus: "pending" }, { merge: true });
+    throw Error("Confirmation delivery pending; retry required.");
+  }
   await Promise.all([
     eventRef.set({ emailStatus: "sent", emailSentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }),
-    orderRef.set({ confirmationEmailStatus: "sent", confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }),
+    orderRef.set({ confirmationEmailStatus: "sent", confirmationEmailLeaseUntil: 0, confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }),
   ]);
 }
 
@@ -176,8 +179,7 @@ async function sendPurchaseConfirmation(email: string, details: { challengeName:
     body: form.toString(),
   });
   if (!response.ok) {
-    const providerMessage = (await response.text()).slice(0, 500);
-    console.error("Mailgun rejected purchase confirmation", { status: response.status, providerMessage });
+    console.error("Mailgun rejected purchase confirmation", { status: response.status });
     throw new Error("Purchase confirmation delivery failed");
   }
 }

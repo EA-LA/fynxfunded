@@ -1,0 +1,63 @@
+{
+  "checkedAt": "2026-10-11T18:44:20.546Z",
+  "environment": "production services, disposable QA identities; email verification preset",
+  "checks": [
+    {
+      "name": "Disposable QA password authentication",
+      "passed": true
+    },
+    {
+      "name": "Disposable QA password authentication",
+      "passed": true
+    },
+    {
+      "name": "Owner can read their failed-order fixture",
+      "passed": true
+    },
+    {
+      "name": "Another customer cannot read that order",
+      "passed": true
+    },
+    {
+      "name": "Anonymous client cannot read that order",
+      "passed": true
+    },
+    {
+      "name": "Privacy export rejects anonymous calls",
+      "passed": true
+    },
+    {
+      "name": "Export ignores a supplied foreign UID and contains the owned order",
+      "passed": true
+    },
+    {
+      "name": "Export excludes the other customer and QA credentials",
+      "passed": true
+    },
+    {
+      "name": "Deletion request is pending and retry-safe",
+      "passed": true
+    },
+    {
+      "name": "Non-owner cannot control progression",
+      "passed": true
+    },
+    {
+      "name": "Web checkout remains paused",
+      "passed": true
+    },
+    {
+      "name": "Payment verification rejects anonymous callers",
+      "passed": true
+    },
+    {
+      "name": "Webhook rejects an invalid signature without fulfillment",
+      "passed": true
+    }
+  ],
+  "complete": true,
+  "export": {
+    "documents": 3,
+    "sha256": "9f5dc061f808024d9fd2714d4102f70dca1c82db1d6d3831aa87086574e1336d"
+  }
+}

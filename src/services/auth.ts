@@ -321,16 +321,21 @@ class FirebaseAuthService implements AuthService {
   }
 
   onAuthStateChange(callback: (user: User | null) => void): () => void {
-    return onAuthStateChanged(this.getAuth(), async (fbUser) => {
-      if (fbUser) {
+    let generation = 0;
+    const unsubscribe = onAuthStateChanged(this.getAuth(), async (fbUser) => {
+      const turn = ++generation;
+      if (!fbUser || !fbUser.emailVerified) { this.currentUser = null; callback(null); return; }
+      if (this.currentUser && this.currentUser.userId !== fbUser.uid) { this.currentUser = null; callback(null); }
+      try {
         const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
+        if (turn !== generation || this.getAuth().currentUser?.uid !== fbUser.uid) return;
         this.currentUser = user;
         callback(user);
-      } else {
-        this.currentUser = null;
-        callback(null);
+      } catch {
+        if (turn === generation) { this.currentUser = null; callback(null); }
       }
     });
+    return () => { ++generation; unsubscribe(); };
   }
 
   async updatePassword(currentPassword: string, newPassword: string): Promise<void> {

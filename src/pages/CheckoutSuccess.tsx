@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Download, ArrowRight, FileText, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { dataService } from "@/services/database";
+import { useAuth } from "@/contexts/AuthContext";
 import { downloadReceipt } from "@/services/payments";
 import type { Order } from "@/services/types";
 import { auth as firebaseAuth } from "@/lib/firebase";
@@ -9,67 +9,47 @@ import { displayDate, publicOrderReference } from "@/lib/publicReferences";
 
 export default function CheckoutSuccess() {
   const [params] = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
+  const [attempt, setAttempt] = useState(0);
+  const [error, setError] = useState("");
+  const sessionId = params.get("session_id");
+  const userId = user?.userId;
+  const [verifiedUserId, setVerifiedUserId] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [verified, setVerified] = useState(false);
 
   useEffect(() => {
-    const verifyPayment = async () => {
-      const sessionId = params.get("session_id");
-      const localOrderId = localStorage.getItem("fynx_last_order_id");
-      let paymentVerified = false;
+    if (authLoading) return;
+    let active = true;
+    const controller = new AbortController();
+    setLoading(true); setOrder(null); setVerified(false); setVerifiedUserId(""); setError("");
+    async function verifyPayment() {
+      try {
+        if (!userId || !sessionId || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) throw Error("Sign in to the account used at checkout and open the original payment return link.");
+        const current = firebaseAuth?.currentUser;
+        if (!current || current.uid !== userId) throw Error("Sign in again to check this payment.");
+        const idToken = await current.getIdToken();
+        const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "https://us-central1-fynx-c7a28.cloudfunctions.net";
+        const response = await fetch(`${apiBase}/verifySession`, {
+          method: "POST", signal: controller.signal,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` }, body: JSON.stringify({ sessionId }),
+        });
+        const data = await response.json();
+        if (!response.ok || data.verified !== true || data.status !== "paid") throw Error("Payment has not been confirmed. Check Billing or try again; do not make a second payment while the result is unclear.");
+        if (!active) return;
+        setVerifiedUserId(userId); setVerified(true);
+        // A successful charge can precede the webhook. Only fulfilled, owned orders get a receipt.
+        if (data.order?.status === "paid" && data.order.userId === userId && data.order.challengeId) setOrder(data.order as Order);
+      } catch (error) {
+        if (active) setError(error instanceof Error ? error.message : "Payment could not be checked. Please try again.");
+      } finally { if (active) setLoading(false); }
+    }
+    void verifyPayment();
+    return () => { active = false; controller.abort(); };
+  }, [sessionId, userId, authLoading, attempt]);
 
-      // Path 1: Stripe session_id in URL — verify via backend
-      if (sessionId) {
-        try {
-          const apiBase =
-            (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-            "https://us-central1-fynx-c7a28.cloudfunctions.net";
-
-          const idToken = await firebaseAuth?.currentUser?.getIdToken();
-          if (!idToken) throw new Error("Authentication required to verify payment.");
-
-          const res = await fetch(`${apiBase}/verifySession`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-            body: JSON.stringify({ sessionId }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.verified && data.status === "paid") {
-              setVerified(true);
-              paymentVerified = true;
-              if (data.order) {
-                setOrder(data.order as Order);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("[CheckoutSuccess] Stripe verification failed:", err);
-        }
-      }
-
-      // Path 2: PayPal / fallback — verify from Firestore via localStorage order ID
-      if (!paymentVerified && localOrderId) {
-        try {
-          const found = await dataService.getOrder(localOrderId);
-          if (found && found.status === "paid") {
-            setOrder(found);
-            setVerified(true);
-          }
-        } catch (err) {
-          console.error("[CheckoutSuccess] Firestore order lookup failed:", err);
-        }
-      }
-
-      setLoading(false);
-    };
-
-    verifyPayment();
-  }, [params]);
-
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-6 h-6 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin" />
@@ -77,16 +57,17 @@ export default function CheckoutSuccess() {
     );
   }
 
-  if (!verified) {
+  if (!verified || verifiedUserId !== user?.userId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="text-center">
           <AlertTriangle size={32} className="mx-auto text-muted-foreground mb-4" />
           <h2 className="text-lg font-semibold mb-2">Payment not verified</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            We could not confirm your payment. If you believe this is an error, please contact support.
+            {error || "Sign in again to check your payment."}
           </p>
-          <Link to="/challenge-builder" className="text-sm text-foreground underline">Go to Challenge Builder</Link>
+          <button onClick={() => setAttempt(value => value + 1)} className="rounded-md border px-4 py-2 text-sm">Check again</button>
+          <Link to="/dashboard/billing" className="ml-4 text-sm underline">Open Billing</Link>
         </div>
       </div>
     );
@@ -99,9 +80,9 @@ export default function CheckoutSuccess() {
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 size={32} className="text-foreground" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Thank you for your purchase</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{order ? "Thank you for your purchase" : "Payment received — order processing"}</h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Your payment was confirmed and your challenge order has been created.
+            {order ? "Your payment was confirmed and your challenge order has been created." : "Your payment is confirmed. Your order is still being prepared. Do not pay again."}
           </p>
         </div>
 
@@ -117,6 +98,7 @@ export default function CheckoutSuccess() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3">
+          {!order && <button onClick={() => setAttempt(value => value + 1)} className="rounded-md border px-4 py-2.5 text-sm">Check order status</button>}
           {order && (
             <button
               onClick={() => void downloadReceipt(order)}
