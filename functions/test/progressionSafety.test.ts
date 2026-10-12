@@ -39,3 +39,9 @@ it("storage failure cannot produce a partial failure record", async () => {
   fake.commitFails = true; await expect(run(request("fail", "Reviewed source history and confirmed violation."))).rejects.toThrow("storage unavailable");
   expect(fake.records.get("challenges/c1")).toEqual({ status: "active" }); expect(fake.records.size).toBe(1);
 });
+
+it("cannot turn legacy closed-trade performance into a passed account", async () => {
+  fake.records.set("challenges/c1", { status: "active", brokerAccountId: "legacy-broker", phase: "2-phase", accountSize: 10000 });
+  await expect(run(request("evaluate"))).rejects.toMatchObject({ code: "failed-precondition" });
+  expect(fake.records.get("challenges/c1").status).toBe("active"); expect(fake.records.size).toBe(1);
+});

@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-12T16:19:33.740Z",
+  "environment": "local Firestore emulator; synthetic records only",
+  "checks": [
+    {
+      "name": "Preview reconciles five days without authorizing progression",
+      "passed": true
+    },
+    {
+      "name": "Missing release approval cannot progress or create an archive",
+      "passed": true
+    },
+    {
+      "name": "A recorded breach cannot be cleared by transition",
+      "passed": true
+    },
+    {
+      "name": "Account changes invalidate the reviewed plan",
+      "passed": true
+    },
+    {
+      "name": "Concurrent transition attempts commit exactly once",
+      "passed": true
+    },
+    {
+      "name": "Old phase is fully archived while new phase awaits actual broker evidence",
+      "passed": true
+    },
+    {
+      "name": "Archived policy and every event match the sealed digest",
+      "passed": true
+    },
+    {
+      "name": "Archive tampering is detected",
+      "passed": true
+    }
+  ],
+  "productionProgression": false,
+  "complete": true,
+  "cleanup": true
+}

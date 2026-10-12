@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-10-11T19:08:34.133Z",
+  "mode": "read-only; no payments created",
+  "functions": {
+    "createCheckoutSession": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:24.885239321Z",
+      "runtime": "nodejs22",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false
+    },
+    "verifySession": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:36.796524470Z",
+      "runtime": "nodejs22",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false
+    },
+    "stripeWebhook": {
+      "state": "ACTIVE",
+      "updatedAt": "2026-10-11T19:07:36.397806352Z",
+      "runtime": "nodejs22",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "version": "2"
+        },
+        {
+          "name": "MAILGUN_API_KEY",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false
+    }
+  },
+  "stripe": {
+    "keyMode": "test",
+    "account": {
+      "readable": true,
+      "chargesEnabled": false,
+      "payoutsEnabled": false,
+      "detailsSubmitted": false
+    },
+    "webhooks": [
+      {
+        "url": "https://us-central1-fynx-c7a28.cloudfunctions.net/stripeWebhook",
+        "status": "enabled",
+        "enabledEvents": [
+          "checkout.session.completed"
+        ],
+        "live": false
+      }
+    ],
+    "webhookListComplete": true
+  },
+  "purchaseHold": {
+    "httpStatus": 503,
+    "enforced": true
+  }
+}

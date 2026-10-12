@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-12T16:26:09.540Z",
+  "mode": "test only",
+  "url": "https://us-central1-fynx-c7a28.cloudfunctions.net/stripeWebhook",
+  "before": [
+    "checkout.session.completed"
+  ],
+  "after": [
+    "checkout.session.completed",
+    "checkout.session.async_payment_succeeded",
+    "payment_intent.succeeded"
+  ],
+  "changed": true,
+  "livePaymentsEnabled": false,
+  "verified": true
+}

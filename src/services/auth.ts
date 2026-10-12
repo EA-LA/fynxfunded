@@ -27,7 +27,7 @@ import {
 } from "firebase/firestore";
 import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from "@/lib/firebase";
 import { recordLoginSession } from "@/services/session-tracker";
-import { mfaStatus, verifySignInTwoFactor } from "@/services/security";
+import { mfaCall, mfaStatus, verifySignInTwoFactor } from "@/services/security";
 import type { User } from "./types";
 
 export interface AuthService {
@@ -247,6 +247,11 @@ class FirebaseAuthService implements AuthService {
     this.currentUser = user;
 
     // Sign out — user must verify email before logging in
+    const uid = this.getAuth().currentUser?.uid;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([mfaCall("logout"), new Promise(resolve => { timer = setTimeout(resolve, 5000); })]); } catch { /* Local sign-out must still work offline. */ }
+    finally { clearTimeout(timer); }
+    if (this.getAuth().currentUser?.uid !== uid) return;
     await firebaseSignOut(this.getAuth());
     this.currentUser = null;
 
@@ -305,6 +310,11 @@ class FirebaseAuthService implements AuthService {
   }
 
   async signOut(): Promise<void> {
+    const uid = this.getAuth().currentUser?.uid;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([mfaCall("logout"), new Promise(resolve => { timer = setTimeout(resolve, 5000); })]); } catch { /* Local sign-out must still work offline. */ }
+    finally { clearTimeout(timer); }
+    if (this.getAuth().currentUser?.uid !== uid) return;
     await firebaseSignOut(this.getAuth());
     this.currentUser = null;
   }
@@ -325,6 +335,8 @@ class FirebaseAuthService implements AuthService {
     const unsubscribe = onIdTokenChanged(this.getAuth(), async (fbUser) => {
       const turn = ++generation;
       clearTimeout(expiry);
+      if (!fbUser || !fbUser.emailVerified) { this.currentUser = null; callback(null); return; }
+      if (this.currentUser && this.currentUser.userId !== fbUser.uid) { this.currentUser = null; callback(null); }
       if (fbUser) {
         try {
           const status = await requireVerifiedSession();

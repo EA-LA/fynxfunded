@@ -7,6 +7,7 @@ import { requestId, documentId } from "./nativeCustomerPolicy";
 import { getPlan } from "./stripe/priceMap";
 import { paymentsPaused } from "./stripe/paymentAvailability";
 import { build as buildRules } from "./purchasedAgreement";
+import { legalCatalog, recordLegalAcceptance, type LegalRelease } from "./fundedLegal";
 import { VERSION } from "./fundedPolicy";
 const secret = defineSecret("STRIPE_SECRET_KEY");
 const publicKey = defineString("STRIPE_PUBLISHABLE_KEY", { default: "" });
@@ -20,7 +21,8 @@ export const fundedMobileCheckout = onCall({ region: "us-central1", secrets: [se
       const agreement = buildRules({ uid, program: `${phase}-phase`, starting_balance: String(plan.accountSize), accepted_version: VERSION, accepted: true });
       return { id: `${size}_${phase}`, size, ...plan, rules: agreement.document.phases };
     }));
-    return { available, message: available ? "" : "Challenge purchases are temporarily paused while launch checks are completed.", version: VERSION, currency: "USD", plans };
+    const legal = legalCatalog((await db.doc("funded_legal_releases/current").get()).data() as LegalRelease | undefined);
+    return { available: available && legal !== null, legal, message: available && legal ? "" : "Challenge purchases are temporarily paused while launch checks are completed.", version: VERSION, currency: "USD", plans };
   }
   if (data.action === "status") {
     const snapshot = await db.doc(`orders/${documentId(data.orderId)}`).get(); const order = snapshot.data();
@@ -36,15 +38,16 @@ export const fundedMobileCheckout = onCall({ region: "us-central1", secrets: [se
   const id = requestId(data.requestId); const plan = getPlan(data.size, data.phase);
   if (!plan) throw new HttpsError("invalid-argument", "Choose a challenge.");
   if (data.acceptRules !== true || data.rulePolicyVersion !== VERSION) throw new HttpsError("failed-precondition", "Review and accept the current challenge rules.");
+  const legalAcceptance = recordLegalAcceptance((await db.doc("funded_legal_releases/current").get()).data() as LegalRelease | undefined, data.legalAcceptance, uid, new Date().toISOString(), "authenticated_ios_checkout");
   const ref = db.doc(`native_checkout_attempts/${uid}_${id}`);
   const agreement = buildRules({ uid, program: `${plan.phase}-phase`, starting_balance: String(plan.accountSize), accepted_version: VERSION, accepted: true });
   const attempt: admin.firestore.DocumentData = await db.runTransaction(async tx => {
     const prior = (await tx.get(ref)).data();
     if (prior) {
-      if (prior.amountCents !== plan.amountCents || prior.style !== style || prior.size !== data.size || prior.phase !== plan.phase || prior.rules.document_sha256 !== agreement.document_sha256) throw new HttpsError("already-exists", "Checkout details changed. Start a new checkout.");
+      if (prior.amountCents !== plan.amountCents || prior.style !== style || prior.size !== data.size || prior.phase !== plan.phase || prior.rules.document_sha256 !== agreement.document_sha256 || prior.legalAcceptance?.releaseVersion !== legalAcceptance.releaseVersion || JSON.stringify(prior.legalAcceptance?.documents) !== JSON.stringify(legalAcceptance.documents)) throw new HttpsError("already-exists", "Checkout details changed. Start a new checkout.");
       return prior;
     }
-    const reserved = { userId: uid, style, size: data.size, phase: plan.phase, amountCents: plan.amountCents, rules: agreement, email: request.auth!.token.email ?? "", createdAt: Date.now() };
+    const reserved = { userId: uid, accountSize: plan.accountSize, legalAcceptance, style, size: data.size, phase: plan.phase, amountCents: plan.amountCents, rules: agreement, email: request.auth!.token.email ?? "", createdAt: Date.now() };
     tx.create(ref, reserved); return reserved;
   });
   // Stripe retains idempotency keys for at least 24 hours. Never create a second payment after that window.
@@ -53,12 +56,12 @@ export const fundedMobileCheckout = onCall({ region: "us-central1", secrets: [se
   const intent = attempt.intentId ? await stripe.paymentIntents.retrieve(attempt.intentId) : await stripe.paymentIntents.create({
     amount: plan.amountCents, currency: "usd", payment_method_types: ["card"],
     receipt_email: attempt.email || undefined,
-    metadata: { channel: "ios_native", userId: uid, accountSize: String(plan.accountSize), phase: plan.phase, style, rule_policy_version: VERSION, rule_document_sha256: attempt.rules.document_sha256 },
+    metadata: { channel: "ios_native", native_checkout_attempt: ref.id, legal_version: attempt.legalAcceptance.releaseVersion, userId: uid, accountSize: String(plan.accountSize), phase: plan.phase, style, rule_policy_version: VERSION, rule_document_sha256: attempt.rules.document_sha256 },
   }, { idempotencyKey: `native-checkout-${uid}-${id}` });
   await db.runTransaction(async tx => {
     const orderRef = db.doc(`orders/${intent.id}`); const existing = await tx.get(orderRef);
     tx.set(ref, { intentId: intent.id }, { merge: true });
-    if (!existing.exists) tx.create(orderRef, { userId: uid, channel: "ios_native", style, status: "pending", amount: plan.amountCents / 100, amountCents: plan.amountCents, currency: "USD", accountSize: plan.accountSize, phase: `${plan.phase}-phase`, purchasedRules: attempt.rules, stripePaymentIntentId: intent.id, customerEmail: attempt.email, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    if (!existing.exists) tx.create(orderRef, { userId: uid, channel: "ios_native", style, status: "pending", amount: plan.amountCents / 100, amountCents: plan.amountCents, currency: "USD", accountSize: plan.accountSize, phase: `${plan.phase}-phase`, purchasedRules: attempt.rules, legalAcceptance: attempt.legalAcceptance, stripePaymentIntentId: intent.id, customerEmail: attempt.email, createdAt: admin.firestore.FieldValue.serverTimestamp() });
   });
   return { orderId: intent.id, clientSecret: intent.client_secret, publishableKey: publicKey.value(), status: intent.status };
 });

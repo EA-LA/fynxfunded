@@ -21,7 +21,7 @@ export default function DashboardSettings() {
   // Nickname: editable only if not yet set
   const [nickname, setNickname] = useState(() => user?.nickname || "");
   const [nicknameLocked, setNicknameLocked] = useState(() => !!(user?.nickname));
-  const [country, setCountry] = useState(() => user?.country || localStorage.getItem("fynx_user_country") || "");
+  const [country, setCountry] = useState(() => user?.country || "");
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
@@ -68,14 +68,10 @@ export default function DashboardSettings() {
 
   // Sync nickname/country from user context
   useEffect(() => {
-    if (user?.nickname) {
-      setNickname(user.nickname);
-      setNicknameLocked(true);
-    }
-    if (user?.country) {
-      setCountry(user.country);
-    }
-  }, [user?.nickname, user?.country]);
+    setNickname(user?.nickname || "");
+    setNicknameLocked(Boolean(user?.nickname));
+    setCountry(user?.country || "");
+  }, [user?.userId, user?.nickname, user?.country]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -128,9 +124,9 @@ export default function DashboardSettings() {
     try {
       await revokeSession(user.userId, sessionId);
       await refreshSessions();
-      toast({ title: "Session logged out", description: "That device no longer has an active dashboard session." });
+      toast({ title: "Sign-in record removed", description: "This removes the saved record. It does not sign out that device." });
     } catch (err: any) {
-      toast({ title: "Could not log out device", description: err?.message || "Please try again.", variant: "destructive" });
+      toast({ title: "Could not remove sign-in record", description: err?.message || "Please try again.", variant: "destructive" });
     }
   };
 
@@ -139,9 +135,9 @@ export default function DashboardSettings() {
     try {
       await revokeAllSessions(user.userId);
       await refreshSessions();
-      toast({ title: "Other devices logged out", description: "Only this browser session remains active." });
+      toast({ title: "Saved sign-in records removed", description: "Removing history does not revoke access on other devices." });
     } catch (err: any) {
-      toast({ title: "Could not log out sessions", description: err?.message || "Please try again.", variant: "destructive" });
+      toast({ title: "Could not remove sign-in records", description: err?.message || "Please try again.", variant: "destructive" });
     }
   };
 
@@ -277,7 +273,6 @@ export default function DashboardSettings() {
       }
     }
 
-    localStorage.setItem("fynx_user_country", country);
   };
 
   const Toggle = ({ enabled, onToggle, loading = false }: { enabled: boolean; onToggle: () => void; loading?: boolean }) => (
@@ -318,7 +313,7 @@ export default function DashboardSettings() {
       <div className="flex items-start gap-3">
         <Icon size={16} className="text-muted-foreground mt-0.5 shrink-0" />
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium">{title}</p>
             {badge}
           </div>
@@ -341,7 +336,7 @@ export default function DashboardSettings() {
 
       {/* Identity Verification (KYC) Status */}
       <div className={`premium-card border ${isVerified ? "border-foreground/20" : "border-border"}`}>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             {isVerified ? (
               <div className="w-10 h-10 rounded-full bg-foreground/10 flex items-center justify-center">
@@ -353,7 +348,7 @@ export default function DashboardSettings() {
               </div>
             )}
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold">Identity Verification</h3>
                 {isVerified ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-foreground/10 text-foreground px-2 py-0.5 rounded-full">
@@ -417,6 +412,7 @@ export default function DashboardSettings() {
             </label>
             <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full bg-background border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 appearance-none">
               <option value="">Select country...</option>
+              {country && !countries.some((name) => name === country) && <option value={country}>{/^[A-Z]{2}$/.test(country) ? new Intl.DisplayNames(["en"], { type: "region" }).of(country) : country}</option>}
               {countries.map((c) => (<option key={c} value={c}>{c}</option>))}
             </select>
             <p className="text-[10px] text-muted-foreground mt-1">Your country of trading residence.</p>
@@ -439,7 +435,7 @@ export default function DashboardSettings() {
             <div className="flex items-start gap-3">
               <Mail size={16} className="text-muted-foreground mt-0.5 shrink-0" />
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium">Email Verification</p>
                   {emailVerified ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-foreground/10 text-foreground px-2 py-0.5 rounded-full">
@@ -458,7 +454,7 @@ export default function DashboardSettings() {
               </div>
             </div>
             {!emailVerified && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleResendVerification}
                   disabled={verifyLoading}
@@ -478,7 +474,7 @@ export default function DashboardSettings() {
 
           <SecurityRow icon={Smartphone} title="Two-Factor Authentication (2FA)" description="Use an authenticator app for additional login security." enabled={twoFA} onToggle={handleTwoFactorToggle} loading={securityLoading["2fa"] || securityLoading.disable2fa} badge={twoFA ? <span className="text-[10px] font-medium bg-foreground/10 text-foreground px-2 py-0.5 rounded-full">Active</span> : undefined} />
           <SecurityRow icon={Mail} title="Login Alerts" description="Receive email notifications with browser, device, IP/location, and time after new sign-ins." enabled={loginAlerts} onToggle={handleLoginAlertsToggle} loading={securityLoading.alerts} />
-          <SecurityRow icon={Monitor} title="Device & Session Management" description="Open active sessions, review devices, and log out sessions." enabled={showSessions} onToggle={() => setShowSessions((value) => !value)} actionLabel="Open" />
+          <SecurityRow icon={Monitor} title="Sign-in History" description="Review recorded sign-ins. Removing a record does not sign out a device." enabled={showSessions} onToggle={() => setShowSessions((value) => !value)} actionLabel="Open" />
           <SecurityRow icon={Key} title="Backup Recovery Codes" description={backupCodesGeneratedAt ? `Generated ${new Date(backupCodesGeneratedAt).toLocaleString()}. Regenerate after password confirmation.` : "Generate one-time account recovery codes."} enabled={!!backupCodesGeneratedAt} onToggle={handleRecoveryCodes} loading={securityLoading.codes || securityLoading.regenCodes} actionLabel={backupCodesGeneratedAt ? "Regenerate" : "Generate"} />
         </div>
       </div>
@@ -487,10 +483,10 @@ export default function DashboardSettings() {
       {showSessions && (
         <div className="premium-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold">Active Sessions</h3>
+            <h3 className="text-sm font-semibold">Recorded Sign-ins</h3>
             {sessions.length > 1 && (
               <button onClick={handleRevokeAll} className="text-xs font-medium text-destructive hover:underline flex items-center gap-1">
-                <LogOut size={12} /> Log out all other devices
+                <LogOut size={12} /> Remove other sign-in records
               </button>
             )}
           </div>
@@ -505,7 +501,7 @@ export default function DashboardSettings() {
                   <div className="flex items-start gap-3">
                     <Monitor size={16} className="text-muted-foreground mt-0.5 shrink-0" />
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-medium">{s.browser} · {s.device}</p>
                         {s.isCurrent && (
                           <span className="text-[10px] font-medium bg-foreground/10 text-foreground px-2 py-0.5 rounded-full">Current</span>
@@ -520,9 +516,9 @@ export default function DashboardSettings() {
                     <button
                       onClick={() => s.id && handleRevokeSession(s.id)}
                       className="text-xs text-muted-foreground hover:text-destructive transition-colors inline-flex items-center gap-1"
-                      title="Log out this device"
+                      title="Remove this sign-in record"
                     >
-                      <Trash2 size={14} /> Log out this device
+                      <Trash2 size={14} /> Remove this sign-in record
                     </button>
                   )}
                 </div>

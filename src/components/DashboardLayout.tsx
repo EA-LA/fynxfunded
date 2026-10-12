@@ -116,10 +116,11 @@ export default function DashboardLayout() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-60">
+      <div className="min-w-0 flex-1 lg:ml-60">
         {/* Top bar */}
         <header className="h-16 border-b border-border flex items-center px-6 gap-4 sticky top-0 z-20 glass">
           <button
+            aria-label="Open navigation"
             className="lg:hidden text-foreground"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
@@ -127,12 +128,12 @@ export default function DashboardLayout() {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Account:</span>
-            <span className="text-xs font-medium bg-secondary px-2 py-1 rounded">FX-10241</span>
+            <span className="text-xs text-muted-foreground">Workspace:</span>
+            <span className="text-xs font-medium bg-secondary px-2 py-1 rounded">FYNX Funded</span>
           </div>
         </header>
 
-        <main className="p-6 lg:p-8">
+        <main className="min-w-0 p-4 sm:p-6 lg:p-8">
           <EmailVerificationBanner />
           <Outlet />
           <EcosystemFooter />

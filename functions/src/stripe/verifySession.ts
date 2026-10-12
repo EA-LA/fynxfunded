@@ -35,12 +35,17 @@ export const verifySession = onRequest(
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       if (session.metadata?.userId !== uid) { res.status(403).json({ error: "Session does not belong to this user" }); return; }
       if (session.payment_status !== "paid") { res.status(402).json({ error: "Payment not completed", status: session.payment_status }); return; }
-      const snap = await admin.firestore().collection("orders").where("stripeSessionId", "==", sessionId).limit(1).get();
-      if (snap.empty) { res.status(200).json({ verified: true, status: "paid", order: null, message: "Payment confirmed; order processing is pending." }); return; }
-      const orderDoc = snap.docs[0];
-      res.status(200).json({ verified: true, status: "paid", order: { ...orderDoc.data(), orderId: orderDoc.id } });
+      const orderDoc = await admin.firestore().doc(`orders/${sessionId}`).get();
+      if (!orderDoc.exists) { res.status(200).json({ verified: true, status: "paid", order: null, message: "Payment confirmed; order processing is pending." }); return; }
+      const order = orderDoc.data()!;
+      if (order.userId !== uid) { res.status(403).json({ error: "Order does not belong to this user" }); return; }
+      if (order.status !== "paid" || !order.challengeId) {
+        res.status(200).json({ verified: true, status: "paid", order: null, fulfillment: "pending", message: "Payment confirmed; order processing is pending." }); return;
+      }
+      const safeOrder = Object.fromEntries(["userId", "orderNumber", "challengeId", "amount", "currency", "paymentMethod", "status", "challenge", "accountSize", "phase", "style", "createdAt", "paidAt"].filter(key => order[key] !== undefined).map(key => [key, order[key]]));
+      res.status(200).json({ verified: true, status: "paid", fulfillment: "complete", order: { ...safeOrder, orderId: orderDoc.id } });
     } catch (error) {
-      console.error("[Stripe] verifySession failed", error);
+      console.error("[Stripe] verifySession failed", { code: "VERIFICATION_FAILED" });
       res.status(500).json({ error: "Unable to verify checkout" });
     }
   },

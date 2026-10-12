@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { verifyPhaseArchive } from "./fundedPhaseTransition";
 import { nativeCustomer } from "./nativeCustomer";
 import { documentId } from "./nativeCustomerPolicy";
 import { accountInsights, payoutSnapshot } from "./fundedInsightsPolicy";
@@ -22,7 +23,11 @@ export const fundedAccountInsights = onCall({ region: "us-central1", maxInstance
       challenge = archive;
       history = db.collection(`funded_phase_archives/${id}/phases/${phase}/events`);
     }
-    const events = (await tx.get(history.limit(5001))).docs.map(d => d.data());
+    const historyRows = (await tx.get(history.limit(5001))).docs;
+    const events = historyRows.map(d => d.data());
+    if (phase !== (current.currentPhase ?? 1) && !verifyPhaseArchive(challenge, historyRows.map(d => ({id: d.id, data: d.data()})))) {
+      throw new HttpsError("failed-precondition", "Historical evidence integrity needs review.");
+    }
     // Never guess among multiple accounts or expose a record with conflicting ownership/binding.
     const candidates = (await tx.get(db.collection("accounts").where("challengeId", "==", id).limit(100))).docs;
     const matches = candidates.filter(d => { const a = d.data(); return a.userId === uid &&

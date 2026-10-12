@@ -5,6 +5,13 @@ import { FactorState, SessionProof, verifyFactor, sessionValid, codeHash } from 
 
 const lifetime = 60 * 60 * 1000;
 const freshWindow = 5 * 60;
+/** A short-lived, explicit QA cohort exercises production signing without enabling customer rollout. */
+export function mfaRolloutEnabled(rollout: any, uid: string, now = Date.now()): boolean {
+  return rollout?.ready === true || (Array.isArray(rollout?.qaUids) && rollout.qaUids.length <= 10
+    && /^funded-mfa-qa-[a-f0-9]{20}$/.test(uid) && rollout.qaUids.includes(uid)
+    && Number.isSafeInteger(rollout.qaExpiresAt) && rollout.qaExpiresAt > now && rollout.qaExpiresAt <= now + 3600000);
+}
+
 function auth(request: Pick<CallableRequest, "auth">) {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in again to continue.");
   if (request.auth.token.email_verified !== true) throw new HttpsError("permission-denied", "Verify your email before continuing.");
@@ -48,7 +55,7 @@ async function validSession(request: Pick<CallableRequest, "auth">, state: Facto
 export async function requireFundedMfa(request: Pick<CallableRequest, "auth">): Promise<void> {
   const identity = auth(request);
   const rollout = await admin.firestore().doc("funded_mfa_rollout/current").get();
-  if (rollout.data()?.ready !== true) return; // Existing behavior until coordinated activation.
+  if (!mfaRolloutEnabled(rollout.data(), identity.uid)) return; // Existing behavior until coordinated activation.
 
   await assertActiveUser(identity);
   const state = await stateFor(identity.uid);
@@ -69,18 +76,34 @@ async function issueSession(uid: string, state: FactorState): Promise<{ customTo
     // Session-local claim; never use setCustomUserClaims, which would authorize other sessions.
     const customToken = await admin.auth().createCustomToken(uid, { funded_mfa: id });
     return { customToken, expiresAt };
-  } catch {
+  } catch (error) {
+    const code = typeof (error as any)?.code === "string" ? (error as any).code : "unknown";
+    const message = String((error as any)?.message ?? "");
+    const category = /disabled|not been used/i.test(message) ? "signing_api_disabled" : /signBlob|signJwt|permission/i.test(message) ? "signing_permission" : /service account|metadata|credential/i.test(message) ? "signer_discovery" : "signer_unavailable";
+    console.error("MFA signing failed", { code, category }); // Never log the token, factor or provider payload.
     await admin.firestore().doc(`funded_mfa_sessions/${id}`).delete();
-    throw new HttpsError("unavailable", "Could not create a verified session. Try again with a new code.");
+    throw new HttpsError("unavailable", "Could not create a verified session. Try again with a new code.", { signingCode: code, signingCategory: category });
   }
 }
 
 export const fundedMfa = onCall({ region: "us-central1", maxInstances: 10 }, async request => {
   const identity = auth(request);
   await assertActiveUser(identity);
+  // Logout revokes only the caller's session-local proof, including during a paused rollout.
+  if (request.data?.action === "logout") {
+    const id = identity.token.funded_mfa;
+    if (typeof id === "string" && /^[a-f0-9]{64}$/.test(id)) {
+      const ref = admin.firestore().doc(`funded_mfa_sessions/${id}`);
+      await admin.firestore().runTransaction(async tx => {
+        const record = await tx.get(ref);
+        if (record.data()?.uid === identity.uid) tx.delete(ref);
+      });
+    }
+    return { revoked: true };
+  }
   // Enable only after the coordinated rules + web release. No permissive fallback.
   const rollout = await admin.firestore().doc("funded_mfa_rollout/current").get();
-  if (rollout.data()?.ready !== true) throw new HttpsError("failed-precondition", "Server verification is awaiting activation.");
+  if (!mfaRolloutEnabled(rollout.data(), identity.uid)) throw new HttpsError("failed-precondition", "Server verification is awaiting activation.");
   const state = await stateFor(identity.uid);
   const action = request.data?.action;
   if (action === "status") {

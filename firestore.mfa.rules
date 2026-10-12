@@ -159,7 +159,7 @@ service cloud.firestore {
     }
 
     match /{collection}/{document=**} {
-      allow read, write: if isAdmin() && !(collection in ['funded_mfa_private','funded_mfa_sessions','funded_mfa_rollout']);
+      allow read, write: if isAdmin() && !(collection in ['funded_mfa_private','funded_mfa_sessions','funded_mfa_rollout','funded_phase_archives','funded_phase_transitions']);
     }
   }
 }

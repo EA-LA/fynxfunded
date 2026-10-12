@@ -1,7 +1,7 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { createHash } from "node:crypto";
-import { requireFundedMfa } from "./fundedMfa";
+import { requireFundedMfa, mfaRolloutEnabled } from "./fundedMfa";
 import { text, requestId, documentId, cents, payoutAllowed } from "./nativeCustomerPolicy";
 
 export async function nativeCustomer(request: CallableRequest): Promise<string> {
@@ -11,7 +11,7 @@ export async function nativeCustomer(request: CallableRequest): Promise<string> 
   if (user.disabled || !Number.isFinite(Number(request.auth.token.auth_time)) || Number(request.auth.token.auth_time) < Date.parse(user.tokensValidAfterTime ?? "") / 1000) throw new HttpsError("unauthenticated", "Sign in again to continue.");
   const db = admin.firestore();
   const rollout = await db.doc("funded_mfa_rollout/current").get();
-  if (rollout.data()?.ready !== true) {
+  if (!mfaRolloutEnabled(rollout.data(), uid)) {
     const [profile, security] = await Promise.all([db.doc(`users/${uid}`).get(), db.doc(`users/${uid}/security/settings`).get()]);
     if (profile.data()?.twoFactorEnabled === true || security.data()?.twoFactorEnabled === true) throw new HttpsError("failed-precondition", "Server two-factor verification must be activated before continuing.");
   }

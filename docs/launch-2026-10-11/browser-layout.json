@@ -1,0 +1,103 @@
+{
+  "environment": "local website, production Firebase, disposable QA identity",
+  "checks": [
+    {
+      "width": 320,
+      "route": "billing",
+      "scrollWidth": 320
+    },
+    {
+      "width": 320,
+      "route": "trades",
+      "scrollWidth": 320
+    },
+    {
+      "width": 320,
+      "route": "settings",
+      "scrollWidth": 320
+    },
+    {
+      "width": 390,
+      "route": "billing",
+      "scrollWidth": 390
+    },
+    {
+      "width": 390,
+      "route": "trades",
+      "scrollWidth": 390
+    },
+    {
+      "width": 390,
+      "route": "settings",
+      "scrollWidth": 390
+    },
+    {
+      "width": 1440,
+      "route": "billing",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 1440,
+      "route": "trades",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 1440,
+      "route": "settings",
+      "scrollWidth": 1440
+    },
+    {
+      "width": 320,
+      "route": "account-workspace",
+      "scrollWidth": 320
+    },
+    {
+      "width": 390,
+      "route": "account-workspace",
+      "scrollWidth": 390
+    },
+    {
+      "width": 1440,
+      "route": "account-workspace",
+      "scrollWidth": 1440
+    }
+  ],
+  "historyPhaseSelection": "Phase 2 selected; deployed service returned awaiting history; no fabricated equity",
+  "publicCatalogChecks": [
+    {
+      "route": "/",
+      "width": 320,
+      "scrollWidth": 320
+    },
+    {
+      "route": "/",
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "route": "/",
+      "width": 1440,
+      "scrollWidth": 1440
+    },
+    {
+      "route": "/challenges",
+      "width": 320,
+      "scrollWidth": 320
+    },
+    {
+      "route": "/challenges",
+      "width": 390,
+      "scrollWidth": 390
+    },
+    {
+      "route": "/challenges",
+      "width": 1440,
+      "scrollWidth": 1440
+    }
+  ],
+  "publicMenuAt320": {
+    "width": 320,
+    "scrollWidth": 320
+  },
+  "publicCatalogEnvironment": "built production bundle served locally"
+}
