@@ -12,7 +12,7 @@ This update completes more implementation, selected production deployment, and r
 | Content | Native checkout displays and explicitly accepts exact versioned legal documents supplied by the approved server release | Actual issued contracts, payout schedules, approved terms/coaching/partners, licensed calendar feed and history |
 | QA | 17 live service checks; 17 live MFA checks; disposable identities cleaned; build 2 installed and launched on connected iPhone | Full customer web/native parity, OAuth, biometrics, offline/interruptions, APNs receipt/deep links, independent beta and native-speaker review |
 | Legal/operations | Exact native acceptance recorded; record-specific retention scope expanded; partial completion represented honestly; local deletion/restore and held-record rehearsal | Legal/business/refund/tax approval, actual per-record decisions and holds, durable external production ledger, cloud restoration and incident/support delivery checks |
-| Apple | Developer account recognized in Xcode; new Apple Distribution certificate available; next candidate build number 3 prepared | See native release status for the final archive/export/validation outcome; TestFlight, privacy/export-compliance and final review are separate gates |
+| Apple | Build 1.4 (3) archived, installed/launched on the connected iPhone and exported as a verified App Store IPA | Command-line upload cannot access Apple account; Xcode UI continuation awaits Mac unlock. TestFlight processing, privacy/export compliance, beta and final review remain |
 
 ## Changes and deployment
 
@@ -85,3 +85,5 @@ npx --yes firebase-tools@15.8.0 emulators:exec --config scripts/firebase-retenti
 Live scripts are explicitly opt-in: `smoke-ios-completion.cjs --run-production` and `smoke-mfa-canary.cjs --run-production`. Do not treat synthetic checks as commercial approval. Credentials are held in memory/temporary private files and omitted from evidence.
 
 Native release evidence and candidate paths: `/Users/h/Documents/FYNX/FUNDED_RELEASE_STATUS.md` and `/Users/h/.codex/workspaces/default/fynx-funded-ios-20261011/evidence`. Task-only native patches preserve the preexisting dirty checkout.
+
+GitHub [Quality checks run 36](https://github.com/EA-LA/fynxfunded/actions/runs/38279384911) passed both `verify` and `operations` jobs for implementation commit `2a92ff56c6af7e1b4c35d82d684f576cdb00d05a`. [Draft PR #17](https://github.com/EA-LA/fynxfunded/pull/17) contains the implementation. `native-candidate.json` records the verified archive/IPA and the current upload limitation.
