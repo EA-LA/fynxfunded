@@ -1,3 +1,4 @@
+import OrderProgress from "@/components/OrderProgress";
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Download, ArrowRight, FileText, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -97,6 +98,7 @@ export default function CheckoutSuccess() {
           </div>
         )}
 
+        {order && <div className="mb-6"><OrderProgress orderId={order.orderId}/></div>}
         <div className="flex flex-col sm:flex-row gap-3">
           {!order && <button onClick={() => setAttempt(value => value + 1)} className="rounded-md border px-4 py-2.5 text-sm">Check order status</button>}
           {order && (
@@ -119,7 +121,7 @@ export default function CheckoutSuccess() {
           <div className="flex items-start gap-2">
             <FileText size={14} className="text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-xs text-muted-foreground">
-              We will email your purchase confirmation separately. Your trading account credentials will be delivered by email and shown in your dashboard as soon as your trading account is ready.
+              We will email your purchase confirmation separately. We will send an account-ready email when setup is confirmed. View trading credentials securely in your dashboard; passwords are never emailed.
             </p>
           </div>
         </div>

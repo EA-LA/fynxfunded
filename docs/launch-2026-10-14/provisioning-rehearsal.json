@@ -1,0 +1,47 @@
+{
+  "localEmulator": true,
+  "synthetic": true,
+  "providerProof": false,
+  "checks": [
+    {
+      "name": "Concurrent provider binding commits once",
+      "passed": true
+    },
+    {
+      "name": "Public metadata has no password; private ciphertext decrypts",
+      "passed": true
+    },
+    {
+      "name": "Challenge bound without changing phase or outcome",
+      "passed": true
+    },
+    {
+      "name": "Existing challenge cannot be rebound",
+      "passed": true
+    },
+    {
+      "name": "Repeated imports cannot silently rotate credentials",
+      "passed": true
+    },
+    {
+      "name": "Refunded order cannot provision",
+      "passed": true
+    },
+    {
+      "name": "Wrong owner cannot provision",
+      "passed": true
+    },
+    {
+      "name": "Token-bearing trading URL rejected",
+      "passed": true
+    },
+    {
+      "name": "Reconciliation detects duplicates and conflicting ownership",
+      "passed": true
+    },
+    {
+      "name": "Reconciliation does not mutate account or payment state",
+      "passed": true
+    }
+  ]
+}

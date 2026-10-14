@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { MessageSquare } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,9 +8,12 @@ import { toast } from "@/hooks/use-toast";
 
 export default function Support() {
   const { user } = useAuth();
-  const [subject, setSubject] = useState("");
+  const [params] = useSearchParams();
+  const reference = params.get("orderId") || "";
+  const orderReference = /^[A-Za-z0-9_-]{1,220}$/.test(reference) ? reference : "";
+  const [subject, setSubject] = useState(orderReference ? `Account setup: ${orderReference}` : "");
   const [category, setCategory] = useState("Account Issue");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(orderReference ? `Please help me check account setup for order ${orderReference}.\n\n` : "");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [submitting, setSubmitting] = useState(false);
 

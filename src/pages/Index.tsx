@@ -50,8 +50,9 @@ export default function Index() {
               Trade with Discipline.
             </h1>
             <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-xl animate-fade-up delay-200">
-              Choose an evaluation up to $100K, follow transparent rules, and track eligible account activity from your dashboard.
+              Choose a simulated evaluation up to $100K, follow transparent rules, and track eligible account activity from your dashboard.
             </p>
+            <p className="mt-4 text-sm text-muted-foreground">Evaluation and funded-stage trading use simulated accounts. Account balances are virtual, not money deposited for you to withdraw. Payout eligibility depends on your accepted agreement. New purchases are currently paused.</p>
             <div className="mt-10 flex flex-wrap gap-4 animate-fade-up delay-300">
               <Link
                 to="/challenge-builder"

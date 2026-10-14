@@ -29,3 +29,6 @@ export { refreshFundedLeaderboard } from "./fundedLeaderboard";
 export { fundedPrivacy } from "./fundedPrivacy";
 export { fundedAccountInsights } from "./fundedAccountInsights";
 export { fundedNotifications, fundedAccountUpdated, fundedChallengeUpdated, fundedPayoutUpdated } from "./fundedNotifications";
+export { fundedOrderStatus } from './fundedOrderStatus';
+export { fundedTradingAccess } from './fundedTradingAccess';
+export { reconcileFundedOrders } from './fundedReconciliation';

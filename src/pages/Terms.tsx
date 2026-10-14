@@ -38,7 +38,7 @@ const sections = [
     content: (
       <>
         <p>FYNX Funded provides evaluation and challenge programs designed to assess trading skill and discipline. Upon successful completion, users may be eligible for funded trading accounts or profit-sharing arrangements as described in the applicable challenge terms.</p>
-        <p>Dashboard access, analytics, trade tracking, and educational resources are provided as part of the Platform. Certain features may be simulated or operate in demo environments as applicable.</p>
+        <p>Dashboard access, analytics, trade tracking, and educational resources are provided as part of the Platform. Evaluation and funded-stage trading take place in simulated environments. Account sizes and trading balances are virtual; they are not customer deposits or withdrawable capital. Any eligible reward or payout is governed by the accepted program agreement.</p>
         <p>The specific terms of each challenge (including account size, targets, drawdown limits, and payout structure) are set forth in the challenge description at the time of purchase.</p>
       </>
     ),

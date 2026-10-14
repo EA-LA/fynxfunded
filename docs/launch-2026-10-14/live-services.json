@@ -1,0 +1,93 @@
+{
+  "checkedAt": "2026-10-14T20:00:48.189Z",
+  "synthetic": true,
+  "providerProof": false,
+  "cleanedUp": true,
+  "checks": [
+    {
+      "name": "Unauthenticated order status denied",
+      "passed": true
+    },
+    {
+      "name": "Unowned or missing order does not disclose data",
+      "passed": true
+    },
+    {
+      "name": "Invalid reference rejected",
+      "passed": true
+    },
+    {
+      "name": "Recorded payment without account remains pending",
+      "passed": true
+    },
+    {
+      "name": "Failed account setup preserves payment status",
+      "passed": true
+    },
+    {
+      "name": "Refund overrides setup state",
+      "passed": true
+    },
+    {
+      "name": "Metadata returns only owned accounts",
+      "passed": true
+    },
+    {
+      "name": "Unowned credential request denied",
+      "passed": true
+    },
+    {
+      "name": "Unauthenticated credential request denied",
+      "passed": true
+    }
+  ],
+  "responses": [
+    {
+      "name": "fundedOrderStatus",
+      "status": 401,
+      "error": "UNAUTHENTICATED",
+      "message": "Sign in with a verified email to continue."
+    },
+    {
+      "name": "fundedOrderStatus",
+      "status": 404,
+      "error": "NOT_FOUND",
+      "message": "Order unavailable. Open an order from your Billing page."
+    },
+    {
+      "name": "fundedOrderStatus",
+      "status": 400,
+      "error": "INVALID_ARGUMENT",
+      "message": "Invalid account reference."
+    },
+    {
+      "name": "fundedOrderStatus",
+      "status": 200
+    },
+    {
+      "name": "fundedOrderStatus",
+      "status": 200
+    },
+    {
+      "name": "fundedOrderStatus",
+      "status": 200
+    },
+    {
+      "name": "fundedTradingAccess",
+      "status": 200,
+      "accounts": 0
+    },
+    {
+      "name": "fundedTradingAccess",
+      "status": 404,
+      "error": "NOT_FOUND",
+      "message": "Trading access unavailable."
+    },
+    {
+      "name": "fundedTradingAccess",
+      "status": 401,
+      "error": "UNAUTHENTICATED",
+      "message": "Sign in with a verified email to continue."
+    }
+  ]
+}

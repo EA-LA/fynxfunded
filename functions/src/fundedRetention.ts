@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 
-const collections = new Set(["native_checkout_attempts", "funded_push_devices", "rule_events", "rule_evaluations", "audit_logs", "web_checkout_attempts", "orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_memberships", "funded_membership_requests", "funded_leaderboard_consent", "funded_coaching_bookings"]);
+const collections = new Set(["funded_account_secrets", "funded_credential_access", "credential_deliveries", "native_checkout_attempts", "funded_push_devices", "rule_events", "rule_evaluations", "audit_logs", "web_checkout_attempts", "orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_memberships", "funded_membership_requests", "funded_leaderboard_consent", "funded_coaching_bookings"]);
 const openStates = new Set(["pending", "active", "requested", "approved", "processing", "open", "disputed", "funded", "passed", "provisioning", "awaiting_broker", "awaiting_history", "in_progress"]);
 export type RetentionDecision = { path: string; updateTime: string; action: "delete" | "retain"; reason: string };
 export type DeletionPlan = { schemaVersion: 1; uid: string; requestPath: string; scope: "FYNX Funded only"; policyReference: string; reviewedBy: string; reviewedAt: string; records: RetentionDecision[] };
