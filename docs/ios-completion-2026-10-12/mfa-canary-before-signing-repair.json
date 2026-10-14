@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-10-12T16:08:07.825Z",
+  "scope": "disposable synthetic MFA cohort; not a customer rollout",
+  "checks": [
+    {
+      "name": "Global customer MFA remains inactive",
+      "passed": true
+    },
+    {
+      "name": "No other QA cohort is active",
+      "passed": true
+    },
+    {
+      "name": "Canary first-factor status works",
+      "passed": true
+    },
+    {
+      "name": "Server enrollment returns setup for the QA identity",
+      "passed": true
+    },
+    {
+      "name": "Wrong enrollment code denied",
+      "passed": true
+    },
+    {
+      "name": "Runtime signs a real custom token",
+      "passed": false
+    }
+  ],
+  "cleanup": true,
+  "globalActivation": false,
+  "signing": {
+    "tested": true,
+    "customTokenIssued": false,
+    "error": "UNAVAILABLE"
+  },
+  "complete": false,
+  "failedCheck": "Runtime signs a real custom token"
+}

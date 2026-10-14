@@ -1,3 +1,4 @@
+import { fulfillNativePayment } from "../nativePaymentFulfillment";
 import { bind as bindPurchasedRules } from "../purchasedAgreement";
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
@@ -37,6 +38,11 @@ export const stripeWebhook = onRequest(
     }
 
     try {
+      if (event.type === "payment_intent.succeeded" && (event.livemode || process.env.FUNCTIONS_EMULATOR === "true")) {
+        const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2023-10-16" });
+        const intent = await stripe.paymentIntents.retrieve((event.data.object as Stripe.PaymentIntent).id);
+        await fulfillNativePayment(intent, event.id);
+      }
       if (["checkout.session.completed", "checkout.session.async_payment_succeeded"].includes(event.type)) {
         await recordCompletedCheckout(event.data.object as Stripe.Checkout.Session, event.id);
       }
@@ -155,7 +161,7 @@ function purchaseEmailHtml(details: { challengeName: string; orderReference: str
 <tr><td style="padding:14px 0;border-bottom:1px solid #2d2d2d;color:#a3a3a3;font-size:13px;">Total paid</td><td style="padding:14px 0;border-bottom:1px solid #2d2d2d;color:#ffffff;font-size:13px;font-weight:600;text-align:right;">${total}</td></tr>
 <tr><td style="padding:14px 0;color:#a3a3a3;font-size:13px;">Receipt number</td><td style="padding:14px 0;color:#ffffff;font-size:13px;font-weight:700;text-align:right;white-space:nowrap;">${orderReference}</td></tr>
 </table>
-<div style="margin:24px 0;padding:16px 18px;border-left:3px solid #ffffff;background:#1a1a1a;border-radius:8px;color:#cfcfcf;font-size:13px;line-height:1.6;"><strong style="color:#ffffff;">What happens next?</strong><br>Your trading account credentials will be emailed separately and displayed in your dashboard as soon as account provisioning is complete.</div>
+<div style="margin:24px 0;padding:16px 18px;border-left:3px solid #ffffff;background:#1a1a1a;border-radius:8px;color:#cfcfcf;font-size:13px;line-height:1.6;"><strong style="color:#ffffff;">What happens next?</strong><br>We will email you when your simulated trading account is ready. Sign in to your dashboard to view protected trading access; passwords are never emailed.</div>
 <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:10px;background:#ffffff;"><a href="https://www.fynxfunded.com/dashboard" style="display:inline-block;padding:14px 22px;color:#000000;text-decoration:none;font-size:14px;font-weight:800;">Open your dashboard&nbsp; →</a></td></tr></table>
 </td></tr>
 <tr><td align="center" style="padding:24px 20px;color:#777777;font-size:12px;line-height:1.7;">This receipt confirms a simulated trading evaluation purchase.<br><a href="https://www.fynxfunded.com" style="color:#ffffff;text-decoration:none;">fynxfunded.com</a> &nbsp;•&nbsp; <a href="mailto:support@fynxfunded.com" style="color:#ffffff;text-decoration:none;">support@fynxfunded.com</a></td></tr>
@@ -163,7 +169,7 @@ function purchaseEmailHtml(details: { challengeName: string; orderReference: str
 }
 
 async function sendPurchaseConfirmation(email: string, details: { challengeName: string; orderReference: string; amount: number; currency: string }) {
-  const text = `Thank you for your purchase. Your ${details.challengeName} order is confirmed. Total paid: ${details.currency} ${details.amount.toFixed(2)}. Your trading account credentials will be emailed separately and displayed in your dashboard as soon as account provisioning is complete. Receipt number: ${details.orderReference}`;
+  const text = `Thank you for your purchase. Your ${details.challengeName} order is confirmed. Total paid: ${details.currency} ${details.amount.toFixed(2)}. We will email you when your simulated trading account is ready. Sign in to your dashboard to view protected trading access; passwords are never emailed. Receipt number: ${details.orderReference}`;
   const form = new URLSearchParams({
     from: MAILGUN_SENDER,
     to: email,

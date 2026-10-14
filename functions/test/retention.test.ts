@@ -19,7 +19,7 @@ describe("reviewed deletion and restoration", () => {
   it("only deletes exact approved records and preserves shared identity and retained billing", async () => {
     const p = plan(); await executeDeletion(db, journal, p, planHash(p));
     expect(records.has("tickets/a")).toBe(false); expect(records.has("orders/a")).toBe(true); expect(records.has("users/a")).toBe(true);
-    expect(ledger.size).toBe(2); expect(records.get(p.requestPath).status).toBe("completed");
+    expect(ledger.size).toBe(2); expect(records.get(p.requestPath).status).toBe("partially_completed");
   });
   it.each(["users/a", "users/a/security/settings", "api_keys/a", "tickets/a/messages/b"])("rejects out-of-scope deletion %s", path => {
     const p = plan(); p.records[0].path = path; expect(() => validatePlan(p)).toThrow();
@@ -51,4 +51,26 @@ describe("reviewed deletion and restoration", () => {
     await expect(suppressRestoredDeletions(db, entries, { isolated: true, databaseId: "(default)" })).rejects.toThrow(/isolated/);
     await expect(suppressRestoredDeletions(db, entries, { isolated: true, databaseId: "funded-restore-somewhere-else" })).rejects.toThrow(/isolated/);
   });
+});
+
+it("includes native checkout, device, inbox and archived event records in exact reviewed scope", async () => {
+ const p=plan();const paths=["native_checkout_attempts/a", "funded_push_devices/a", "funded_notice_inboxes/a/items/n", "funded_phase_archives/c/phases/1/events/e"];
+ p.records=paths.map(path=>({path,action:"delete",updateTime:"100:1",reason:"Reviewed synthetic record"}));
+ for(const path of paths)records.set(path,{userId:"a",status:"expired"});
+ await executeDeletion(db,journal,p,planHash(p));for(const path of paths)expect(records.has(path)).toBe(false);
+ expect(records.get(p.requestPath)).toMatchObject({status:"partially_completed",remainingScopeReviewRequired:true});
+});
+it("rejects another inbox even when a copied record claims the requesting owner",()=>{
+ const p=plan();p.records[0].path="funded_notice_inboxes/other/items/n";expect(()=>validatePlan(p)).toThrow();
+});
+it("applies the deletion ledger to nested archived evidence in an isolated restore",async()=>{
+ const p=plan();p.records[0].path="funded_phase_archives/c/phases/1/events/e";records.set(p.records[0].path,{userId:"a"});const hash=planHash(p);
+ await executeDeletion(db,journal,p,hash);records.set(p.records[0].path,{userId:"a"});
+ await suppressRestoredDeletions(db,[{prepared:ledger.get(`${hash}.prepared`),completed:ledger.get(`${hash}.completed`)}],{isolated:true,databaseId:db.databaseId});
+ expect(records.has(p.records[0].path)).toBe(false);
+});
+
+it("does not delete an unresolved native payment reservation with no status field",async()=>{
+ const p=plan();p.records[0].path="native_checkout_attempts/a";records.set(p.records[0].path,{userId:"a",intentId:"pi_pending"});
+ await expect(executeDeletion(db,journal,p,planHash(p))).rejects.toThrow(/Open records/);expect(records.has(p.records[0].path)).toBe(true);
 });

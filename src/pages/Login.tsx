@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { mapFirebaseError } from "@/lib/auth-error-map";
+import { onIdTokenChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { mfaStatus } from "@/services/security";
 import { isOwnerAdminEmail } from "@/lib/admin";
 
 export default function Login() {
@@ -11,37 +14,61 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple, signOut } = useAuth();
 
   // Show message from redirect (e.g. email verification required)
   const redirectMessage = (location.state as any)?.message || "";
 
-  const handleGoogle = async () => {
-    setError("");
-    try { await signInWithGoogle(); } catch (err: any) { setError(mapFirebaseError(err)); }
-  };
-  const handleApple = async () => {
-    setError("");
-    try { await signInWithApple(); } catch (err: any) { setError(mapFirebaseError(err)); }
-  };
+  useEffect(() => {
+    if (!auth) return;
+    let active = true;
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      if (!user?.emailVerified) return;
+      try {
+        const status = await mfaStatus();
+        if (active && auth?.currentUser?.uid === user.uid && status.required && !status.verified) {
+          setEmail(user.email || ""); setPassword(""); setTwoFactorRequired(true);
+        }
+      } catch { /* Sign-in actions display service errors. */ }
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
 
+  const showSignInError = (err: any) => {
+    if (err?.code === "auth/two-factor-required") {
+      setTwoFactorRequired(true); setPassword("");
+      setError(err.message);
+    } else setError(mapFirebaseError(err));
+  };
+  const handleProvider = async (provider: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(true); setError("");
+    try { await provider(); } catch (err) { showSignInError(err); }
+    finally { setBusy(false); }
+  };
+  const handleGoogle = () => handleProvider(signInWithGoogle);
+  const handleApple = () => handleProvider(signInWithApple);
+  const restartSignIn = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await signOut(); setTwoFactorRequired(false); setTwoFactorCode(""); setPassword(""); setError("");
+    } catch (err) { showSignInError(err); }
+    finally { setBusy(false); }
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    if (busy) return;
+    setBusy(true); setError("");
     try {
       await signIn(email, password, twoFactorRequired ? twoFactorCode : undefined);
       navigate(isOwnerAdminEmail(email) ? "/admin" : "/dashboard");
-    } catch (err: any) {
-      if (err?.code === "auth/two-factor-required") {
-        setTwoFactorRequired(true);
-        setError(err.message);
-        return;
-      }
-      setError(mapFirebaseError(err));
-    }
+    } catch (err) { showSignInError(err); }
+    finally { setTwoFactorCode(""); setBusy(false); }
   };
 
   const displayError = error || redirectMessage;
@@ -59,7 +86,7 @@ export default function Login() {
         {displayError && <p className="text-sm text-destructive mb-4 text-center">{displayError}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div hidden={twoFactorRequired}>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
             <input
               type="email"
@@ -67,10 +94,10 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
               placeholder="trader@example.com"
-              required
+              required={!twoFactorRequired}
             />
           </div>
-          <div>
+          <div hidden={twoFactorRequired}>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Password</label>
             <div className="relative">
               <input
@@ -79,7 +106,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow pr-10"
                 placeholder="••••••••"
-                required
+                required={!twoFactorRequired}
               />
               <button
                 type="button"
@@ -93,18 +120,17 @@ export default function Login() {
 
           {twoFactorRequired && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Authenticator Code</label>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Authenticator or recovery code</label>
               <input
-                inputMode="numeric"
-                maxLength={6}
-                pattern="[0-9]{6}"
+                autoComplete="one-time-code"
+                maxLength={19}
                 value={twoFactorCode}
-                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) => setTwoFactorCode(e.target.value.toUpperCase().slice(0, 19))}
                 className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm tracking-[0.35em] text-center focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
                 placeholder="000000"
                 required
               />
-              <p className="text-[10px] text-muted-foreground mt-1">Open your authenticator app and enter the current 6-digit code.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Enter your current authenticator code or an unused recovery code.</p>
             </div>
           )}
           <div className="flex justify-end">
@@ -114,11 +140,13 @@ export default function Login() {
           </div>
           <button
             type="submit"
+            disabled={busy}
             className="w-full bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors"
           >
-            {twoFactorRequired ? "Verify & Log In" : "Log In"}
+            {busy ? "Please wait…" : twoFactorRequired ? "Verify & Log In" : "Log In"}
           </button>
         </form>
+        {twoFactorRequired && <button type="button" disabled={busy} onClick={restartSignIn} className="w-full mt-4 text-sm underline">Restart sign-in or use another account</button>}
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
@@ -128,6 +156,7 @@ export default function Login() {
         <div className="space-y-3">
           <button
             type="button"
+            disabled={busy || twoFactorRequired}
             onClick={handleGoogle}
             className="w-full flex items-center justify-center gap-2 border border-border bg-card rounded-md py-2.5 text-sm font-medium hover:bg-accent transition-colors"
           >
@@ -136,6 +165,7 @@ export default function Login() {
           </button>
           <button
             type="button"
+            disabled={busy || twoFactorRequired}
             onClick={handleApple}
             className="w-full flex items-center justify-center gap-2 border border-border bg-card rounded-md py-2.5 text-sm font-medium hover:bg-accent transition-colors"
           >

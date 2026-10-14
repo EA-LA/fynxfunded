@@ -1,0 +1,180 @@
+{
+  "checkedAt": "2026-10-12T16:24:50.644Z",
+  "mode": "read-only",
+  "functions": {
+    "fundedMfa": {
+      "state": "ACTIVE",
+      "serviceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+      "runtime": "nodejs22",
+      "updatedAt": "2026-10-12T16:20:55.179613422Z",
+      "secrets": [],
+      "purchasesApproved": false,
+      "publicKeyMode": "unconfigured"
+    },
+    "fundedMobileCheckout": {
+      "state": "ACTIVE",
+      "serviceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+      "runtime": "nodejs22",
+      "updatedAt": "2026-10-12T16:07:47.375883015Z",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false,
+      "publicKeyMode": "unconfigured"
+    },
+    "fundedMobileIdentity": {
+      "state": "ACTIVE",
+      "serviceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+      "runtime": "nodejs22",
+      "updatedAt": "2026-10-07T16:57:06.482516228Z",
+      "secrets": [
+        {
+          "name": "STRIPE_IDENTITY_SECRET_KEY",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false,
+      "publicKeyMode": "unconfigured"
+    },
+    "stripeWebhook": {
+      "state": "ACTIVE",
+      "serviceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+      "runtime": "nodejs22",
+      "updatedAt": "2026-10-12T16:07:49.378838233Z",
+      "secrets": [
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "version": "1"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "version": "2"
+        },
+        {
+          "name": "MAILGUN_API_KEY",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false,
+      "publicKeyMode": "unconfigured"
+    },
+    "stripeIdentityWebhook": {
+      "state": "ACTIVE",
+      "serviceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+      "runtime": "nodejs22",
+      "updatedAt": "2026-09-30T04:56:14.863793053Z",
+      "secrets": [
+        {
+          "name": "STRIPE_IDENTITY_SECRET_KEY",
+          "version": "1"
+        },
+        {
+          "name": "STRIPE_IDENTITY_WEBHOOK_SECRET",
+          "version": "1"
+        }
+      ],
+      "purchasesApproved": false,
+      "publicKeyMode": "unconfigured"
+    }
+  },
+  "checks": {
+    "accounts": {
+      "count": 0
+    },
+    "rule_events": {
+      "count": 0
+    },
+    "challenges": {
+      "count": 5
+    },
+    "contracts": {
+      "count": 0
+    },
+    "funded_memberships": {
+      "count": 0
+    },
+    "funded_mfa_rollout/current": {
+      "exists": true,
+      "ready": false,
+      "approved": false,
+      "enabled": false
+    },
+    "funded_release/current": {
+      "exists": false,
+      "ready": false,
+      "approved": false,
+      "enabled": false
+    },
+    "funded_legal_releases/current": {
+      "exists": false,
+      "ready": false,
+      "approved": false,
+      "enabled": false
+    },
+    "funded_notifications_config/current": {
+      "exists": false,
+      "ready": false,
+      "approved": false,
+      "enabled": false
+    }
+  },
+  "providers": {
+    "payments": {
+      "mode": "test",
+      "account": {
+        "chargesEnabled": false,
+        "payoutsEnabled": false,
+        "detailsSubmitted": false
+      },
+      "webhooks": [
+        {
+          "url": "https://us-central1-fynx-c7a28.cloudfunctions.net/stripeWebhook",
+          "status": "enabled",
+          "events": [
+            "checkout.session.completed"
+          ],
+          "live": false
+        }
+      ],
+      "webhookInventoryComplete": true
+    },
+    "identity": {
+      "mode": "test",
+      "account": {
+        "chargesEnabled": false,
+        "payoutsEnabled": false,
+        "detailsSubmitted": false
+      },
+      "webhooks": [
+        {
+          "url": "https://us-central1-fynx-c7a28.cloudfunctions.net/stripeIdentityWebhook",
+          "status": "enabled",
+          "events": [
+            "identity.verification_session.processing",
+            "identity.verification_session.requires_input",
+            "identity.verification_session.verified",
+            "identity.verification_session.canceled",
+            "identity.verification_session.redacted"
+          ],
+          "live": false
+        }
+      ],
+      "webhookInventoryComplete": true
+    },
+    "sameStripeAccount": true
+  },
+  "signingIAM": {
+    "serviceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+    "httpStatus": 200,
+    "bindings": [
+      {
+        "role": "roles/iam.serviceAccountTokenCreator",
+        "conditional": false
+      }
+    ],
+    "runtimeSigningTested": false
+  }
+}

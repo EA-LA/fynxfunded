@@ -8,16 +8,22 @@ import { publicAccountReference } from "@/lib/publicReferences";
 
 export default function MyAccounts() {
   const { user } = useAuth();
+  const userId = user?.userId;
   const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [loadedUser, setLoadedUser] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    dataService.getChallenges(user.userId).then((ch) => {
-      setChallenges(ch);
-      setLoading(false);
-    });
-  }, [user]);
+    let active = true; setChallenges([]); setLoadedUser(""); setError(""); setLoading(true);
+    if (!userId) { setLoading(false); return; }
+    dataService.getChallenges(userId).then(ch => { if (active) { setChallenges(ch); setLoadedUser(userId); } })
+      .catch(() => { if (active) setError("Accounts could not be loaded. Please retry or contact support."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [userId]);
+  const visible = loadedUser === user?.userId ? challenges : [];
+  if (error) return <div className="premium-card"><p role="alert">{error}</p><Link to="/dashboard/support">Contact support</Link></div>;
 
   if (loading) {
     return (
@@ -34,9 +40,9 @@ export default function MyAccounts() {
         <p className="text-sm text-muted-foreground mt-1">View and manage your trading accounts.</p>
       </div>
 
-      {challenges.length > 0 ? (
+      {visible.length > 0 ? (
         <div className="grid gap-4">
-          {challenges.map((ch) => (
+          {visible.map((ch) => (
             <Link to={`/dashboard/accounts/${ch.challengeId}`} key={ch.challengeId} className="premium-card block hover:border-foreground/25 hover:bg-secondary/20 transition-colors group">
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -48,7 +54,7 @@ export default function MyAccounts() {
                   ch.status === "funded" ? "bg-secondary text-foreground" :
                   "bg-secondary/60 text-muted-foreground"
                 }`}>
-                  {ch.status.charAt(0).toUpperCase() + ch.status.slice(1)}
+                  {!ch.brokerAccountId && ch.status === "active" ? "Account setup pending" : ch.status.charAt(0).toUpperCase() + ch.status.slice(1)}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-4 text-sm">

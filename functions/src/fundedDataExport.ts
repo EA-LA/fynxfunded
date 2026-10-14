@@ -28,7 +28,7 @@ export async function exportFundedData(db: Firestore, uid: string, limit = 2000)
   add(await db.doc(`users/${uid}`).get(), ["displayName", "fullName", "email", "nickname", "country", "createdAt", "kycStatus", "kycProvider", "kycSubmittedAt", "kycVerifiedAt", "twoFactorEnabled", "loginAlertsEnabled"]);
   for (const name of ["funded_memberships", "funded_membership_requests", "funded_leaderboard_consent", "funded_privacy_requests"]) add(await db.doc(`${name}/${uid}`).get());
   const challenges: string[] = [];
-  for (const name of ["web_checkout_attempts", "orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_coaching_bookings", "funded_push_devices"]) {
+  for (const name of ["funded_credential_access", "credential_deliveries", "native_checkout_attempts", "web_checkout_attempts", "orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_coaching_bookings", "funded_push_devices"]) {
     const rows = await db.collection(name).where("userId", "==", uid).limit(limit + 1).get();
     for (const row of rows.docs) { add(row); if (name === "challenges") challenges.push(row.id); }
   }

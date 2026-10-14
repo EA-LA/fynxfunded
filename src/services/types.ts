@@ -76,7 +76,7 @@ export interface TradingAccount {
   platform: string;
   server: string;
   login: string;
-  password: string;
+  password?: never;
   balance: number;
   equity: number;
   status: "active" | "suspended" | "closed";

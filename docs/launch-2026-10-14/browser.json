@@ -1,0 +1,19 @@
+{
+  "layouts": [
+    {
+      "width": 320,
+      "content": 320
+    },
+    {
+      "width": 390,
+      "content": 390
+    },
+    {
+      "width": 1440,
+      "content": 1440
+    }
+  ],
+  "supportUrl": "/dashboard/support?orderId=<owned-order>",
+  "synthetic": true,
+  "scope": "Local website with deployed backend"
+}

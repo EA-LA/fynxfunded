@@ -1,8 +1,10 @@
+import TradingAccess from "@/components/TradingAccess";
+import OrderProgress from "@/components/OrderProgress";
 import AccountEquityHistory from "@/components/AccountEquityHistory";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowLeft, BarChart3, Check, Copy, Eye, EyeOff, KeyRound, Radio, Shield, TrendingUp, Wallet } from "lucide-react";
+import { ArrowLeft, BarChart3, KeyRound, Radio, TrendingUp, Wallet } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTradingData, computeAnalytics } from "@/hooks/use-trading-data";
 import { dataService } from "@/services/database";
@@ -12,10 +14,10 @@ import { publicAccountReference } from "@/lib/publicReferences";
 const money=(v:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(v||0);
 const safeDate=(v?:string)=>v&&Number.isFinite(new Date(v).getTime())?new Date(v).toLocaleDateString():"Pending";
 export default function AccountWorkspace(){
-  const {challengeId=""}=useParams(),{user}=useAuth(),data=useTradingData(challengeId); const [error,setError]=useState(""),[loading,setLoading]=useState(true),[challenge,setChallenge]=useState<Challenge|null>(null),[account,setAccount]=useState<TradingAccount|null>(null),[tab,setTab]=useState("overview"),[show,setShow]=useState(false),[copied,setCopied]=useState("");
+  const {challengeId=""}=useParams(),{user}=useAuth(),data=useTradingData(challengeId); const [error,setError]=useState(""),[loading,setLoading]=useState(true),[challenge,setChallenge]=useState<Challenge|null>(null),[account,setAccount]=useState<TradingAccount|null>(null),[tab,setTab]=useState("overview");
   useEffect(() => {
     let active = true;
-    setChallenge(null); setAccount(null); setShow(false); setError(""); setLoading(true);
+    setChallenge(null); setAccount(null); setError(""); setLoading(true);
     if (!user) { setLoading(false); return; }
     Promise.all([dataService.getChallenges(user.userId), dataService.getAccounts(user.userId)])
       .then(([challenges, accounts]) => {
@@ -34,14 +36,14 @@ export default function AccountWorkspace(){
   const bySymbol=useMemo(()=>Object.entries(trades.reduce<Record<string,number>>((m,t)=>(m[t.symbol]=(m[t.symbol]||0)+t.pnl,m),{})).map(([symbol,pnl])=>({symbol,pnl})),[trades]);
   if (data.error) return <div className="premium-card"><p role="alert">{data.error}</p><Link to="/dashboard/accounts">Back to accounts</Link></div>;
   if(!challenge || data.loading)return <div className="premium-card py-16 text-center"><p className="font-semibold">{loading ? "Loading account workspace…" : error || "Account not found"}</p><Link className="mt-3 inline-block text-sm underline" to="/dashboard">Back to overview</Link></div>;
-  const copy=async(k:string,v:string)=>{await navigator.clipboard.writeText(v);setCopied(k);setTimeout(()=>setCopied(""),1500)};
   return <div className="space-y-6 animate-fade-up">
     <div><Link to="/dashboard" className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft size={14}/>All challenges</Link><div className="mt-4 flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-[.2em] text-muted-foreground">Account workspace</p><h1 className="mt-1 text-2xl font-bold">{challenge.name}</h1><p className="mt-1 font-mono text-xs text-muted-foreground">Account {publicAccountReference(challenge)}</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize">{challenge.status}</span></div></div>
+    {challenge.orderId && <OrderProgress orderId={challenge.orderId}/>}
     <div className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">{[["overview","Overview",Wallet],["metrix","Account MetriX",TrendingUp],["analysis","Analysis",BarChart3],["credentials","Credentials",KeyRound]].map(([id,label,Icon]:any)=><button key={id} onClick={()=>setTab(id)} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium ${tab===id?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-secondary"}`}><Icon size={15}/>{label}</button>)}</div>
     {tab==="overview"&&<><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Balance",account?.balance == null ? "—" : money(account.balance)],["Equity",account?.equity == null ? "—" : money(account.equity)],["Net P/L",money(a?.totalPnl||0)],["Closed trades",trades.length]].map(([x,v])=><div className="premium-card" key={x}><p className="text-xs text-muted-foreground">{x}</p><p className="mt-2 text-2xl font-bold">{v}</p></div>)}</div><div className="grid gap-5 lg:grid-cols-2"><Info challenge={challenge} account={account}/><Status account={account}/></div><AccountEquityHistory key={`${user?.userId}:${challengeId}`} challengeId={challengeId} program={challenge.phase} initialPhase={challenge.currentPhase ?? 1} /></>}
     {tab==="metrix"&&<><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Win rate",`${(a?.winRate||0).toFixed(1)}%`],["Profit factor",(a?.profitFactor||0).toFixed(2)],["Avg. R:R",(a?.avgRR||0).toFixed(2)],["Closed-trade drawdown",money(a?.maxDrawdown||0)]].map(([x,v])=><div className="premium-card" key={x}><p className="text-xs text-muted-foreground">{x}</p><p className="mt-2 text-2xl font-bold">{v}</p></div>)}</div><Chart title="Cumulative closed-trade P/L" data={curve} dataKey="balance"/><div className="grid gap-5 lg:grid-cols-2"><Chart title="Results by instrument" data={bySymbol} dataKey="pnl" bar/><Metrics a={a}/></div></>}
     {tab==="analysis"&&<Analysis trades={trades} a={a}/>} 
-    {tab==="credentials"&&<div className="premium-card"><div className="flex items-center justify-between"><div><h2 className="font-semibold">Trading platform credentials</h2><p className="mt-1 text-xs text-muted-foreground">Sensitive values remain hidden until you choose to reveal them.</p></div><button disabled={!account} onClick={()=>setShow(!show)} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs disabled:opacity-40">{show?<EyeOff size={14}/>:<Eye size={14}/>} {show?"Hide":"Reveal"}</button></div>{account?<div className="mt-6 divide-y rounded-lg border">{[["Platform",account.platform],["Server",account.server],["Login",account.login],["Password",account.password]].map(([k,v])=><div className="grid gap-2 p-4 sm:grid-cols-[160px_1fr_auto] sm:items-center" key={k}><span className="text-xs text-muted-foreground">{k}</span><span className="break-all font-mono text-sm">{["Login","Password"].includes(k)&&!show?"••••••••••••":v||"Pending"}</span>{v&&<button aria-label={`Copy ${k}`} onClick={()=>copy(k,v)} className="rounded p-2 hover:bg-secondary">{copied===k?<Check size={14}/>:<Copy size={14}/>}</button>}</div>)}</div>:<div className="mt-8 rounded-xl border border-dashed p-12 text-center"><Shield className="mx-auto text-muted-foreground"/><p className="mt-3 font-semibold">Credentials are being provisioned</p><p className="mt-1 text-sm text-muted-foreground">They will appear here and in your email after the broker creates the account.</p></div>}</div>}
+    {tab==="credentials"&&<TradingAccess key={`${user?.userId}:${challengeId}`} accountId={account?.accountId} challengeId={challengeId}/>}
   </div>
 }
 function Info({challenge:c,account:a}:{challenge:Challenge;account:TradingAccount|null}){return <div className="premium-card"><h2 className="font-semibold">Account information</h2><div className="mt-4 divide-y">{[["Account size",money(c.accountSize)],["Evaluation",c.phase.replace("-"," ")],["Style",c.style],["Started",safeDate(c.startDate)],["Broker account",c.accountReference||a?.login||c.brokerAccountId||"Pending"]].map(([k,v])=><div className="flex justify-between py-3 text-sm" key={k}><span className="text-muted-foreground">{k}</span><b className="capitalize">{v}</b></div>)}</div></div>}

@@ -36,6 +36,7 @@ export default function DashboardSettings() {
   const [backupCodesGeneratedAt, setBackupCodesGeneratedAt] = useState("");
   const [securityLoading, setSecurityLoading] = useState<Record<string, boolean>>({});
   const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetup | null>(null);
+  const [securityCode, setSecurityCode] = useState("");
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [passwordPrompt, setPasswordPrompt] = useState<null | "disable2fa" | "regenCodes">(null);
   const [securityPassword, setSecurityPassword] = useState("");
@@ -150,7 +151,8 @@ export default function DashboardSettings() {
       setPasswordPrompt("disable2fa");
       return;
     }
-    setTwoFactorSetup(createTwoFactorSetup(user.email));
+    try { setTwoFactorSetup(await createTwoFactorSetup(user.email)); }
+    catch (error: any) { toast({ title: "Security verification required", description: error?.message || "Sign in again before setting up 2FA.", variant: "destructive" }); return; }
     setTwoFactorCode("");
   };
 
@@ -175,15 +177,16 @@ export default function DashboardSettings() {
     setToggleLoading(action, true);
     try {
       if (action === "disable2fa") {
-        await disableTwoFactor(user.userId, securityPassword);
+        await disableTwoFactor(user.userId, securityPassword, securityCode);
         toast({ title: "2FA disabled", description: "Authenticator verification has been turned off." });
       } else {
-        const codes = await generateRecoveryCodes(user.userId, securityPassword);
+        const codes = await generateRecoveryCodes(user.userId, securityPassword, securityCode);
         setRecoveryCodes(codes);
         toast({ title: "Recovery codes regenerated", description: "Save these codes now. They will only be shown once." });
       }
       setPasswordPrompt(null);
       setSecurityPassword("");
+      setSecurityCode("");
     } catch (err: any) {
       toast({ title: "Password confirmation failed", description: err?.message || "Please verify your password and try again.", variant: "destructive" });
     } finally {
@@ -532,12 +535,12 @@ export default function DashboardSettings() {
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h3 className="text-sm font-semibold">Set up two-factor authentication</h3>
-                <p className="text-xs text-muted-foreground mt-1">Scan the QR code with Google Authenticator, 1Password, Authy, or any TOTP app.</p>
+                <p className="text-xs text-muted-foreground mt-1">Add the setup key below to your authenticator app, then enter its six-digit code.</p>
               </div>
               <button onClick={() => setTwoFactorSetup(null)} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
             </div>
             <div className="grid place-items-center bg-white rounded-xl p-4 mb-4">
-              <img src={twoFactorSetup.qrCodeUrl} alt="Authenticator QR code" className="w-52 h-52" />
+              {twoFactorSetup.qrCodeUrl && <img src={twoFactorSetup.qrCodeUrl} alt="Authenticator QR code" className="w-52 h-52" />}
             </div>
             <div className="bg-secondary/50 rounded-lg p-3 mb-4">
               <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1">Secret key</p>
@@ -563,6 +566,8 @@ export default function DashboardSettings() {
               <button onClick={() => setPasswordPrompt(null)} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
             </div>
             <input type="password" value={securityPassword} onChange={(e) => setSecurityPassword(e.target.value)} className="w-full bg-background border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30" placeholder="Current password" />
+              <label className="block text-xs mt-3 mb-1">Authenticator or recovery code</label>
+              <input value={securityCode} onChange={e => setSecurityCode(e.target.value)} autoComplete="one-time-code" maxLength={19} className="w-full bg-background border border-border rounded-md px-3 py-2.5 text-sm" placeholder="Verification code" />
             <button disabled={!securityPassword || securityLoading[passwordPrompt]} onClick={handlePasswordConfirmedAction} className="mt-4 w-full bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
               {securityLoading[passwordPrompt] ? "Confirming..." : "Confirm"}
             </button>

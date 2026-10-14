@@ -1,0 +1,18 @@
+import { beforeEach, afterEach, expect, it, vi } from "vitest";
+const fake=vi.hoisted(()=>({retrieve:vi.fn(),fulfill:vi.fn()}));
+vi.mock("../src/nativePaymentFulfillment",()=>({fulfillNativePayment:fake.fulfill}));
+vi.mock("firebase-functions/v2/https",()=>({onRequest:(_:any,handler:any)=>handler}));
+vi.mock("firebase-functions/params",()=>({defineSecret:(name:string)=>({value:()=>name==='STRIPE_WEBHOOK_SECRET'?'whsec_synthetic_fixture':'sk_test_synthetic_fixture'})}));
+vi.mock("stripe",async original=>{const Stripe=(await original<any>()).default;return {default:class extends Stripe{constructor(...args:any[]){super(...args);this.paymentIntents.retrieve=fake.retrieve;}}};});
+import Stripe from "stripe";
+import {stripeWebhook} from "../src/stripe/webhook";
+const stripe=new Stripe('sk_test_synthetic_fixture',{apiVersion:'2023-10-16'});
+const response=():any=>({code:0,status(n:number){this.code=n;return this},send:vi.fn(),json:vi.fn()});
+const payload=(live=true)=>JSON.stringify({id:'evt_fixture',type:'payment_intent.succeeded',livemode:live,data:{object:{id:'pi_fixture',metadata:{channel:'ios_native'},status:'succeeded'}}});
+const header=(body:string,timestamp=Math.floor(Date.now()/1000))=>stripe.webhooks.generateTestHeaderString({payload:body,secret:'whsec_synthetic_fixture',timestamp});
+beforeEach(()=>{vi.clearAllMocks();vi.stubEnv('FUNCTIONS_EMULATOR','false');fake.retrieve.mockResolvedValue({id:'pi_fixture',status:'succeeded',metadata:{channel:'ios_native'}});});
+afterEach(()=>vi.unstubAllEnvs());
+it('validates a real SDK signature and retrieves the current intent before fulfillment',async()=>{const body=payload(),res=response();await (stripeWebhook as any)({method:'POST',rawBody:Buffer.from(body),headers:{'stripe-signature':header(body)}},res);expect(res.code).toBe(200);expect(fake.retrieve).toHaveBeenCalledWith('pi_fixture');expect(fake.fulfill).toHaveBeenCalledWith(await fake.retrieve.mock.results[0].value,'evt_fixture');});
+it.each(['missing','altered','expired'])('rejects %s signatures before accessing Stripe or granting anything',async(kind)=>{const body=payload(),res=response();await (stripeWebhook as any)({method:'POST',rawBody:Buffer.from(kind==='altered'?body+' ':body),headers:{'stripe-signature':kind==='missing'?undefined:header(body,Math.floor(Date.now()/1000)-(kind==='expired'?600:0))}},res);expect(res.code).toBe(400);expect(fake.retrieve).not.toHaveBeenCalled();expect(fake.fulfill).not.toHaveBeenCalled();});
+it('does not process test-native events in production',async()=>{const body=payload(false),res=response();await (stripeWebhook as any)({method:'POST',rawBody:Buffer.from(body),headers:{'stripe-signature':header(body)}},res);expect(res.code).toBe(200);expect(fake.retrieve).not.toHaveBeenCalled();});
+it('asks Stripe to retry a temporary provider failure',async()=>{fake.retrieve.mockRejectedValueOnce(Error('network'));const body=payload(),res=response();await (stripeWebhook as any)({method:'POST',rawBody:Buffer.from(body),headers:{'stripe-signature':header(body)}},res);expect(res.code).toBe(500);expect(fake.fulfill).not.toHaveBeenCalled();});

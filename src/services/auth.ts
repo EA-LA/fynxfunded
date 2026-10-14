@@ -7,7 +7,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
-  onAuthStateChanged,
+  onIdTokenChanged,
   updatePassword as firebaseUpdatePassword,
   sendEmailVerification as firebaseSendEmailVerification,
   reauthenticateWithCredential,
@@ -27,7 +27,7 @@ import {
 } from "firebase/firestore";
 import { auth as firebaseAuth, db as firebaseDb, isFirebaseConfigured } from "@/lib/firebase";
 import { recordLoginSession } from "@/services/session-tracker";
-import { getSecuritySettings, verifySignInTwoFactor } from "@/services/security";
+import { mfaCall, mfaStatus, verifySignInTwoFactor } from "@/services/security";
 import type { User } from "./types";
 
 export interface AuthService {
@@ -76,14 +76,18 @@ async function createOrUpdateFirestoreUser(
       lastSecurityUpdate: serverTimestamp(),
     });
     await setDoc(doc(firebaseDb, "users", uid, "security", "settings"), {
-      twoFactorEnabled: false,
-      twoFactorSecret: "",
       loginAlertsEnabled: false,
-      backupCodesGeneratedAt: null,
       activeSessions: 0,
       lastSecurityUpdate: serverTimestamp(),
       createdAt: serverTimestamp(),
     });
+  } else {
+    // The MFA status transaction may have created a metadata-only root first.
+    // Fill missing public profile fields without resetting preferences or factors.
+    const current = snap.data();
+    const missing = Object.fromEntries(Object.entries({ email: data.email, displayName: data.displayName || "Trader", provider: data.provider })
+      .filter(([key]) => !current[key]));
+    if (Object.keys(missing).length) await setDoc(userRef, missing, { merge: true });
   }
 }
 
@@ -131,6 +135,16 @@ function firebaseUserToUser(fbUser: import("firebase/auth").User): User {
     kycStatus: "not_started",
     provider: getProviderType(fbUser),
   };
+}
+
+async function requireVerifiedSession() {
+  const status = await mfaStatus();
+  if (status.required && !status.verified) {
+    const error = new Error("Enter your authenticator or recovery code to continue.") as Error & { code: string };
+    error.code = "auth/two-factor-required";
+    throw error;
+  }
+  return status;
 }
 
 const REDIRECT_FALLBACK_ERRORS = new Set([
@@ -186,6 +200,7 @@ class FirebaseAuthService implements AuthService {
     fbUser: import("firebase/auth").User,
     provider: string,
   ): Promise<User> {
+    await requireVerifiedSession();
     await createOrUpdateFirestoreUser(fbUser.uid, {
       email: fbUser.email || "",
       displayName: fbUser.displayName || "Trader",
@@ -232,6 +247,11 @@ class FirebaseAuthService implements AuthService {
     this.currentUser = user;
 
     // Sign out — user must verify email before logging in
+    const uid = this.getAuth().currentUser?.uid;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([mfaCall("logout"), new Promise(resolve => { timer = setTimeout(resolve, 5000); })]); } catch { /* Local sign-out must still work offline. */ }
+    finally { clearTimeout(timer); }
+    if (this.getAuth().currentUser?.uid !== uid) return;
     await firebaseSignOut(this.getAuth());
     this.currentUser = null;
 
@@ -239,32 +259,16 @@ class FirebaseAuthService implements AuthService {
   }
 
   async signIn(email: string, password: string, twoFactorCode?: string): Promise<User> {
-    const cred = await signInWithEmailAndPassword(this.getAuth(), email, password);
-
-    // Block login if email is not verified
-    if (!cred.user.emailVerified) {
+    let fbUser = this.getAuth().currentUser;
+    if (!twoFactorCode || !fbUser) fbUser = (await signInWithEmailAndPassword(this.getAuth(), email, password)).user;
+    if (!fbUser.emailVerified) {
       await firebaseSignOut(this.getAuth());
-      throw new Error("Please verify your email before logging in. Check your inbox for the verification link.");
+      throw new Error("Please verify your email before logging in.");
     }
-
-    const user = await this.hydrateFromFirestore(firebaseUserToUser(cred.user));
-    const security = await getSecuritySettings(user.userId);
-    if (security.twoFactorEnabled) {
-      if (!twoFactorCode) {
-        await firebaseSignOut(this.getAuth());
-        const err = new Error("Enter your 6-digit authenticator code to continue.") as Error & { code?: string };
-        err.code = "auth/two-factor-required";
-        throw err;
-      }
-      try {
-        await verifySignInTwoFactor(user.userId, twoFactorCode);
-      } catch (err) {
-        await firebaseSignOut(this.getAuth());
-        throw err;
-      }
-    }
+    if (twoFactorCode) await verifySignInTwoFactor(fbUser.uid, twoFactorCode);
+    await requireVerifiedSession();
+    const user = await this.hydrateFromFirestore(firebaseUserToUser(this.getAuth().currentUser!));
     this.currentUser = user;
-
     recordLoginSession(user.userId).catch(console.error);
     return user;
   }
@@ -306,6 +310,11 @@ class FirebaseAuthService implements AuthService {
   }
 
   async signOut(): Promise<void> {
+    const uid = this.getAuth().currentUser?.uid;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([mfaCall("logout"), new Promise(resolve => { timer = setTimeout(resolve, 5000); })]); } catch { /* Local sign-out must still work offline. */ }
+    finally { clearTimeout(timer); }
+    if (this.getAuth().currentUser?.uid !== uid) return;
     await firebaseSignOut(this.getAuth());
     this.currentUser = null;
   }
@@ -322,20 +331,30 @@ class FirebaseAuthService implements AuthService {
 
   onAuthStateChange(callback: (user: User | null) => void): () => void {
     let generation = 0;
-    const unsubscribe = onAuthStateChanged(this.getAuth(), async (fbUser) => {
+    let expiry: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = onIdTokenChanged(this.getAuth(), async (fbUser) => {
       const turn = ++generation;
+      clearTimeout(expiry);
       if (!fbUser || !fbUser.emailVerified) { this.currentUser = null; callback(null); return; }
       if (this.currentUser && this.currentUser.userId !== fbUser.uid) { this.currentUser = null; callback(null); }
-      try {
-        const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
-        if (turn !== generation || this.getAuth().currentUser?.uid !== fbUser.uid) return;
-        this.currentUser = user;
-        callback(user);
-      } catch {
-        if (turn === generation) { this.currentUser = null; callback(null); }
-      }
+      if (fbUser) {
+        try {
+          const status = await requireVerifiedSession();
+          if (turn !== generation || this.getAuth().currentUser?.uid !== fbUser.uid) return;
+          const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
+          if (turn !== generation || this.getAuth().currentUser?.uid !== fbUser.uid) return;
+          if (status.required && (!status.expiresAt || status.expiresAt <= Date.now())) throw new Error("Session expired");
+          this.currentUser = user;
+          callback(user);
+          if (status.required && status.expiresAt) expiry = setTimeout(() => {
+            if (turn === generation) { this.currentUser = null; callback(null); }
+          }, Math.max(0, status.expiresAt - Date.now()));
+        } catch {
+          if (turn === generation) { this.currentUser = null; callback(null); }
+        }
+      } else { this.currentUser = null; callback(null); }
     });
-    return () => { ++generation; unsubscribe(); };
+    return () => { ++generation; clearTimeout(expiry); unsubscribe(); };
   }
 
   async updatePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -356,6 +375,7 @@ class FirebaseAuthService implements AuthService {
     const fbUser = this.getAuth().currentUser;
     if (!fbUser) return null;
     await fbUser.reload();
+    await requireVerifiedSession();
     const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
     this.currentUser = user;
     return user;

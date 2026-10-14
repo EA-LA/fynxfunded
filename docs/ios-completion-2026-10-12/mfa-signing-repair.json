@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-12T16:10:32.186Z",
+  "runtimeServiceAccount": "1011050657868-compute@developer.gserviceaccount.com",
+  "scope": "This service account only; no project-wide role grant",
+  "changed": true,
+  "iamCredentialsApi": "ENABLED",
+  "alreadyGranted": false,
+  "selfSigningRolePresent": true,
+  "rollback": "Remove only the added self-member from roles/iam.serviceAccountTokenCreator on this service account if the MFA signer is retired. Preserve other bindings."
+}

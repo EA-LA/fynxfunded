@@ -105,7 +105,7 @@ export default function AmlKyc() {
       <section id="reporting">
         <h2 className="text-xl font-semibold mt-10 mb-4">8. Reporting Obligations</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Where required by law, we will file Suspicious Activity Reports (SARs) or equivalent reports with the relevant authorities. We are prohibited from disclosing to any user that a report has been filed (tipping off). We cooperate fully with law enforcement and regulatory bodies in the investigation of potential financial crimes.
+          Reporting responsibilities and cooperation procedures must be confirmed with qualified counsel and the relevant service providers before launch. This page does not represent that FYNX is a regulated financial institution or that a regulatory reporting program is operational.
         </p>
       </section>
 

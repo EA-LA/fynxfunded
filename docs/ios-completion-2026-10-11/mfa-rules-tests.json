@@ -1,0 +1,77 @@
+{
+  "checkedDate": "2026-10-11",
+  "rulesSha256": "0c679d9cb52ec6c19b65ded6d9d93cc0270a101dea417252d81a76fc81683c1e",
+  "issues": [],
+  "checks": [
+    {
+      "name": "Unverified MFA cannot read account",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Non-MFA owner can read account",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Private seed never client-readable",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Valid proof reads account",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Expired proof denied",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Another user proof denied",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Old version proof denied",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Unverified profile protected",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Unverified KYC profile protected",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Cannot disable own factor through root document",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Cannot edit authenticator metadata directly",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Cannot forge proof document",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Cannot read legacy secret",
+      "state": "SUCCESS",
+      "debugMessages": []
+    },
+    {
+      "name": "Cannot change private factor",
+      "state": "SUCCESS",
+      "debugMessages": []
+    }
+  ]
+}

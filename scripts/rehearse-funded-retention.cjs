@@ -14,7 +14,7 @@ async function main() {
   const report = { checkedAt: new Date().toISOString(), environment: 'local Firestore emulator; synthetic records only', checks: [], productionRestore: false };
   const check = (name, passed) => { report.checks.push({ name, passed: !!passed }); if (!passed) throw Error(name); };
   try {
-    const deletedPath = 'tickets/retention-qa', retainedPath = 'orders/retention-qa', sharedPath = `users/${uid}`;
+    const deletedPath = `funded_notice_inboxes/${uid}/items/retention-qa`, retainedPath = 'orders/retention-qa', sharedPath = `users/${uid}`;
     await db.doc(deletedPath).set({ userId: uid, status: 'closed', message: 'Synthetic ticket' });
     await db.doc(retainedPath).set({ userId: uid, status: 'paid', amount: 79 });
     await db.doc(sharedPath).set({ displayName: 'Shared identity fixture' });
@@ -29,7 +29,7 @@ async function main() {
     await executeDeletion(db, ledger, plan, hash);
     check('Approved synthetic ticket deleted', !(await db.doc(deletedPath).get()).exists);
     check('Retained billing record and shared profile preserved', (await db.doc(retainedPath).get()).exists && (await db.doc(sharedPath).get()).exists);
-    check('Request records completion and exact plan hash', (await db.doc(plan.requestPath).get()).data()?.deletionPlanHash === hash);
+    check('Request records the exact plan hash and still requires full-scope review', (await db.doc(plan.requestPath).get()).data()?.status==='partially_completed' && (await db.doc(plan.requestPath).get()).data()?.deletionPlanHash === hash);
     const prepared = JSON.parse(fs.readFileSync(path.join(ledgerDirectory, `${hash}.prepared`)));
     const completed = JSON.parse(fs.readFileSync(path.join(ledgerDirectory, `${hash}.completed`)));
     // Simulate a backup containing the deleted record. The independent ledger remains current.
@@ -43,11 +43,11 @@ async function main() {
     check('Restoration does not remove retained records or approve launch', (await restoredDb.doc(retainedPath).get()).exists && restored.releaseApproved === false);
     report.complete = true;
   } finally {
-    for (const p of ['tickets/retention-qa', 'orders/retention-qa', `users/${uid}`, `funded_privacy_requests/${uid}`]) await db.doc(p).delete();
-    for (const p of ['tickets/retention-qa', 'orders/retention-qa']) await restoredDb.doc(p).delete();
+    for (const p of [`funded_notice_inboxes/${uid}/items/retention-qa`, 'orders/retention-qa', `users/${uid}`, `funded_privacy_requests/${uid}`]) await db.doc(p).delete();
+    for (const p of [`funded_notice_inboxes/${uid}/items/retention-qa`, 'orders/retention-qa']) await restoredDb.doc(p).delete();
     fs.rmSync(ledgerDirectory, { recursive: true, force: true });
     report.cleanup = true;
-    const output = path.resolve(__dirname, '../docs/launch-2026-10-11/retention-rehearsal.json');
+    const output = path.resolve(__dirname, '../docs/ios-completion-2026-10-12/retention-rehearsal.json');
     fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); console.log(JSON.stringify(report, null, 2));
   }
 }

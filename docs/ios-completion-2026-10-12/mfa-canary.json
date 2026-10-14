@@ -1,0 +1,83 @@
+{
+  "checkedAt": "2026-10-12T16:21:46.536Z",
+  "scope": "disposable synthetic MFA cohort; not a customer rollout",
+  "checks": [
+    {
+      "name": "Global customer MFA remains inactive",
+      "passed": true
+    },
+    {
+      "name": "No other QA cohort is active",
+      "passed": true
+    },
+    {
+      "name": "Canary first-factor status works",
+      "passed": true
+    },
+    {
+      "name": "Server enrollment returns setup for the QA identity",
+      "passed": true
+    },
+    {
+      "name": "Wrong enrollment code denied",
+      "passed": true
+    },
+    {
+      "name": "Runtime signs a real custom token",
+      "passed": true
+    },
+    {
+      "name": "Firebase exchanges the server-signed proof",
+      "passed": true
+    },
+    {
+      "name": "Protected endpoint denies first factor",
+      "passed": true
+    },
+    {
+      "name": "Protected endpoint accepts MFA proof",
+      "passed": true
+    },
+    {
+      "name": "Authenticator replay denied",
+      "passed": true
+    },
+    {
+      "name": "Recovery codes generated",
+      "passed": true
+    },
+    {
+      "name": "Concurrent recovery use succeeds once",
+      "passed": true
+    },
+    {
+      "name": "Logout invalidates this proof",
+      "passed": true
+    },
+    {
+      "name": "Expired proof denied by the server",
+      "passed": true
+    },
+    {
+      "name": "Legacy factor migrates privately",
+      "passed": true
+    },
+    {
+      "name": "Migrated recovery code verifies",
+      "passed": true
+    },
+    {
+      "name": "Wrong-code lockout persists",
+      "passed": true
+    }
+  ],
+  "cleanup": true,
+  "globalActivation": false,
+  "signing": {
+    "tested": true,
+    "customTokenIssued": true,
+    "error": null,
+    "details": null
+  },
+  "complete": true
+}

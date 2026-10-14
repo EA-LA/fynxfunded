@@ -1,3 +1,4 @@
+import { fundedAccessCall } from "./funded-access";
 // ═══════════════════════════════════════════════════════════
 // DATA SERVICE — Firestore production adapter
 // ═══════════════════════════════════════════════════════════
@@ -148,15 +149,13 @@ class FirestoreDataService implements DataService {
 
   // ── Trading Accounts ──
   async getAccounts(userId: string) {
-    const q = query(collection(getDb(), "accounts"), where("userId", "==", userId));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ ...d.data(), accountId: d.id } as TradingAccount));
+    const data = await fundedAccessCall<{accounts: TradingAccount[]}>("fundedTradingAccess", {action: "metadata"});
+    return data.accounts.filter(account => account.userId === userId);
   }
 
   async getAccount(accountId: string) {
-    const snap = await getDoc(doc(getDb(), "accounts", accountId));
-    if (!snap.exists()) return null;
-    return { ...snap.data(), accountId: snap.id } as TradingAccount;
+    const data = await fundedAccessCall<{accounts: TradingAccount[]}>("fundedTradingAccess", {action: "metadata"});
+    return data.accounts.find(account => account.accountId === accountId) ?? null;
   }
 
   // ── Tickets ──

@@ -1,0 +1,73 @@
+{
+  "checkedAt": "2026-10-11T18:35:23.416Z",
+  "project": "fynx-c7a28",
+  "data": "temporary synthetic QA; not real broker evidence",
+  "checks": [
+    {
+      "name": "push remains disabled",
+      "passed": true
+    },
+    {
+      "name": "MFA remains unactivated",
+      "passed": true
+    },
+    {
+      "name": "real Firebase email sign-in succeeds",
+      "passed": true
+    },
+    {
+      "name": "unauthenticated reads rejected",
+      "passed": true
+    },
+    {
+      "name": "owned missing history is explicit",
+      "passed": true
+    },
+    {
+      "name": "unknown account is inaccessible",
+      "passed": true
+    },
+    {
+      "name": "deployed callable reconciles synthetic independent equity",
+      "passed": true
+    },
+    {
+      "name": "mismatched equity withheld",
+      "passed": true
+    },
+    {
+      "name": "push registration requires explicit opt-in",
+      "passed": true
+    },
+    {
+      "name": "test token registration accepted",
+      "passed": true
+    },
+    {
+      "name": "real Firestore trigger creates a private inbox notice",
+      "passed": true
+    },
+    {
+      "name": "background sending is still disabled",
+      "passed": true
+    },
+    {
+      "name": "read status persists",
+      "passed": true
+    },
+    {
+      "name": "privacy export contains inbox but excludes push token",
+      "passed": true
+    },
+    {
+      "name": "unregistration removes token",
+      "passed": true
+    },
+    {
+      "name": "unactivated MFA customer fails closed",
+      "passed": true
+    }
+  ],
+  "cleanup": true,
+  "complete": true
+}

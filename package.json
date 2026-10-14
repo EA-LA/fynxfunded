@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:functions": "vitest run --config functions/vitest.config.ts",
-    "check:release": "npm run lint && npm test && npm run test:functions && npm --prefix functions run build && npx tsc --noEmit -p tsconfig.app.json && npm run build"
+    "check:release": "npm run lint && npm test && npm run test:functions && npm run test:mfa && npx tsc --noEmit -p tsconfig.app.json && npm run build",
+    "test:mfa": "npm --prefix functions run build && node functions/test/mfa.integration.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

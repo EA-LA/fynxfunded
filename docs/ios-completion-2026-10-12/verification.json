@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-10-12T16:41:39.592571+00:00",
+  "frontendTests": 81,
+  "functionTests": 122,
+  "mockedMfaChecks": 15,
+  "firebaseRulesChecks": 16,
+  "liveServiceChecks": 17,
+  "liveMfaChecks": 17,
+  "retentionEmulatorChecks": 6,
+  "phaseEmulatorChecks": 8,
+  "lintPassed": true,
+  "frontendTypecheckPassed": true,
+  "backendTypecheckPassed": true,
+  "webProductionBuildPassed": true,
+  "globalMfaActivated": false,
+  "paymentsActivated": false,
+  "rulesDeployed": false,
+  "websiteDeployed": false,
+  "commercialLaunchApproved": false,
+  "localLogs": [
+    "release-check.log",
+    "final-functions-tests.log",
+    "phase-rehearsal.log"
+  ]
+}

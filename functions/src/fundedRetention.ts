@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 
-const collections = new Set(["web_checkout_attempts", "orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_memberships", "funded_membership_requests", "funded_leaderboard_consent", "funded_coaching_bookings"]);
-const openStates = new Set(["pending", "active", "requested", "approved", "processing", "open", "disputed"]);
+const collections = new Set(["funded_account_secrets", "funded_credential_access", "credential_deliveries", "native_checkout_attempts", "funded_push_devices", "rule_events", "rule_evaluations", "audit_logs", "web_checkout_attempts", "orders", "challenges", "accounts", "trades", "payouts", "tickets", "certificates", "contracts", "funded_memberships", "funded_membership_requests", "funded_leaderboard_consent", "funded_coaching_bookings"]);
+const openStates = new Set(["pending", "active", "requested", "approved", "processing", "open", "disputed", "funded", "passed", "provisioning", "awaiting_broker", "awaiting_history", "in_progress"]);
 export type RetentionDecision = { path: string; updateTime: string; action: "delete" | "retain"; reason: string };
 export type DeletionPlan = { schemaVersion: 1; uid: string; requestPath: string; scope: "FYNX Funded only"; policyReference: string; reviewedBy: string; reviewedAt: string; records: RetentionDecision[] };
 export type DeletionLedger = {
@@ -17,14 +17,18 @@ export function validatePlan(plan: DeletionPlan) {
   const seen = new Set<string>();
   for (const row of plan.records) {
     const segments = row.path.split("/");
-    if (segments.length !== 2 || !collections.has(segments[0]) || !segments[1] || seen.has(row.path) || !["delete", "retain"].includes(row.action)
+    const scopedPath = (segments.length === 2 && collections.has(segments[0]) && !!segments[1])
+      || (segments.length === 4 && segments[0] === "funded_notice_inboxes" && segments[1] === plan.uid && segments[2] === "items" && !!segments[3])
+      || ([4, 6].includes(segments.length) && segments[0] === "funded_phase_archives" && !!segments[1] && segments[2] === "phases"
+        && /^[1-4]$/.test(segments[3]) && (segments.length === 4 || (segments[4] === "events" && !!segments[5])));
+    if (!scopedPath || seen.has(row.path) || !["delete", "retain"].includes(row.action)
       || !row.reason?.trim() || !/^\d+:\d{1,9}$/.test(row.updateTime)) throw Error("Invalid, duplicate or out-of-scope retention decision.");
     seen.add(row.path);
   }
   if (!plan.records.some(row => row.action === "delete")) throw Error("This plan has no approved deletions.");
 }
 
-/** Only exact reviewed records are eligible. The shared Firebase identity and users document are excluded. */
+/** Completion of a bounded plan does not claim whole-account deletion. Only exact reviewed records are eligible. The shared Firebase identity and users document are excluded. */
 export async function executeDeletion(db: Firestore, ledger: DeletionLedger, plan: DeletionPlan, approvedHash: string) {
   validatePlan(plan);
   const hash = planHash(plan);
@@ -37,18 +41,18 @@ export async function executeDeletion(db: Firestore, ledger: DeletionLedger, pla
   const result = await db.runTransaction(async tx => {
     const requestRef = db.doc(plan.requestPath);
     const request = (await tx.get(requestRef)).data();
-    if (request?.status !== "pending_review" || request.userId !== plan.uid || request.scope !== plan.scope) throw Error("Deletion request is not pending for this customer.");
+    if (!request || !["pending_review", "partially_completed"].includes(request.status) || request.userId !== plan.uid || request.scope !== plan.scope) throw Error("Deletion request is not pending for this customer.");
     const snapshots = await Promise.all(plan.records.map(row => tx.get(db.doc(row.path))));
     for (let index = 0; index < plan.records.length; index++) {
       const row = plan.records[index], snapshot = snapshots[index], data = snapshot.data();
       if (!snapshot.exists || data?.userId !== plan.uid || `${snapshot.updateTime?.seconds}:${snapshot.updateTime?.nanoseconds}` !== row.updateTime) throw Error("A record changed or its ownership is not confirmed. Review a new plan.");
-      if (row.action === "delete" && (data?.legalHold === true || data?.retentionHold === true || openStates.has(String(data?.status).toLowerCase()))) throw Error("Open records and retention holds cannot be deleted.");
+      if (row.action === "delete" && (data?.legalHold === true || data?.retentionHold === true || openStates.has(String(data?.status).toLowerCase()) || ((row.path.startsWith("native_checkout_attempts/") || row.path.startsWith("web_checkout_attempts/")) && !data?.fulfilledAt && !["canceled", "expired", "fulfilled"].includes(data?.status)))) throw Error("Open records and retention holds cannot be deleted.");
     }
     // Unknown nested data requires a separate reviewed workflow, never recursive deletion by assumption.
     for (const row of plan.records) if (row.action === "delete") tx.delete(db.doc(row.path));
     const completedAt = new Date().toISOString();
     const summary = { hash, uid: plan.uid, deleted: plan.records.filter(r => r.action === "delete").length, retained: plan.records.filter(r => r.action === "retain").length, completedAt };
-    tx.update(requestRef, { status: "completed", completedAt, deletionPlanHash: hash, retainedRecords: summary.retained, scope: plan.scope });
+    tx.update(requestRef, { status: "partially_completed", lastExecutionAt: completedAt, remainingScopeReviewRequired: true, deletionPlanHash: hash, retainedRecords: summary.retained, scope: plan.scope });
     return summary;
   });
   await ledger.create(`${hash}.completed`, { ...result, schemaVersion: 1 });

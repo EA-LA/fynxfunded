@@ -1,0 +1,17 @@
+{
+  "archiveSucceeded": true,
+  "appStoreExportSucceeded": true,
+  "uploaded": false,
+  "bundleIdentifier": "com.elhamamini.FYNX",
+  "version": "1.3",
+  "build": "1",
+  "requiredPermissionDescriptions": {
+    "NSCameraUsageDescription": true,
+    "NSFaceIDUsageDescription": true
+  },
+  "containsStripeIdentity": true,
+  "ipaSha256": "e6727c776f64cdb9b124a6cf1e73b986eef07820682b16edf2c9f956457fd7a9",
+  "deviceInstalled": true,
+  "deviceLaunched": true,
+  "ownerDeviceFeedback": "Owner reports sign-in, Tools/Funded switching and Face ID/passcode locking work. Provider-specific flows and trading-record comparison were not independently observed."
+}

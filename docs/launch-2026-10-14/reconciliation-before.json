@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-14T19:54:06.239Z",
+  "readOnly": true,
+  "providerReconciliation": false,
+  "orders": 23,
+  "accounts": 0,
+  "states": {
+    "payment_pending": 18,
+    "account_pending": 4,
+    "account_unavailable": 1
+  },
+  "findings": [
+    {
+      "orderId": "cs_test_a16R2x1s97X7oTwfFFcOD8o4wF4aGkZKkz7Y4WUYKIcRYG4bYnn6TZBl51",
+      "reason": "account_pending"
+    },
+    {
+      "orderId": "cs_test_a1Ctc3IJR1TlJ7F5ZkGDTqg0EU4FT9RXRRKuFLL2uE9RtLpZmKvWdrnjjO",
+      "reason": "account_pending"
+    },
+    {
+      "orderId": "cs_test_a1XlKKdybfwLmVyFHz8Nq50sL4a0bKkaRqaXCy0wLnQSfpzVTq92fbH0WX",
+      "reason": "account_pending"
+    },
+    {
+      "orderId": "cs_test_a1yFy24FC6qVgwMoX8eGKmtUqApEVZeY6UktZfItginwKF0zu69PCdKulL",
+      "reason": "account_pending"
+    }
+  ]
+}

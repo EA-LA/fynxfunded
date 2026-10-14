@@ -7,8 +7,8 @@ import * as admin from "firebase-admin";
 import Stripe from "stripe";
 import { build as buildPurchasedRules } from "../purchasedAgreement";
 import { getPlan } from "./priceMap";
-
 import { paymentsPaused } from "./paymentAvailability";
+
 
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const allowedOrigins = new Set(["https://fynxfunded.com", "https://www.fynxfunded.com", "https://fynxfunded.vercel.app"]);

@@ -1,0 +1,20 @@
+{
+  "version": "1.4",
+  "build": "3",
+  "appAndWidgetSignaturesVerified": true,
+  "privacyManifestsIncluded": true,
+  "debugFixturesAbsent": true,
+  "archiveExecutableSha256": "ce9c1cacc1631540a7a49acba7b1c3d3e27ec2426d63b96ef6a20bb65b544a2c",
+  "appStoreExportSucceeded": true,
+  "distributionSignatureVerified": true,
+  "ipaSha256": "d50a31536c89a18b58db8ffa0a3195ee815244b5e80de7af68653deb6d836f17",
+  "debuggerEntitlement": false,
+  "pushEnvironment": "production",
+  "deviceInstalled": true,
+  "deviceLaunched": true,
+  "fullDeviceJourneyTested": false,
+  "uploadedToApple": false,
+  "appReviewSubmitted": false,
+  "uploadBlocker": "Command-line uploader cannot access the Apple account. Signed-in Xcode UI continuation awaits Mac unlock.",
+  "exportComplianceDeclaration": "ITSAppUsesNonExemptEncryption is unset; App Store Connect declaration requires review."
+}

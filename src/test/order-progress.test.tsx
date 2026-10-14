@@ -1,0 +1,17 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+const state=vi.hoisted(()=>({uid:'owner',get:vi.fn(),reveal:vi.fn()}));
+vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{userId:state.uid}})}));
+vi.mock('@/services/funded-access',()=>({getOrderProgress:state.get,revealTradingAccess:state.reveal}));
+import OrderStatus from '@/pages/OrderStatus';
+import OrderProgress from '@/components/OrderProgress';
+import TradingAccess from '@/components/TradingAccess';
+beforeEach(()=>{cleanup();localStorage.clear();state.uid='owner';state.get.mockReset();state.reveal.mockReset();});
+const progress={orderId:'o',challengeId:'c',accountId:null,state:'account_pending',title:'Payment received · account setup pending',message:'Do not pay again.',paymentConfirmed:true,accountReady:false,checkedAt:new Date().toISOString(),paymentStatus:'paid'};
+it('ignores forged local order data and malformed browser storage',()=>{localStorage.setItem('fynx_last_order','{malformed');render(<MemoryRouter><OrderStatus/></MemoryRouter>);expect(screen.getByText('Choose an order from Billing to check its status.')).toBeTruthy();expect(state.get).not.toHaveBeenCalled();});
+it('paid order does not display a ready-account link',async()=>{state.get.mockResolvedValue(progress);render(<MemoryRouter><OrderProgress orderId="o"/></MemoryRouter>);await screen.findByText(progress.title);expect(screen.queryByText('Open trading account')).toBeNull();expect(screen.getByRole('link',{name:'Contact support'}).getAttribute('href')).toContain('orderId=o');});
+it('ignores an old user response after account switching',async()=>{let finish:(v:unknown)=>void=()=>{};state.get.mockImplementationOnce(()=>new Promise(r=>finish=r)).mockResolvedValue({...progress,title:'New customer'});const root=render(<MemoryRouter><OrderProgress orderId="o"/></MemoryRouter>);state.uid='second';root.rerender(<MemoryRouter><OrderProgress orderId="o"/></MemoryRouter>);await screen.findByText('New customer');finish(progress);await waitFor(()=>expect(screen.queryByText(progress.title)).toBeNull());});
+it('failed status lookup offers retry without showing success',async()=>{state.get.mockRejectedValueOnce(Error('network')).mockResolvedValue(progress);render(<MemoryRouter><OrderProgress orderId="o"/></MemoryRouter>);await screen.findByRole('alert');fireEvent.click(screen.getByRole('button',{name:'Refresh status'}));await screen.findByText(progress.title);});
+it('fetches credentials only on reveal and clears them when focus leaves',async()=>{state.reveal.mockResolvedValue({userId:'owner',accountId:'a',challengeId:'c',platform:'P',server:'S',login:'L',password:'sensitive'});render(<TradingAccess accountId="a" challengeId="c"/>);expect(state.reveal).not.toHaveBeenCalled();fireEvent.click(screen.getByText('Reveal trading credentials'));await screen.findByText('sensitive');fireEvent.blur(window);expect(screen.queryByText('sensitive')).toBeNull();});
+it('late credential response after conceal is never displayed',async()=>{let finish:(v:unknown)=>void=()=>{};state.reveal.mockImplementation(()=>new Promise(r=>finish=r));render(<TradingAccess accountId="a" challengeId="c"/>);fireEvent.click(screen.getByText('Reveal trading credentials'));fireEvent.blur(window);finish({userId:'owner',accountId:'a',challengeId:'c',password:'sensitive'});await waitFor(()=>expect(screen.queryByText('sensitive')).toBeNull());});

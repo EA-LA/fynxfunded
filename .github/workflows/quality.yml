@@ -23,6 +23,22 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run test:functions
-      - run: npm --prefix functions run build
+      - run: npm run test:mfa
       - run: npx tsc --noEmit -p tsconfig.app.json
       - run: npm run build
+
+  operations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci --prefix functions
+      - run: npm --prefix functions run build
+      - run: npx --yes firebase-tools@15.8.0 emulators:exec --config scripts/firebase-retention-emulator.json --only firestore --project demo-funded-retention "node scripts/rehearse-ios-operations.cjs"
