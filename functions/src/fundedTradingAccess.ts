@@ -22,6 +22,9 @@ export const fundedTradingAccess = onCall({ region: 'us-central1', maxInstances:
     const account = a.data(), challenge = c.data(), vault = v.data();
     if (!account || !challenge || account.userId !== uid || challenge.userId !== uid || account.challengeId !== challengeId || challenge.brokerAccountId !== accountId) throw new HttpsError('not-found', 'Trading access unavailable.');
     if (!confirmedAccount(account) || account.status !== 'active' || !['active', 'passed', 'funded'].includes(challenge.status) || !vault) throw new HttpsError('failed-precondition', 'Secure trading access is not ready. Contact support.');
+    const orderId = documentId(challenge.orderId);
+    const order = (await tx.get(db.doc(`orders/${orderId}`))).data();
+    if (!order || order.userId !== uid || order.challengeId !== challengeId || order.status !== 'paid') throw new HttpsError('failed-precondition', 'This order no longer authorizes trading access. Contact support.');
     const binding = { userId: uid, challengeId, accountId };
     let password: string;
     try { password = openCredential(vault as SealedCredential, binding, tradingCredentialKey.value()); }

@@ -17,7 +17,7 @@ export const sendBrokerCredentialsEmail = onDocumentWritten({ document: 'account
   const challengeId = account.challengeId;
   if (typeof challengeId !== 'string' || challengeId.includes('/')) return;
   const [challenge, vault, user] = await Promise.all([db.doc(`challenges/${challengeId}`).get(), db.doc(`funded_account_secrets/${accountId}`).get(), admin.auth().getUser(account.userId)]);
-  if (challenge.data()?.userId !== account.userId || challenge.data()?.brokerAccountId !== accountId || !vault.exists || !user.email || !user.emailVerified || user.disabled) return;
+  if (challenge.data()?.userId !== account.userId || challenge.data()?.brokerAccountId !== accountId || vault.data()?.userId !== account.userId || vault.data()?.challengeId !== challengeId || vault.data()?.accountId !== accountId || !user.email || !user.emailVerified || user.disabled) return;
   const ref = db.doc(`credential_deliveries/ready_${accountId}`), now = Date.now();
   const send = await db.runTransaction(async tx => {
     const previous = (await tx.get(ref)).data();
