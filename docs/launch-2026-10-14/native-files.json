@@ -1,0 +1,46 @@
+{
+  "root": "/Users/h/Documents/FYNX",
+  "note": "Patch is relative to pre-task working files, not repository HEAD. Unrelated existing changes are excluded.",
+  "files": [
+    {
+      "path": "/Users/h/Documents/FYNX/FYNX/FYNXApp.swift",
+      "beforeSHA256": "ce72899af1a827e0e0f9569d47be46ae6488984b6507d1c3e0c1ef98f1ce3f4e",
+      "afterSHA256": "babd0b92dbe776d6dc0b106cfc8977b1dbb71f4d9594144e56661a593317e319"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNX/FundedAccountsView.swift",
+      "beforeSHA256": "4477d30f32912d25a1937549f248d4ff6fc1ae0c2c8ee5247e4caae93fdae35c",
+      "afterSHA256": "2819d22994baeb7a743d71eb8db069edd38d7b064c8f6e677799ee69af029e52"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNX/FundedCheckoutView.swift",
+      "beforeSHA256": "f8d2a1face76b3a4e62c83b0a04678ab5a21f568a79379e35d9b9c686c60b981",
+      "afterSHA256": "421699ef4ee3e272acd9da756518431c835912da1e57d18b702fff10e504b07b"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNX/FundedCredentialData.swift",
+      "beforeSHA256": "b60bb271cdc562da6ce8cf2d60edb0b38bc7093253871460136cbb12be809d8f",
+      "afterSHA256": "4d6d96a1e531cc9fd7b42464ef7489b00716df9f4cc4d8ff39432fe70cb3362e"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNX/FundedCredentialsView.swift",
+      "beforeSHA256": "5833eacb4c6744d23b0b5dbc8d8fdfd3bc19edb7ca390d243c600788c609ad49",
+      "afterSHA256": "7086d79aa20d6a3d47b3a5a651aeed849c91aec1b4c6741707de0b18994240db"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNX/FundedMenuView.swift",
+      "beforeSHA256": "41853346f169579b33f0de5f7d3344dd79e2a315ecb55e6b65add0af0c94a411",
+      "afterSHA256": "3d12404762457c5778815ca15bd8e524b909fecbcc26f5ef38ad219cf1069d14"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNXTests/FYNXTests.swift",
+      "beforeSHA256": "a204598f81bc4804cccc00be35fd9eda113e1e42c51120c7b916ceb923004477",
+      "afterSHA256": "47af105ff082157bc49e5356e99ce0e580dcd12df5e21e5a6f00d8941ea3077a"
+    },
+    {
+      "path": "/Users/h/Documents/FYNX/FYNXUITests/FYNXUITests.swift",
+      "beforeSHA256": "5ff08a2fd674ee1935249a7931f2b9702f2737cd6c6e71b52e32301e8ee015f7",
+      "afterSHA256": "ffd88710715a3863b473e8a1d4d7dbb8549cd2547006ce44604d318cf2b1d2d7"
+    }
+  ]
+}

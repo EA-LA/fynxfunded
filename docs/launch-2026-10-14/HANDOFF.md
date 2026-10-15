@@ -2,6 +2,10 @@
 
 This update follows the current source and deployed-service audits, not the older pasted assessment. Commercial purchases and automatic progression remain paused. No trading provider was selected, no customer was charged, and no provider account or payout was created.
 
+## Already present before this update
+
+The current source already included the website/dashboard, challenge and order records, payment integration with a purchase hold, versioned rule evaluation, legal-acceptance records, support/privacy workflows, controlled phase transitions and private MFA rollout preparation. Their existence did not prove a connected broker or commercial launch readiness. Those controls were preserved.
+
 ## Website and shared backend
 
 - Replaced the anonymous/localStorage order-status page with authenticated, ownership-checked server status. Billing, checkout confirmation and account workspaces link to the same progress view. Payment confirmation, challenge recording and confirmed provider readiness are separate.
@@ -12,6 +16,21 @@ This update follows the current source and deployed-service audits, not the olde
 - Added hourly internal-order reconciliation and a read-only operator reconciliation command. Findings include missing challenge/account setup, duplicate payment references and binding conflicts. External broker-balance/webhook-delivery reconciliation still needs the provider connection. The scheduled scan is capped at 2,000 orders and marks a partial scan incomplete; it does not repair records or change trading access.
 - Clarified simulated evaluation/funded-stage trading on the homepage and Terms; removed unsupported assertions of an operational SAR-reporting program. These edits do not constitute legal approval or amend previously accepted agreements. Existing FYNX sharing graphics and minimum-age wording were already present.
 - Extended export/retention inventory for access logs and encrypted credentials. Private ciphertext/key material is excluded from customer export. Production deletion/retention policy approval remains outstanding.
+
+## Native iOS parity
+
+The Funded screens in `/Users/h/Documents/FYNX` now use the same deployed order-status and protected-credential services as the website. Orders, checkout confirmation and account details link to the native tracking view. Payment received does not show account-ready access before confirmed provisioning. The view supports refresh and support with the order reference, and rejects stale-user responses.
+
+Credential reveal retains the existing biometric/passcode check, timed hiding, cancellation and expiring clipboard. It now requests decrypted access through the authenticated backend instead of fetching a plaintext password from Firestore. Native parsing verifies user/challenge/account binding and simulated environment, and rejects unsafe platform URLs. New source strings use the existing localization helper; translation review is still needed.
+
+The iPhone 17 Pro simulator build and four contract tests plus the native order-progress UI test passed. Pending and failed setup screenshots were inspected. The largest text-size test also scrolled to and verified the support button remains reachable. The initial UI fixture lacked its authentication environment object; that test-only issue was fixed before the passing run. Stable action identifiers also corrected an exact-label mismatch in the accessibility test. Test routes and synthetic content are DEBUG-only. No real customer credentials, biometric flow or provider trading session were exercised on a physical device. The shared working directory's existing unrelated changes were preserved. This is a source/simulator update; it has not been uploaded to TestFlight or the App Store.
+
+## Release status
+
+- Website PR [18](https://github.com/EA-LA/fynxfunded/pull/18) merged as `958024874a5052ed7baa33453b0b02cfeac735f8`; GitHub quality checks passed. Vercel production is **Ready** and serves the updated assets at [www.fynxfunded.com](https://www.fynxfunded.com). The public order-status route redirects signed-out users to login.
+- All six selected Firebase functions are ACTIVE. The hourly internal reconciliation schedule is ENABLED. Thirteen live synthetic service checks passed, including encrypted reveal and refund denial; those identities and fixtures were removed.
+- Website QA identities and private local login files were removed. Final inventory returned to 23 pre-existing orders and zero provider accounts; four paid test orders still require actual provider setup. This is not proof of commercial or broker readiness.
+- Purchases and automatic progression remain paused pending the owner steps below. No real charge, customer email, payout or provider account was created by this task.
 
 ## Operator tools
 
@@ -35,6 +54,8 @@ Run from this repository with the approved local Google Application Default Cred
 
 ## Evidence
 
-`backend-deployment.json`, `mail-deployment.json`, `reconciliation-deployment.json`, `live-services.json`, `provisioning-rehearsal.json` and `reconciliation-before.json` record actual results and limitations. Check success/deployed flags. Synthetic tests are not real broker proof. Native completion and final release provenance are added after verification.
+Local verification passed 87 frontend tests, 138 backend tests, 15 mocked MFA checks and 10 Firestore emulator provisioning/reconciliation checks. GitHub quality checks passed before merging. Local website browser checks covered 320, 390 and 1440-pixel widths and support-reference navigation. Deployed-service checks are synthetic and separate from real broker acceptance.
+
+`backend-deployment.json`, `mail-deployment.json`, `reconciliation-deployment.json`, `live-services.json`, `provisioning-rehearsal.json` and `reconciliation-before.json` record actual results and limitations. Check success/deployed flags. Synthetic tests are not real broker proof. `production-website.json`, `native-tests.json` and the native patch record release provenance and matching iOS work.
 
 Implementation references: [Firebase secret parameters](https://firebase.google.com/docs/functions/config-env) and [Secret Manager](https://docs.cloud.google.com/secret-manager/docs/creating-and-accessing-secrets).

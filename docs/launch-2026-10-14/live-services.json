@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-14T20:00:48.189Z",
+  "checkedAt": "2026-10-14T20:07:59.510Z",
   "synthetic": true,
   "providerProof": false,
   "cleanedUp": true,
@@ -38,6 +38,22 @@
     },
     {
       "name": "Unauthenticated credential request denied",
+      "passed": true
+    },
+    {
+      "name": "Synthetic confirmed fixture shows ready",
+      "passed": true
+    },
+    {
+      "name": "Metadata excludes plaintext and encrypted secrets",
+      "passed": true
+    },
+    {
+      "name": "Deployed vault decrypts only for its owning session",
+      "passed": true
+    },
+    {
+      "name": "Refund immediately blocks credential reveal",
       "passed": true
     }
   ],
@@ -88,6 +104,25 @@
       "status": 401,
       "error": "UNAUTHENTICATED",
       "message": "Sign in with a verified email to continue."
+    },
+    {
+      "name": "fundedOrderStatus",
+      "status": 200
+    },
+    {
+      "name": "fundedTradingAccess",
+      "status": 200,
+      "accounts": 1
+    },
+    {
+      "name": "fundedTradingAccess",
+      "status": 200
+    },
+    {
+      "name": "fundedTradingAccess",
+      "status": 400,
+      "error": "FAILED_PRECONDITION",
+      "message": "This order no longer authorizes trading access. Contact support."
     }
   ]
 }

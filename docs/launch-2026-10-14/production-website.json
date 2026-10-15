@@ -1,0 +1,27 @@
+{
+  "verifiedAt": "2026-10-14T20:17:57.704759+00:00",
+  "site": "https://www.fynxfunded.com",
+  "mainCommit": "958024874a5052ed7baa33453b0b02cfeac735f8",
+  "entry": "/assets/index-DHkZlO8-.js",
+  "routes": "/assets/PlatformRoutes-qrsiG6Ww.js",
+  "checks": {
+    "productionStatus": "ready",
+    "orderStatusRoute": true,
+    "protectedAccess": true,
+    "serverOrderProgress": true,
+    "supportReference": true,
+    "simulatedDisclosure": true,
+    "unauthenticatedOrderStatusRedirectsToLogin": true
+  },
+  "chunks": [
+    "assets/Index-BID-v5gM.js",
+    "assets/OrderProgress-BpnDAoY_.js",
+    "assets/OrderStatus-DScQMBAR.js",
+    "assets/Support-DbCkNVOW.js",
+    "assets/funded-access-DeA9itYz.js"
+  ],
+  "cleanup": {
+    "webQAIdentitiesRemoved": 2,
+    "syntheticLiveServiceFixturesRemoved": true
+  }
+}

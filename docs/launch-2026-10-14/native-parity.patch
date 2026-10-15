@@ -1,0 +1,381 @@
+--- a/FYNX/FYNXApp.swift
++++ b/FYNX/FYNXApp.swift
+@@ -246,6 +246,18 @@
+         FundedPage(title: "Account") {
+             Text("UI test fixture · no customer data").font(.caption)
+             FundedInsightsPanel(fixture: fixture)
++        }
++    }
++}
++private struct FYNXFundedOrderReview: View {
++    let failed: Bool
++    @StateObject private var auth = AuthViewModel()
++    var body: some View {
++        VStack {
++            Text("UI test fixture · no customer data").font(.caption)
++            if let fixture = try? FundedOrderProgressData(["orderId":"synthetic-order", "state":failed ? "provisioning_failed" : "account_pending", "title":failed ? "Account setup needs attention" : "Payment received · account setup pending", "message":failed ? "Your payment remains recorded, but account setup could not finish. Contact support with this order reference; do not pay again." : "Your payment is confirmed. Your trading account is not ready yet. Do not pay again.", "paymentConfirmed":true, "accountReady":false, "challengeId":"synthetic-challenge", "checkedAt":"2026-10-14T12:00:00Z"], expectedOrderID:"synthetic-order") {
++                FundedOrderProgressView(fixture: fixture).environmentObject(auth)
++            }
+         }
+     }
+ }
+@@ -290,6 +302,8 @@
+             case "breakEven": BreakEvenCalculatorView()
+             case "risk": PreTradeRiskView()
+             case "fundedTools": FundedToolsView()
++            case "fundedOrderPending": FYNXFundedOrderReview(failed: false)
++            case "fundedOrderFailed": FYNXFundedOrderReview(failed: true)
+             case "fundedAccounts": FYNXFundedAccountReview()
+             case "fundedInsights": FYNXFundedInsightsReview(missing: false)
+             case "fundedInsightsMissing": FYNXFundedInsightsReview(missing: true)
+--- a/FYNX/FundedAccountsView.swift
++++ b/FYNX/FundedAccountsView.swift
+@@ -11,6 +11,7 @@
+     var body: some View {
+         let _ = localizationSelection;
+         FundedPage(title: L.tr("Accounts"), subtitle: L.tr("Your challenges and funded accounts")) {
++            Text(L.tr("Evaluation and funded-stage trading use simulated accounts. Account balances are virtual. Payout eligibility depends on your accepted agreement.")).font(.footnote).foregroundStyle(.secondary)
+             if store.loading {
+                 FundedCard { ProgressView(L.tr("Loading your website accounts…")).frame(maxWidth: .infinity).padding(20) }
+             } else if let message = store.accountError {
+@@ -175,6 +176,9 @@
+             if let account {
+                 FundedPage(title: account.name, subtitle: account.reference) {
+                     Text([FundedData.title(account.phase), FundedData.title(account.status)].filter { !$0.isEmpty }.joined(separator: " · ")).font(.subheadline.bold()).foregroundStyle(FundedStyle.blue)
++                    if let orderID = account.challenge?.text("orderId"), !orderID.isEmpty {
++                        NavigationLink { FundedOrderProgressView(orderID: orderID) } label: { FundedRow(title: L.tr("Track account setup"), icon: "list.bullet.clipboard") }.buttonStyle(.plain)
++                    }
+                     let stage = selectedStage ?? account.currentStage
+                     ScrollView(.horizontal, showsIndicators: false) {
+                         HStack(spacing: 8) {
+--- a/FYNX/FundedCheckoutView.swift
++++ b/FYNX/FundedCheckoutView.swift
+@@ -39,7 +39,10 @@
+                 FundedCard(highlighted: true) {
+                     Label(L.tr("Payment confirmed"), systemImage: "checkmark.seal.fill").font(.title2.bold())
+                     Text(L.tr("Your challenge is being added to Accounts. Broker setup may take additional time."))
+-                    if let orderID { Text(orderID).font(.caption).textSelection(.enabled) }
++                    if let orderID {
++                        Text(orderID).font(.caption).textSelection(.enabled)
++                        NavigationLink { FundedOrderProgressView(orderID: orderID) } label: { Label(L.tr("Track account setup"), systemImage: "list.bullet.clipboard") }
++                    }
+                 }
+             } else {
+                 FundedCard(highlighted: true) {
+@@ -47,6 +50,7 @@
+                     Text(selected?.label ?? L.tr("Build your challenge")).font(.title2.bold())
+                     if let selected { Text(FundedData.money(selected.price / 100, currency: "USD")).font(.system(.largeTitle, design: .rounded, weight: .bold)); Text(L.tr("One-time challenge fee · USD")).font(.caption).foregroundStyle(.secondary) }
+                 }
++                Text(L.tr("Evaluation and funded-stage trading use simulated accounts. Account balances are virtual. Payout eligibility depends on your accepted agreement.")).font(.footnote).foregroundStyle(.secondary)
+                 if plans.isEmpty { if busy { ProgressView(L.tr("Loading plans…")) }; Button(L.tr("Load challenge plans")) { Task { await load() } }.disabled(busy) }
+                 else {
+                     FundedCard {
+--- a/FYNX/FundedCredentialData.swift
++++ b/FYNX/FundedCredentialData.swift
+@@ -5,6 +5,7 @@
+     let server: String
+     let login: String
+     let password: String
++    let tradingURL: URL?
+ }
+ enum FundedCredentialError: LocalizedError {
+     case unavailable, accessDenied, sessionChanged, malformed
+@@ -20,15 +21,22 @@
+ /// Decode only the broker's documented fields. Never log or persist this payload.
+ enum FundedCredentialData {
+     static let metadataFields = ["userId", "challengeId", "accountId", "platform", "server", "login", "balance", "equity", "currency", "status", "brokerAccountId", "currentPhase", "nextEligiblePayoutAt", "nextPayoutAt", "nextEligiblePayoutDate"]
+-    static func credentials(_ document: [String: Any], uid: String, accountID: String, challengeID: String?) throws -> FundedTradingCredentials {
+-        guard let name = document["name"] as? String, name.hasSuffix("/accounts/" + accountID),
+-              let fields = document["fields"] as? [String: Any] else { throw FundedCredentialError.malformed }
+-        let values = decode(fields)
+-        guard values["userId"] as? String == uid else { throw FundedCredentialError.accessDenied }
+-        if let challengeID, !challengeID.isEmpty, values["challengeId"] as? String != challengeID { throw FundedCredentialError.accessDenied }
+-        guard let password = values["password"] as? String, !password.isEmpty,
+-              let login = values["login"] as? String, !login.isEmpty else { throw FundedCredentialError.unavailable }
+-        return .init(platform: values["platform"] as? String ?? "", server: values["server"] as? String ?? "", login: login, password: password)
++    static func credentials(_ values: [String: Any], uid: String, accountID: String, challengeID: String?) throws -> FundedTradingCredentials {
++        guard values["userId"] as? String == uid, values["accountId"] as? String == accountID,
++              let challengeID, !challengeID.isEmpty, values["challengeId"] as? String == challengeID else { throw FundedCredentialError.accessDenied }
++        guard values["environment"] as? String == "simulated",
++              let password = values["password"] as? String, !password.isEmpty,
++              let login = values["login"] as? String, !login.isEmpty,
++              let platform = values["platform"] as? String, !platform.isEmpty,
++              let server = values["server"] as? String, !server.isEmpty else { throw FundedCredentialError.unavailable }
++        var link: URL?
++        if let raw = values["tradingUrl"] as? String, !raw.isEmpty {
++            guard let parts = URLComponents(string: raw), parts.scheme == "https", parts.host != nil,
++                  parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil,
++                  let url = parts.url else { throw FundedCredentialError.malformed }
++            link = url
++        }
++        return .init(platform: platform, server: server, login: login, password: password, tradingURL: link)
+     }
+     static func decode(_ fields: [String: Any]) -> [String: Any] {
+         fields.reduce(into: [:]) { result, pair in
+@@ -50,3 +58,31 @@
+         }
+     }
+ }
++
++
++/// Shared status contract returned by the same authenticated service as the website.
++struct FundedOrderProgressData {
++    let orderID: String
++    let state: String
++    let title: String
++    let message: String
++    let paymentConfirmed: Bool
++    let accountReady: Bool
++    let challengeID: String?
++    let checkedAt: String
++    init(_ data: [String: Any], expectedOrderID: String) throws {
++        let allowed = ["payment_pending", "payment_failed", "refunded", "account_pending", "provisioning", "provisioning_failed", "ready", "account_unavailable", "review_required"]
++        guard data["orderId"] as? String == expectedOrderID,
++              let state = data["state"] as? String, allowed.contains(state),
++              let title = data["title"] as? String, !title.isEmpty,
++              let message = data["message"] as? String, !message.isEmpty,
++              let paid = data["paymentConfirmed"] as? Bool,
++              let ready = data["accountReady"] as? Bool,
++              let checked = data["checkedAt"] as? String, !checked.isEmpty else { throw FundedCredentialError.malformed }
++        let challenge = data["challengeId"] as? String
++        guard !ready || (state == "ready" && paid && challenge?.isEmpty == false), state != "ready" || ready,
++              !["payment_failed", "refunded", "payment_pending"].contains(state) || !paid else { throw FundedCredentialError.malformed }
++        orderID = expectedOrderID; self.state = state; self.title = title; self.message = message
++        paymentConfirmed = paid; accountReady = ready; challengeID = challenge; checkedAt = checked
++    }
++}
+--- a/FYNX/FundedCredentialsView.swift
++++ b/FYNX/FundedCredentialsView.swift
+@@ -5,7 +5,7 @@
+ import UIKit
+ 
+ /// Ephemeral HTTPS reads use the current Firebase ID token, so deployed Firestore rules still apply.
+-/// Account lists project metadata only; the password is fetched exclusively after local authentication.
++/// Account lists project metadata only; the encrypted password is revealed by the authenticated server after local authentication.
+ enum FundedSecureAccountService {
+     private static func request(path: String, body: [String: Any]? = nil, mask: [String] = [], uid: String) async throws -> Data {
+         guard let user = Auth.auth().currentUser, user.uid == uid,
+@@ -54,15 +54,13 @@
+         }
+     }
+     static func credentials(uid: String, accountID: String, challengeID: String?) async throws -> FundedTradingCredentials {
+-        guard !accountID.isEmpty, !accountID.contains("/"), accountID != ".", accountID != "..",
+-              let encoded = accountID.addingPercentEncoding(withAllowedCharacters: .alphanumerics) else { throw FundedCredentialError.malformed }
++        guard !accountID.isEmpty, !accountID.contains("/"), let challengeID, !challengeID.isEmpty,
++              !challengeID.contains("/"), Auth.auth().currentUser?.uid == uid else { throw FundedCredentialError.malformed }
+         try Task.checkCancellation()
+-        let status = try await FundedMFAService.status()
++        let values = try await FundedCustomerAPI.call("fundedTradingAccess", ["action": "reveal", "accountId": accountID, "challengeId": challengeID])
+         try Task.checkCancellation()
+-        guard status.verified else { throw FundedCredentialError.accessDenied }
+-        let data = try await request(path: "/accounts/" + encoded, mask: ["userId", "challengeId", "platform", "server", "login", "password"], uid: uid)
+-        guard let doc = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw FundedCredentialError.malformed }
+-        return try FundedCredentialData.credentials(doc, uid: uid, accountID: accountID, challengeID: challengeID)
++        guard Auth.auth().currentUser?.uid == uid else { throw FundedCredentialError.sessionChanged }
++        return try FundedCredentialData.credentials(values, uid: uid, accountID: accountID, challengeID: challengeID)
+     }
+ }
+ 
+@@ -150,6 +148,7 @@
+                     Divider(); field(L.tr("Login"), credentials.login)
+                     Divider(); field(L.tr("Password"), credentials.password)
+                 }.privacySensitive()
++                if let url = credentials.tradingURL { Link(L.tr("Open trading platform"), destination: url).font(.subheadline.bold()) }
+                 Button { conceal() } label: { Label(L.tr("Hide credentials"), systemImage: "eye.slash") }.buttonStyle(FynxPrimaryButtonStyle())
+             } else {
+                 FundedCard {
+@@ -162,7 +161,7 @@
+                         .accessibilityIdentifier("credentials.reveal")
+                 }
+             }
+-            Text(L.tr("Credentials hide automatically when you leave this screen or switch away from FYNX. Copies stay on this device and expire after 30 seconds.")).font(.footnote).foregroundStyle(.secondary)
++            Text(L.tr("Passwords are never sent by email. Credentials hide automatically when you leave this screen or switch away from FYNX. Copies stay on this device and expire after 30 seconds.")).font(.footnote).foregroundStyle(.secondary)
+         }.navigationBarTitleDisplayMode(.inline)
+             .privacySensitive()
+             .onDisappear { conceal() }
+--- a/FYNX/FundedMenuView.swift
++++ b/FYNX/FundedMenuView.swift
+@@ -73,6 +73,11 @@
+                         Text(record.text("orderNumber", fallback: record.text("publicVerificationId", fallback: record.id))).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                         if let amount = record.number("amount") { Text(FundedData.money(amount, currency: record.text("currency", fallback: "USD"))).font(.title2.bold()) }
+                         Text(FundedData.title(record.text("status", fallback: "pending"))).font(.subheadline.bold()).foregroundStyle(FundedStyle.blue)
++                        if collection == "orders" {
++                            NavigationLink { FundedOrderProgressView(orderID: record.id) } label: {
++                                Label(L.tr("Track account setup"), systemImage: "list.bullet.clipboard")
++                            }.font(.subheadline.bold()).accessibilityIdentifier("funded.order.track")
++                        }
+                         if !record.text("method").isEmpty { Text(record.text("method")).font(.caption).foregroundStyle(.secondary) }
+                     }
+                 }
+@@ -150,3 +155,91 @@
+         }
+     }
+ }
++
++
++struct FundedOrderProgressView: View {
++    @AppStorage("settings.language") private var localizationSelection = "system"
++    @EnvironmentObject private var auth: AuthViewModel
++    let orderID: String
++    @State private var progress: FundedOrderProgressData?
++    @State private var ownerID = ""
++    @State private var busy = false
++    @State private var error: String?
++    @State private var generation = UUID()
++#if DEBUG
++    private var fixture: FundedOrderProgressData?
++    init(fixture: FundedOrderProgressData) { orderID = fixture.orderID; self.fixture = fixture }
++#endif
++    init(orderID: String) {
++        self.orderID = orderID
++#if DEBUG
++        fixture = nil
++#endif
++    }
++    private var current: FundedOrderProgressData? {
++#if DEBUG
++        if let fixture { return fixture }
++#endif
++        return ownerID == auth.user?.uid && progress?.orderID == orderID ? progress : nil
++    }
++    var body: some View {
++        let _ = localizationSelection
++        FundedPage(title: L.tr("Order status"), subtitle: L.tr("Track payment confirmation and trading-account setup separately.")) {
++            FundedCard(highlighted: true) {
++                Label(current.map { L.tr($0.title) } ?? L.tr("Check your order"), systemImage: current?.accountReady == true ? "checkmark.seal.fill" : "clock").font(.title3.bold())
++                if let current {
++                    Text(L.tr(current.message)).font(.subheadline)
++                    Text(orderID).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
++                }
++                if busy { ProgressView(L.tr("Checking order status…")) }
++                if let error { Text(error).font(.subheadline).foregroundStyle(.red) }
++                Button(L.tr("Refresh status")) { Task { await load() } }.disabled(busy).accessibilityIdentifier("funded.order.refresh")
++            }
++            if let current {
++                FundedCard {
++                    step("Payment confirmed", current.paymentConfirmed)
++                    Divider(); step("Challenge recorded", current.challengeID != nil && current.paymentConfirmed)
++                    Divider(); step("Trading account ready", current.accountReady)
++                }
++                Text(L.tr("Simulated trading environment. Account readiness does not confirm a live data feed.")).font(.footnote).foregroundStyle(.secondary)
++                Text(L.tr("Last checked") + ": " + FundedWorkspaceModel.date(current.checkedAt)).font(.caption).foregroundStyle(.secondary)
++                if current.accountReady, let challenge = current.challengeID {
++                    NavigationLink { FundedAccountDetail(accountID: challenge) } label: {
++                        FundedRow(title: L.tr("Open trading account"), icon: "arrow.up.right.square")
++                    }.buttonStyle(.plain).accessibilityIdentifier("funded.order.openAccount")
++                }
++            }
++            NavigationLink { FundedSupportView(initialSubject: L.tr("Account setup") + ": " + orderID) } label: {
++                FundedRow(title: L.tr("Contact support"), icon: "bubble.left", subtitle: L.tr("Include this order reference"))
++            }.buttonStyle(.plain).accessibilityIdentifier("funded.order.support")
++        }.task(id: (auth.user?.uid ?? "") + ":" + orderID) { await load() }
++            .onDisappear { generation = UUID(); progress = nil; ownerID = ""; busy = false }
++    }
++    private func step(_ title: String, _ complete: Bool) -> some View {
++        HStack(alignment: .top) {
++            Image(systemName: complete ? "checkmark.circle.fill" : "clock").foregroundStyle(complete ? FundedStyle.green : .secondary)
++            VStack(alignment: .leading, spacing: 3) {
++                Text(L.tr(title)).font(.subheadline)
++                Text(L.tr(complete ? "Complete" : ["payment_failed", "refunded", "account_unavailable"].contains(current?.state ?? "") ? "Not completed" : "Pending")).font(.caption).foregroundStyle(.secondary)
++            }
++        }.padding(.vertical, 5)
++    }
++    @MainActor private func load() async {
++#if DEBUG
++        if fixture != nil { return }
++#endif
++        guard let uid = auth.user?.uid else { progress = nil; ownerID = ""; return }
++        let request = UUID(); generation = request; busy = true; error = nil; progress = nil; ownerID = ""
++        defer { if generation == request { busy = false } }
++        do {
++            let data = try await FundedCustomerAPI.call("fundedOrderStatus", ["orderId": orderID])
++            try Task.checkCancellation()
++            let parsed = try FundedOrderProgressData(data, expectedOrderID: orderID)
++            guard generation == request, auth.user?.uid == uid else { return }
++            progress = parsed; ownerID = uid
++        } catch {
++            guard generation == request, !Task.isCancelled else { return }
++            self.error = L.tr("Order status could not be confirmed. Retry or contact support; do not pay again while the result is unclear.")
++        }
++    }
++}
+--- a/FYNXTests/FYNXTests.swift
++++ b/FYNXTests/FYNXTests.swift
+@@ -231,3 +231,36 @@
+         XCTAssertNil(FundedData.pnl(.init(id: "two", fields: ["profit":100, "commission":-5])))
+     }
+ }
++
++final class FundedAccessParityChecks: XCTestCase {
++    private var access: [String: Any] { ["userId":"owner", "accountId":"account", "challengeId":"challenge", "environment":"simulated", "platform":"Platform", "server":"Demo", "login":"123", "password":"synthetic-only", "tradingUrl":"https://example.com/trade"] }
++    private var progress: [String: Any] { ["orderId":"order", "state":"account_pending", "title":"Account setup pending", "message":"Do not pay again.", "paymentConfirmed":true, "accountReady":false, "challengeId":"challenge", "checkedAt":"2026-10-14T12:00:00Z"] }
++    func testCredentialResponseRequiresExactOwnerAndBinding() throws {
++        let value = try FundedCredentialData.credentials(access, uid:"owner", accountID:"account", challengeID:"challenge")
++        XCTAssertEqual(value.password,"synthetic-only")
++        XCTAssertThrowsError(try FundedCredentialData.credentials(access,uid:"other",accountID:"account",challengeID:"challenge"))
++        XCTAssertThrowsError(try FundedCredentialData.credentials(access,uid:"owner",accountID:"previous-phase",challengeID:"challenge"))
++        XCTAssertThrowsError(try FundedCredentialData.credentials(access,uid:"owner",accountID:"account",challengeID:nil))
++    }
++    func testCredentialResponseRejectsIncompleteAndUnsafeAccess() {
++        for url in ["http://example.com", "javascript:alert(1)", "https://example.com?token=secret", "https://user:pass@example.com", "https://example.com#secret"] {
++            var record=access;record["tradingUrl"]=url
++            XCTAssertThrowsError(try FundedCredentialData.credentials(record,uid:"owner",accountID:"account",challengeID:"challenge"))
++        }
++        var missing=access;missing.removeValue(forKey:"password")
++        XCTAssertThrowsError(try FundedCredentialData.credentials(missing,uid:"owner",accountID:"account",challengeID:"challenge"))
++    }
++    func testPaymentConfirmationNeverBecomesAccountReadiness() throws {
++        let status=try FundedOrderProgressData(progress,expectedOrderID:"order")
++        XCTAssertTrue(status.paymentConfirmed);XCTAssertFalse(status.accountReady)
++        var inconsistent=progress;inconsistent["accountReady"]=true
++        XCTAssertThrowsError(try FundedOrderProgressData(inconsistent,expectedOrderID:"order"))
++    }
++    func testOrderResponseRejectsWrongReferenceAndUnknownState() {
++        XCTAssertThrowsError(try FundedOrderProgressData(progress,expectedOrderID:"other"))
++        var unknown=progress;unknown["state"]="success-from-browser"
++        XCTAssertThrowsError(try FundedOrderProgressData(unknown,expectedOrderID:"order"))
++        var refunded=progress;refunded["state"]="refunded"
++        XCTAssertThrowsError(try FundedOrderProgressData(refunded,expectedOrderID:"order"))
++    }
++}
+--- a/FYNXUITests/FYNXUITests.swift
++++ b/FYNXUITests/FYNXUITests.swift
+@@ -236,6 +236,24 @@
+         XCTAssertTrue(app.staticTexts["100.20000"].waitForExistence(timeout: 5))
+         capture("break-even-known-case", app)
+     }
++    func testFundedOrderProgressDoesNotClaimReadyBeforeProvisioning() {
++        let app = launch("fundedOrderPending")
++        XCTAssertTrue(app.staticTexts["Payment received · account setup pending"].waitForExistence(timeout: 8))
++        XCTAssertFalse(app.buttons["funded.order.openAccount"].exists)
++        XCTAssertTrue(app.staticTexts["Your payment is confirmed. Your trading account is not ready yet. Do not pay again."].exists)
++        capture("funded-order-paid-setup-pending", app)
++        app.terminate()
++        let failure = launch("fundedOrderFailed", large: true)
++        XCTAssertTrue(failure.staticTexts["Account setup needs attention"].waitForExistence(timeout: 8))
++        capture("funded-order-setup-failed-large-type", failure)
++        let support = failure.buttons["funded.order.support"]
++        for _ in 0..<12 {
++            if support.exists && support.isHittable { break }
++            failure.swipeUp()
++        }
++        XCTAssertTrue(support.exists && support.isHittable, "Support remains reachable at the largest text size")
++        capture("funded-order-setup-failed-large-type-support", failure)
++    }
+     func testFundedAccountErrorRetryAndEmptyState() {
+         let app = launch("fundedAccounts")
+         XCTAssertTrue(app.staticTexts["Couldn't load your accounts"].waitForExistence(timeout: 8))
+@@ -493,8 +511,12 @@
+             app.swipeUp()
+         }
+         XCTAssertTrue(app.staticTexts["Ending value"].waitForExistence(timeout: 5))
+-        XCTAssertTrue(app.staticTexts["Completed trades"].exists)
+         XCTAssertFalse(app.keyboards.firstMatch.exists)
++        for _ in 0..<6 {
++            if app.staticTexts["Completed trades"].exists { break }
++            app.swipeUp()
++        }
++        XCTAssertTrue(app.staticTexts["Completed trades"].waitForExistence(timeout: 5))
+         capture("strategy-csv-result", app)
+     }
+ }
