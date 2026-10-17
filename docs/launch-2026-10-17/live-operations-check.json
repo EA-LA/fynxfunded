@@ -1,0 +1,37 @@
+{
+  "checkedAt": "2026-10-17T21:29:13.118Z",
+  "anonymousRequest": {
+    "httpStatus": 403,
+    "error": "PERMISSION_DENIED",
+    "passed": true
+  },
+  "snapshot": {
+    "status": "attention",
+    "checkedAt": "2026-10-17T21:28:56.236Z",
+    "readAt": "2026-10-17T21:29:08.663Z",
+    "complete": true,
+    "orders": 23,
+    "findingsTotal": 4,
+    "findingsTruncated": false,
+    "states": {
+      "payment_pending": 18,
+      "account_pending": 4,
+      "account_unavailable": 1
+    },
+    "freshnessMinutes": 120,
+    "providerReconciliation": false,
+    "findingReasons": {
+      "account_pending": 4
+    },
+    "identifiersRemoved": true
+  },
+  "structuredLog": {
+    "timestamp": "2026-10-17T21:28:57.893970Z",
+    "severity": "WARNING",
+    "code": "FYNX_FUNDED_RECONCILIATION_ATTENTION",
+    "orders": 23,
+    "findingsTotal": 4
+  },
+  "ownerRuntimeSessionTested": false,
+  "ownerAuthorizationUnitTested": true
+}

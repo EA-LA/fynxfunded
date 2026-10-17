@@ -4,15 +4,20 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const { execFileSync } = require('node:child_process');
 const admin = require('../functions/node_modules/firebase-admin');
 async function main() {
- const cli = path.join(execFileSync('npm', ['root', '-g'], {encoding:'utf8'}).trim(), 'firebase-tools/lib');
- const config = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config/configstore/firebase-tools.json')));
- const api = require(path.join(cli, 'api'));
  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'funded-readiness-'));
  const file = path.join(dir, 'adc.json');
+ const outputIndex = process.argv.indexOf('--output');
+ const output = outputIndex >= 0 ? path.resolve(process.argv[outputIndex + 1] || '') : path.join(__dirname,'../docs/ios-completion-2026-10-12/readiness.json');
+ if (outputIndex >= 0 && !process.argv[outputIndex + 1]) throw new Error('--output needs a file path');
  const report = {checkedAt:new Date().toISOString(), mode:'read-only', functions:{}, checks:{}};
  try {
-  fs.writeFileSync(file, JSON.stringify({type:'authorized_user', client_id:api.clientId(), client_secret:api.clientSecret(), refresh_token:config.tokens.refresh_token}), {mode:0o600});
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = file;
+  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+   const cli = path.join(execFileSync('npm', ['root', '-g'], {encoding:'utf8'}).trim(), 'firebase-tools/lib');
+   const config = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config/configstore/firebase-tools.json')));
+   const api = require(path.join(cli, 'api'));
+   fs.writeFileSync(file, JSON.stringify({type:'authorized_user', client_id:api.clientId(), client_secret:api.clientSecret(), refresh_token:config.tokens.refresh_token}), {mode:0o600});
+   process.env.GOOGLE_APPLICATION_CREDENTIALS = file;
+  }
   const credential = admin.credential.applicationDefault();
   const token = (await credential.getAccessToken()).access_token;
   admin.initializeApp({projectId:'fynx-c7a28',credential});
@@ -53,7 +58,7 @@ async function main() {
    const s=await db.doc(name).get();report.checks[name]={exists:s.exists,ready:s.data()?.ready===true,approved:s.data()?.status==='approved',enabled:s.data()?.enabled===true};
   }
  } catch(e) {report.error={code:typeof e.code==='string'?e.code:'AUTH_OR_NETWORK_UNAVAILABLE'};process.exitCode=1;}
- finally {fs.rmSync(dir,{recursive:true,force:true});fs.writeFileSync(path.join(__dirname,'../docs/ios-completion-2026-10-12/readiness.json'),JSON.stringify(report,null,2)+'\n');}
+ finally {fs.rmSync(dir,{recursive:true,force:true});fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n');}
  console.log(JSON.stringify(report,null,2));
 }
 main().catch(()=>{console.error('Readiness audit failed; credentials were not logged.');process.exitCode=1;});

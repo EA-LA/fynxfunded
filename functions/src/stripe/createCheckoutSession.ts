@@ -39,7 +39,7 @@ export const createCheckoutSession = onRequest(
     }
     const user = await authenticatedUser(req.headers.authorization);
     if (!user?.uid || !user.email || user.email_verified !== true) { res.status(401).json({ error: "Authentication required" }); return; }
-    try { await nativeCustomer({ auth: { uid: user.uid, token: user }, data: req.body, rawRequest: req }); }
+    try { await nativeCustomer({ auth: { uid: user.uid, token: user, rawToken: req.headers.authorization!.slice(7) } }); }
     catch { res.status(403).json({ error: "Two-factor verification required" }); return; }
     if (process.env.FYNX_FUNDED_PURCHASES_APPROVED !== "true") { res.status(503).json({ error: "Purchases remain closed pending legal and launch approval." }); return; }
     const plan = getPlan(req.body?.accountSize, req.body?.phase);

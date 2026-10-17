@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { orderLifecycle } from './fundedProvisioningPolicy';
+import * as logger from 'firebase-functions/logger';
 export async function reconcileOrders(db: FirebaseFirestore.Firestore) {
   const report = { checkedAt: new Date().toISOString(), providerReconciliation: false, complete: true, orders: 0, findingsTotal: 0, findingsTruncated: false, findings: [] as { orderId: string; reason: string }[], states: {} as Record<string, number> };
   const finding = (value: {orderId: string; reason: string}) => { report.findingsTotal++; if (report.findings.length < 500) report.findings.push(value); else report.findingsTruncated = true; };
@@ -34,9 +35,11 @@ export const reconcileFundedOrders = onSchedule({ schedule: 'every 60 minutes', 
     const report = await reconcileOrders(db);
     // Keep one current operational snapshot; never change payments, trading status or phases.
     await db.doc('funded_reconciliation/current').set(report);
-    console.log('Funded order reconciliation finished', { complete: report.complete, orders: report.orders, findings: report.findings.length });
+    const summary = { code: report.complete && !report.findingsTotal ? 'FYNX_FUNDED_RECONCILIATION_CLEAR' : 'FYNX_FUNDED_RECONCILIATION_ATTENTION', complete: report.complete, orders: report.orders, findingsTotal: report.findingsTotal, findingsTruncated: report.findingsTruncated };
+    if (report.complete && !report.findingsTotal) logger.info('Funded internal reconciliation complete', summary);
+    else logger.warn('Funded internal reconciliation needs review', summary);
   } catch {
-    console.error('Funded order reconciliation failed; the previous snapshot is stale.');
+    logger.error('Funded reconciliation failed; the previous snapshot is stale.', { code: 'FYNX_FUNDED_RECONCILIATION_FAILED' });
     throw Error('Funded reconciliation failed.');
   }
 });

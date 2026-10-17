@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-17T21:18:13.533Z",
+  "mode": "apply",
+  "notificationDeliveryVerified": false,
+  "notificationRecipientsAdded": false,
+  "policies": [
+    {
+      "displayName": "FYNX Funded: reconciliation failed",
+      "name": "projects/fynx-c7a28/alertPolicies/5405944269419008347",
+      "enabled": true,
+      "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"fynx-c7a28\" AND resource.labels.service_name=\"reconcilefundedorders\" AND (jsonPayload.code=\"FYNX_FUNDED_RECONCILIATION_FAILED\" OR severity>=ERROR)",
+      "configured": true,
+      "notificationChannelCount": 0
+    },
+    {
+      "displayName": "FYNX Funded: reconciliation needs review",
+      "name": "projects/fynx-c7a28/alertPolicies/1889033956910318118",
+      "enabled": true,
+      "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"fynx-c7a28\" AND resource.labels.service_name=\"reconcilefundedorders\" AND jsonPayload.code=\"FYNX_FUNDED_RECONCILIATION_ATTENTION\"",
+      "configured": true,
+      "notificationChannelCount": 0
+    },
+    {
+      "displayName": "FYNX Funded: payment webhook processing failed",
+      "name": "projects/fynx-c7a28/alertPolicies/16616665077205989229",
+      "enabled": true,
+      "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"fynx-c7a28\" AND resource.labels.service_name=\"stripewebhook\" AND (textPayload:\"[Stripe Webhook] Event processing failed\" OR jsonPayload.message:\"[Stripe Webhook] Event processing failed\")",
+      "configured": true,
+      "notificationChannelCount": 0
+    }
+  ]
+}
