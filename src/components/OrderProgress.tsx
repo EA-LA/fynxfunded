@@ -8,6 +8,11 @@ export default function OrderProgress({ orderId }: { orderId: string }) {
   const [result, setResult] = useState<{ uid: string; orderId: string; data: Progress } | null>(null);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    const retry = () => setAttempt(x => x + 1);
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, []);
+  useEffect(() => {
     let active = true; setResult(null); setError(''); setLoading(true);
     if (!uid) { setLoading(false); return; }
     getOrderProgress(orderId).then(data => { if (active) setResult({ uid, orderId, data }); }).catch(() => { if (active) setError('Order status could not be confirmed. Retry or contact support; do not pay again while the result is unclear.'); }).finally(() => { if (active) setLoading(false); });

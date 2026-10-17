@@ -32,3 +32,4 @@ export { fundedNotifications, fundedAccountUpdated, fundedChallengeUpdated, fund
 export { fundedOrderStatus } from './fundedOrderStatus';
 export { fundedTradingAccess } from './fundedTradingAccess';
 export { reconcileFundedOrders } from './fundedReconciliation';
+export { fundedOperations } from './fundedOperations';

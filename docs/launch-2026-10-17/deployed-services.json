@@ -1,0 +1,82 @@
+{
+  "checkedAt": "2026-10-17T21:28:49.001Z",
+  "functions": {
+    "fundedOrderStatus": {
+      "state": "ACTIVE",
+      "revision": "fundedorderstatus-00001-zom",
+      "updatedAt": "2026-10-14T19:57:52.963249603Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "fundedOrderStatus/function-source.zip",
+        "generation": "1792007813645537"
+      }
+    },
+    "fundedTradingAccess": {
+      "state": "ACTIVE",
+      "revision": "fundedtradingaccess-00002-pav",
+      "updatedAt": "2026-10-14T20:06:35.846876213Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "fundedTradingAccess/function-source.zip",
+        "generation": "1792008338566521"
+      }
+    },
+    "sendBrokerCredentialsEmail": {
+      "state": "ACTIVE",
+      "revision": "sendbrokercredentialsemail-00004-zef",
+      "updatedAt": "2026-10-14T20:06:38.488397606Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "sendBrokerCredentialsEmail/function-source.zip",
+        "generation": "1792008389223103"
+      }
+    },
+    "stripeWebhook": {
+      "state": "ACTIVE",
+      "revision": "stripewebhook-00007-zes",
+      "updatedAt": "2026-10-14T19:57:52.716416370Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "stripeWebhook/function-source.zip",
+        "generation": "1792007864713556"
+      }
+    },
+    "fundedPrivacy": {
+      "state": "ACTIVE",
+      "revision": "fundedprivacy-00006-max",
+      "updatedAt": "2026-10-14T19:57:52.479362602Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "fundedPrivacy/function-source.zip",
+        "generation": "1792007864680484"
+      }
+    },
+    "reconcileFundedOrders": {
+      "state": "ACTIVE",
+      "revision": "reconcilefundedorders-00003-suv",
+      "updatedAt": "2026-10-17T21:27:46.965155351Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "reconcileFundedOrders/function-source.zip",
+        "generation": "1792272450891239"
+      }
+    },
+    "fundedOperations": {
+      "state": "ACTIVE",
+      "revision": "fundedoperations-00001-put",
+      "updatedAt": "2026-10-17T21:27:32.800670581Z",
+      "source": {
+        "bucket": "gcf-v2-sources-1011050657868-us-central1",
+        "object": "fundedOperations/function-source.zip",
+        "generation": "1792272392290320"
+      }
+    }
+  },
+  "reconciliationSchedule": {
+    "name": "projects/fynx-c7a28/locations/us-central1/jobs/firebase-schedule-reconcileFundedOrders-us-central1",
+    "state": "ENABLED",
+    "schedule": "every 60 minutes",
+    "timeZone": "UTC"
+  },
+  "reconciliationDispatched": true
+}

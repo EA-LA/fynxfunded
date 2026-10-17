@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-17T21:15:18.364Z",
+  "readOnly": true,
+  "providerReconciliation": false,
+  "orders": 23,
+  "accounts": 0,
+  "states": {
+    "payment_pending": 18,
+    "account_pending": 4,
+    "account_unavailable": 1
+  },
+  "findingsTotal": 4,
+  "findingReasons": {
+    "account_pending": 4
+  },
+  "identifiersRemoved": true
+}

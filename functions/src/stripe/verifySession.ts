@@ -24,7 +24,7 @@ export const verifySession = onRequest(
     try {
       const token = await admin.auth().verifyIdToken(authorization.slice(7), true);
       uid = token.uid;
-      await requireFundedMfa({ auth: { uid, token } });
+      await requireFundedMfa({ auth: { uid, token, rawToken: authorization.slice(7) } });
     }
     catch { res.status(401).json({ error: "Invalid authentication" }); return; }
     const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId : "";

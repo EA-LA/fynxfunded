@@ -31,7 +31,9 @@ async function main() {
     catch { report.checks[name] = { status: 'unverified' }; }
   }
   report.limitations = ['Alert configuration does not prove alert delivery.', 'Backup presence does not prove restoration.', 'Counts do not establish complete broker equity coverage.'];
-  const output = path.resolve(__dirname, '../docs/launch-2026-10-07/operations.json');
+  const argument = process.argv.indexOf('--output');
+  const output = argument >= 0 && process.argv[argument + 1] ? path.resolve(process.argv[argument + 1]) : path.resolve(__dirname, '../docs/launch-2026-10-07/operations.json');
+  fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
   console.log(JSON.stringify(report, null, 2));
 }

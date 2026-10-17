@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { requireFundedMfa, mfaRolloutEnabled } from "./fundedMfa";
 import { text, requestId, documentId, cents, payoutAllowed } from "./nativeCustomerPolicy";
 
-export async function nativeCustomer(request: CallableRequest): Promise<string> {
+export async function nativeCustomer(request: Pick<CallableRequest, 'auth'>): Promise<string> {
   if (!request.auth || request.auth.token.email_verified !== true) throw new HttpsError("unauthenticated", "Sign in with a verified email to continue.");
   const uid = request.auth.uid;
   const user = await admin.auth().getUser(uid);
