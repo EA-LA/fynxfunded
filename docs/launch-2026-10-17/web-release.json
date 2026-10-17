@@ -1,0 +1,66 @@
+{
+  "checkedAt": "2026-10-17T21:35:01.915Z",
+  "pullRequest": "https://github.com/EA-LA/fynxfunded/pull/20",
+  "head": "9da2db8cef742a3d49287b8104e068183ae6cca3",
+  "merge": "6095dd2e359b7c517e64a57621e3e14d3272557d",
+  "ci": {
+    "run": 39071288961,
+    "verify": "success",
+    "operationsEmulator": "success"
+  },
+  "vercelStatus": "success",
+  "productionUrl": "https://www.fynxfunded.com/",
+  "checks": [
+    {
+      "asset": "assets/AdminDashboard-CbqiLP6W.js",
+      "httpStatus": 200,
+      "markers": [
+        {
+          "text": "Operations health",
+          "present": true
+        },
+        {
+          "text": "fundedOperations",
+          "present": true
+        },
+        {
+          "text": "Automatic progression is paused.",
+          "present": true
+        },
+        {
+          "text": "Pass paused",
+          "present": true
+        }
+      ]
+    },
+    {
+      "asset": "assets/OrderProgress-D4Qvy4tv.js",
+      "httpStatus": 200,
+      "markers": [
+        {
+          "text": "online",
+          "present": true
+        },
+        {
+          "text": "Order status could not be confirmed.",
+          "present": true
+        }
+      ]
+    },
+    {
+      "asset": "assets/funded-access-DSOfMrF5.js",
+      "httpStatus": 200,
+      "markers": [
+        {
+          "text": "Order status could not be confirmed.",
+          "present": true
+        },
+        {
+          "text": "simulated",
+          "present": true
+        }
+      ]
+    }
+  ],
+  "passed": true
+}

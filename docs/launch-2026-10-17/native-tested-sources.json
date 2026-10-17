@@ -1,0 +1,10 @@
+{
+  "checkedAfterTests": true,
+  "sourceHashesMatchSavedPatch": {
+    "FYNXTests/FYNXTests.swift": true,
+    "FYNX/FundedCredentialData.swift": true,
+    "FYNX/FYNXApp.swift": true,
+    "FYNX/FundedMenuView.swift": true
+  },
+  "scope": "Five FundedAccessParityChecks tests and one pending/failed setup UI test. Other app areas are outside this test run."
+}
