@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-10-17T23:04:41.642622+00:00",
+  "archiveSucceeded": true,
+  "archiveSignatureVerified": true,
+  "version": "1.4",
+  "build": "4",
+  "bundleIdentifier": "com.elhamamini.FYNX",
+  "archivePath": "/Users/h/.codex/workspaces/default/fynx-funded-ios-20261017/FYNX-build4.xcarchive",
+  "testedSourceHashesUnchanged": {
+    "FYNXTests/FYNXTests.swift": true,
+    "FYNX/FundedCredentialData.swift": true,
+    "FYNX/FYNXApp.swift": true,
+    "FYNX/FundedMenuView.swift": true
+  },
+  "appStoreUploaded": false,
+  "appleProcessingVerified": false,
+  "physicalDeviceInstallTested": false,
+  "exportSucceeded": true,
+  "exportedSignatureVerified": true,
+  "ipaPath": "/Users/h/.codex/workspaces/default/fynx-funded-ios-20261017/export-build4/FYNX.ipa",
+  "ipaBytes": 37809963,
+  "ipaSHA256": "523618edeccdac637b5c560f313509247e411141341bb05c694317cc704e50c9",
+  "exportMethod": "app-store-connect",
+  "encryptionDeclarationPresent": false,
+  "appStoreBuildNumberAvailabilityVerified": false
+}
