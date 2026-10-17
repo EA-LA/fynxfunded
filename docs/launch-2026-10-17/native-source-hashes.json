@@ -1,0 +1,18 @@
+{
+  "FYNXTests/FYNXTests.swift": {
+    "before": "e97e9b7691f8d1437d012d7021874e2273dfb949ad6a5ef5269c78b31962c97f",
+    "after": "bde6769ad6a3df81a75455c8b78a8f998daf5431f34d475f920ca9a56f8f33a2"
+  },
+  "FYNX/FundedCredentialData.swift": {
+    "before": "4d6d96a1e531cc9fd7b42464ef7489b00716df9f4cc4d8ff39432fe70cb3362e",
+    "after": "4019c3e5693ecaa3cf512244b1710906ae5d1bd2acab3a6131f6a46dfaea367b"
+  },
+  "FYNX/FYNXApp.swift": {
+    "before": "e3af880783de2bce59c74403ccb1e2fda8f4caa27a2d9fe60ef0829c49b740f7",
+    "after": "a93ea9f6a9860d3275ae198201cbbc5262ea8ef4a91bef71993a3a62387c613c"
+  },
+  "FYNX/FundedMenuView.swift": {
+    "before": "3d12404762457c5778815ca15bd8e524b909fecbcc26f5ef38ad219cf1069d14",
+    "after": "793fd8f8833390adc6a78f3ffd12621b2ccef19bfbe31613635bccd965500139"
+  }
+}

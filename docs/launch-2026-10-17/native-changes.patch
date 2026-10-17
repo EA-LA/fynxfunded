@@ -1,0 +1,55 @@
+--- a/FYNXTests/FYNXTests.swift
++++ b/FYNXTests/FYNXTests.swift
+@@ -271,0 +272,2 @@
++        var numericBoolean=ready;numericBoolean["accountReady"]=1
++        XCTAssertThrowsError(try FundedOrderProgressData(numericBoolean,expectedOrderID:"order"))
+--- a/FYNX/FundedCredentialData.swift
++++ b/FYNX/FundedCredentialData.swift
+@@ -1,0 +2 @@
++import CoreFoundation
+@@ -75 +76,6 @@
+-        guard data["orderId"] as? String == expectedOrderID,
++        func boolean(_ value: Any?) -> Bool? {
++            guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return nil }
++            return number.boolValue
++        }
++        let validID: (String) -> Bool = { $0.range(of: "^[A-Za-z0-9_-]{1,220}$", options: .regularExpression) != nil }
++        guard validID(expectedOrderID), data["orderId"] as? String == expectedOrderID,
+@@ -77,4 +83,6 @@
+-              let title = data["title"] as? String, !title.isEmpty,
+-              let message = data["message"] as? String, !message.isEmpty,
+-              let paid = data["paymentConfirmed"] as? Bool,
+-              let ready = data["accountReady"] as? Bool,
++              let title = data["title"] as? String, !title.isEmpty, title.count <= 200,
++              let message = data["message"] as? String, !message.isEmpty, message.count <= 1200,
++              let paymentStatus = data["paymentStatus"] as? String, !paymentStatus.isEmpty,
++              boolean(data["simulated"]) == true,
++              let paid = boolean(data["paymentConfirmed"]),
++              let ready = boolean(data["accountReady"]),
+@@ -83,2 +91,13 @@
+-        guard !ready || (state == "ready" && paid && challenge?.isEmpty == false), state != "ready" || ready,
+-              !["payment_failed", "refunded", "payment_pending"].contains(state) || !paid else { throw FundedCredentialError.malformed }
++        let account = data["accountId"] as? String
++        let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
++        guard formatter.date(from: checked) != nil || ISO8601DateFormatter().date(from: checked) != nil,
++              challenge.map(validID) ?? true, account.map(validID) ?? true,
++              data["challengeId"] == nil || data["challengeId"] is NSNull || challenge != nil,
++              data["accountId"] == nil || data["accountId"] is NSNull || account != nil,
++              paid == (paymentStatus == "paid"),
++              !["account_pending", "provisioning", "provisioning_failed", "ready", "account_unavailable"].contains(state) || paid,
++              !ready || (state == "ready" && paid && challenge != nil && account != nil), state != "ready" || ready,
++              state != "payment_pending" || ["pending", "processing"].contains(paymentStatus),
++              state != "payment_failed" || paymentStatus == "failed",
++              state != "refunded" || paymentStatus == "refunded",
++              state != "review_required" || !["paid", "pending", "processing", "failed", "refunded"].contains(paymentStatus) else { throw FundedCredentialError.malformed }
+--- a/FYNX/FYNXApp.swift
++++ b/FYNX/FYNXApp.swift
+@@ -258 +258 @@
+-            if let fixture = try? FundedOrderProgressData(["orderId":"synthetic-order", "state":failed ? "provisioning_failed" : "account_pending", "title":failed ? "Account setup needs attention" : "Payment received · account setup pending", "message":failed ? "Your payment remains recorded, but account setup could not finish. Contact support with this order reference; do not pay again." : "Your payment is confirmed. Your trading account is not ready yet. Do not pay again.", "paymentConfirmed":true, "accountReady":false, "challengeId":"synthetic-challenge", "checkedAt":"2026-10-14T12:00:00Z"], expectedOrderID:"synthetic-order") {
++            if let fixture = try? FundedOrderProgressData(["orderId":"synthetic-order", "state":failed ? "provisioning_failed" : "account_pending", "title":failed ? "Account setup needs attention" : "Payment received · account setup pending", "message":failed ? "Your payment remains recorded, but account setup could not finish. Contact support with this order reference; do not pay again." : "Your payment is confirmed. Your trading account is not ready yet. Do not pay again.", "paymentConfirmed":true, "paymentStatus":"paid", "simulated":true, "accountReady":false, "challengeId":"synthetic-challenge", "checkedAt":"2026-10-14T12:00:00Z"], expectedOrderID:"synthetic-order") {
+--- a/FYNX/FundedMenuView.swift
++++ b/FYNX/FundedMenuView.swift
+@@ -160,0 +161 @@
++    @Environment(\.scenePhase) private var scenePhase
+@@ -215,0 +217 @@
++            .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await load() } } }
