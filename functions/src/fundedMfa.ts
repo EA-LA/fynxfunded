@@ -101,9 +101,27 @@ export const fundedMfa = onCall({ region: "us-central1", maxInstances: 10 }, asy
     }
     return { revoked: true };
   }
-  // Enable only after the coordinated rules + web release. No permissive fallback.
+  // Status must work before enrollment rollout: ordinary password/OAuth logins
+  // are not an enrollment operation. Read authoritative flags without migration
+  // writes, and never unlock an existing factor while rollout is paused.
   const rollout = await admin.firestore().doc("funded_mfa_rollout/current").get();
-  if (!mfaRolloutEnabled(rollout.data(), identity.uid)) throw new HttpsError("failed-precondition", "Server verification is awaiting activation.");
+  if (!mfaRolloutEnabled(rollout.data(), identity.uid)) {
+    if (request.data?.action === "status") {
+      const db = admin.firestore();
+      const enabled = await db.runTransaction(async tx => {
+        const [factor, profile, security] = await Promise.all([
+          tx.get(db.doc(`funded_mfa_private/${identity.uid}`)),
+          tx.get(db.doc(`users/${identity.uid}`)),
+          tx.get(db.doc(`users/${identity.uid}/security/settings`)),
+        ]);
+        return factor.exists ? factor.data()?.enabled !== false :
+          profile.data()?.twoFactorEnabled === true || security.data()?.twoFactorEnabled === true;
+      });
+      if (!enabled) return { required: false, verified: true, version: "rollout-paused", expiresAt: null };
+      throw new HttpsError("failed-precondition", "Two-factor verification for this account is paused. Contact support to restore secure access.");
+    }
+    throw new HttpsError("failed-precondition", "Server verification is awaiting activation.");
+  }
   const state = await stateFor(identity.uid);
   const action = request.data?.action;
   if (action === "status") {

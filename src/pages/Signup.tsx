@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,24 +10,32 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const { signUp, signInWithGoogle, signInWithApple } = useAuth();
 
-  const handleGoogle = async () => {
-    try { setError(""); await signInWithGoogle(); navigate("/dashboard"); } catch (err: any) { setError(mapFirebaseError(err)); }
+  const handleProvider = async (provider: () => Promise<void>) => {
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true); setError("");
+    try { await provider(); }
+    catch (err: any) {
+      if (err?.code === "auth/two-factor-required" || err?.code === "auth/email-not-verified") navigate("/login", { state: { message: err.message } });
+      else setError(mapFirebaseError(err));
+    } finally { submitting.current = false; setBusy(false); }
   };
-  const handleApple = async () => {
-    try { setError(""); await signInWithApple(); } catch (err: any) { setError(mapFirebaseError(err)); }
-  };
+  const handleGoogle = () => handleProvider(signInWithGoogle);
+  const handleApple = () => handleProvider(signInWithApple);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
     setError("");
 
     // Client-side password validation
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (!/[^A-Za-z0-9]/.test(password)) {
@@ -35,12 +43,13 @@ export default function Signup() {
       return;
     }
 
+    submitting.current = true; setBusy(true);
     try {
-      await signUp(email, password, name.trim());
+      await signUp(email.trim(), password, name.trim());
       setSignupSuccess(true);
     } catch (err: any) {
       setError(mapFirebaseError(err));
-    }
+    } finally { submitting.current = false; setBusy(false); }
   };
 
   if (signupSuccess) {
@@ -79,6 +88,7 @@ export default function Signup() {
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Full Name</label>
             <input
               type="text"
+              autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
@@ -90,6 +100,7 @@ export default function Signup() {
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
             <input
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
@@ -105,7 +116,8 @@ export default function Signup() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow pr-10"
-                placeholder="Min. 8 characters"
+                placeholder="8+ characters, including a symbol"
+                autoComplete="new-password"
                 required
               />
               <button
@@ -119,9 +131,10 @@ export default function Signup() {
           </div>
           <button
             type="submit"
+            disabled={busy}
             className="w-full bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors"
           >
-            Create Account
+            {busy ? "Please wait…" : "Create Account"}
           </button>
         </form>
 
@@ -133,6 +146,7 @@ export default function Signup() {
         <div className="space-y-3">
           <button
             type="button"
+            disabled={busy}
             onClick={handleGoogle}
             className="w-full flex items-center justify-center gap-2 border border-border bg-card rounded-md py-2.5 text-sm font-medium hover:bg-accent transition-colors"
           >
@@ -141,6 +155,7 @@ export default function Signup() {
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={handleApple}
             className="w-full flex items-center justify-center gap-2 border border-border bg-card rounded-md py-2.5 text-sm font-medium hover:bg-accent transition-colors"
           >
