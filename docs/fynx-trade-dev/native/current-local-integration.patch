@@ -1,0 +1,179 @@
+--- a/FYNX/FundedEmailView.swift
++++ b/FYNX/FundedEmailView.swift
+@@ -20,7 +20,7 @@
+             FundedCard {
+                 if creating { TextField(L.tr("Full name"), text: $name).textContentType(.name) }
+                 TextField(L.tr("Email"), text: $email).keyboardType(.emailAddress).textContentType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+-                SecureField(creating ? L.tr("Password (at least 8 characters)") : L.tr("Password"), text: $password).textContentType(creating ? .newPassword : .password)
++                SecureField(creating ? L.tr("Password (8+ characters, including a symbol)") : L.tr("Password"), text: $password).textContentType(creating ? .newPassword : .password)
+                 if creating {
+                     Toggle(L.tr("I agree to the Terms of Service and Privacy Policy"), isOn: $acceptedTerms).font(.footnote)
+                     FynxLegalFooter(funded: true)
+@@ -33,9 +33,11 @@
+                 if creating { Task { await signUp() } }
+                 else { auth.signIn(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password) }
+             }.buttonStyle(FynxPrimaryButtonStyle())
+-                .disabled(busy || auth.isBusy || email.isEmpty || password.isEmpty || (creating && (!acceptedTerms || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.count < 8)))
++                .disabled(busy || auth.isBusy || email.isEmpty || password.isEmpty || (creating && (!acceptedTerms || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.count < 8 || password.range(of: "[^A-Za-z0-9]", options: .regularExpression) == nil)))
+             if !creating {
+                 FynxLegalFooter(funded: true)
++                Button(L.tr("Resend verification email")) { Task { await resendVerification() } }
++                    .disabled(busy || auth.isBusy || email.isEmpty || password.isEmpty)
+                 Button(L.tr("Forgot password?")) {
+                     auth.sendPasswordReset(to: email) { message = L.tr("If an account exists for this email, a password reset link will be sent.") }
+                 }.disabled(busy || auth.isBusy)
+@@ -48,6 +50,22 @@
+         .toolbar { ToolbarItem(placement: .topBarLeading) { Button(L.tr("Close")) { dismiss() }.disabled(busy) }.fynxFlatToolbar() }
+         .interactiveDismissDisabled(busy)
+     }
++    @MainActor private func resendVerification() async {
++        busy = true; auth.isBusy = true; message = nil
++        defer { busy = false; auth.isBusy = false }
++        do {
++            let result = try await Auth.auth().signIn(withEmail: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password)
++            if result.user.isEmailVerified { message = L.tr("Your email is already verified. You can sign in.") }
++            else {
++                try await result.user.sendEmailVerification()
++                message = L.tr("Verification email sent. Open the link, then sign in again.")
++            }
++            try Auth.auth().signOut()
++        } catch {
++            if Auth.auth().currentUser?.isEmailVerified == false { try? Auth.auth().signOut() }
++            message = error.localizedDescription
++        }
++    }
+     @MainActor private func signUp() async {
+         busy = true; auth.isBusy = true; auth.authError = nil
+         defer { busy = false; auth.isBusy = false }
+@@ -58,19 +76,19 @@
+             let profile = result.user.createProfileChangeRequest()
+             profile.displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+             try await profile.commitChanges()
+-            // Merge only identity fields; never overwrite KYC, challenge or security state.
+-            try await Firestore.firestore().collection("users").document(result.user.uid).setData([
++            try await result.user.sendEmailVerification()
++            // Identity metadata is repairable; verification must not depend on it.
++            try? await Firestore.firestore().collection("users").document(result.user.uid).setData([
+                 "uid": result.user.uid, "displayName": profile.displayName ?? name,
+                 "email": result.user.email ?? "", "provider": "email"
+             ], merge: true)
+-            try await result.user.sendEmailVerification()
+             try Auth.auth().signOut()
+             message = L.tr("Check your inbox to verify your email, then sign in here. Your account starts with no challenges.")
+             password = ""; creating = false
+         } catch {
+             if created {
+                 try? Auth.auth().signOut()
+-                message = L.tr("Your account was created, but setup couldn't finish. Use the website to complete email verification before signing in.")
++                message = L.tr("Your account was created, but setup couldn't finish. Sign in here and use Resend verification email.")
+                 creating = false
+             } else { message = error.localizedDescription }
+         }
+--- a/FYNX/FundedTwoFactorView.swift
++++ b/FYNX/FundedTwoFactorView.swift
+@@ -15,7 +15,10 @@
+         do { result = try await Functions.functions(region: "us-central1").httpsCallable("fundedMfa").call(["action": "status"]) }
+         catch {
+             let ns = error as NSError
+-            guard ns.domain == FunctionsErrorDomain, [FunctionsErrorCode.notFound.rawValue, FunctionsErrorCode.failedPrecondition.rawValue].contains(ns.code), let uid = Auth.auth().currentUser?.uid else { throw error }
++            let rolloutMessage = ns.localizedDescription.replacingOccurrences(of: " [400]", with: "")
++            let rolloutPending = ns.code == FunctionsErrorCode.notFound.rawValue ||
++                (ns.code == FunctionsErrorCode.failedPrecondition.rawValue && rolloutMessage == "Server verification is awaiting activation.")
++            guard ns.domain == FunctionsErrorDomain, rolloutPending, let uid = Auth.auth().currentUser?.uid else { throw error }
+             // During rollout, preserve existing non-2FA logins only. Protected accounts never fall back.
+             let db = Firestore.firestore()
+             let security = try await db.collection("users").document(uid).collection("security").document("settings").getDocument(source: .server)
+--- a/FYNX/FYNXApp.swift
++++ b/FYNX/FYNXApp.swift
+@@ -37,7 +37,7 @@
+             FirebaseApp.configure()
+         }
+ 
+-        if !FYNXReviewMode.enabled { UserProfileSync.shared.start() }
++        if !FYNXReviewMode.enabled && !FYNXTradeDevelopment.enabled { UserProfileSync.shared.start() }
+ 
+         let tab = UITabBarAppearance()
+         tab.configureWithOpaqueBackground()
+@@ -57,7 +57,8 @@
+             // 🔹 Show animated splash first, then RootRouterView()
+             Group {
+ #if DEBUG
+-                if FYNXReviewMode.enabled { FYNXReviewRoot() }
++                if FYNXTradeDevelopment.enabled { FYNXTradeDevView() }
++                else if FYNXReviewMode.enabled { FYNXReviewRoot() }
+                 else { productionRoot }
+ #else
+                 productionRoot
+@@ -89,9 +90,9 @@
+                     // Handle deep links
+                     deepLinkRouter.handle(url)
+                 }
+-                .task { if !FYNXReviewMode.enabled { await refreshWidgetData() } }
++                .task { if !FYNXReviewMode.enabled && !FYNXTradeDevelopment.enabled { await refreshWidgetData() } }
+                 .onChange(of: scenePhase) { _, phase in
+-                    guard !FYNXReviewMode.enabled else { return }
++                    guard !FYNXReviewMode.enabled && !FYNXTradeDevelopment.enabled else { return }
+                     if phase == .active { Task { await refreshWidgetData(); await purchases.refreshEntitlements() } }
+                     if phase == .background { FYNXMarketRefresh.shared.schedule() }
+                 }
+@@ -112,7 +113,7 @@
+ // MARK: - APNs bridge; NotificationService owns presentation and routing.
+ final class FYNXAppDelegate: NSObject, UIApplicationDelegate {
+     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+-        guard !FYNXReviewMode.enabled else { return true }
++        guard !FYNXReviewMode.enabled && !FYNXTradeDevelopment.enabled else { return true }
+         FYNXMarketRefresh.shared.register()
+         NotificationService.shared.configure()
+         return true
+--- a/FYNX.xcodeproj/project.pbxproj
++++ b/FYNX.xcodeproj/project.pbxproj
+@@ -425,6 +425,8 @@
+ 		6B93B7C93D704B7C9BA0BE77 /* FYNX/JournalExperienceCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B668B69F8654465D8BC07E15 /* FYNX/JournalExperienceCore.swift */; };
+ 		1AE7E0DD80EA483EB5A240C4 /* FYNX/JournalComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D871F10B4AA45958A9030A4 /* FYNX/JournalComponents.swift */; };
+ 		6FC7EAE696634344BBF2683D /* FYNX/JournalTradeDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF157A15111E42078571057A /* FYNX/JournalTradeDetail.swift */; };
++		AF7C88BFE5694E52A7E64F01 /* FYNXTradeDevView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF7C88BFE5694E52A7E64F02 /* FYNXTradeDevView.swift */; };
++		AF7C88BFE5694E52A7E64F03 /* FYNXTradeDevIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF7C88BFE5694E52A7E64F04 /* FYNXTradeDevIntegrationTests.swift */; };
+ /* End PBXBuildFile section */
+ 
+ /* Begin PBXContainerItemProxy section */
+@@ -910,6 +912,8 @@
+ 		B668B69F8654465D8BC07E15 /* FYNX/JournalExperienceCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FYNX/JournalExperienceCore.swift; sourceTree = SOURCE_ROOT; };
+ 		9D871F10B4AA45958A9030A4 /* FYNX/JournalComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FYNX/JournalComponents.swift; sourceTree = SOURCE_ROOT; };
+ 		FF157A15111E42078571057A /* FYNX/JournalTradeDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FYNX/JournalTradeDetail.swift; sourceTree = SOURCE_ROOT; };
++		AF7C88BFE5694E52A7E64F02 /* FYNXTradeDevView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FYNXTradeDevView.swift; sourceTree = "<group>"; };
++		AF7C88BFE5694E52A7E64F04 /* FYNXTradeDevIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FYNXTradeDevIntegrationTests.swift; sourceTree = "<group>"; };
+ /* End PBXFileReference section */
+ 
+ /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+@@ -1458,6 +1462,7 @@
+ 				5F814F98DB93F1795119B069 /* FundedAccountsView.swift */,
+ 				43F43930AC978684570E8E85 /* FundedDesign.swift */,
+ 				2BE3BE601435C044413ECB9D /* FundedEmailView.swift */,
++				AF7C88BFE5694E52A7E64F02 /* FYNXTradeDevView.swift */,
+ 				9C6E1C6FF78FEA563F7FE0C1 /* FundedHomeView.swift */,
+ 				AAE97CE21F6A3AE1CE7708A7 /* FundedCredentialsView.swift */,
+ 				03F9FC15700CF5CF5F2D6BD5 /* FundedCredentialData.swift */,
+@@ -1599,6 +1604,7 @@
+ 			isa = PBXGroup;
+ 			children = (
+ 				F610A45B2E5394EC00616774 /* FYNXTests.swift */,
++				AF7C88BFE5694E52A7E64F04 /* FYNXTradeDevIntegrationTests.swift */,
+ 			);
+ 			path = FYNXTests;
+ 			sourceTree = "<group>";
+@@ -2188,6 +2194,7 @@
+ 				CE277515A4F2244BFEFF7986 /* FundedAccountsView.swift in Sources */,
+ 				AFCC5674922763554CEE35F4 /* FundedDesign.swift in Sources */,
+ 				B3865B9143C3B9171CA03327 /* FundedEmailView.swift in Sources */,
++				AF7C88BFE5694E52A7E64F01 /* FYNXTradeDevView.swift in Sources */,
+ 				46C26CE32C6FCAC328CF4BE6 /* FundedHomeView.swift in Sources */,
+ 				8ACF02FEC47A13F46E239C24 /* FundedCredentialsView.swift in Sources */,
+ 				F566EA5C04CE50BC381D1FF5 /* FundedCredentialData.swift in Sources */,
+@@ -2240,6 +2247,7 @@
+ 			buildActionMask = 2147483647;
+ 			files = (
+ 				F610A45C2E5394EC00616774 /* FYNXTests.swift in Sources */,
++				AF7C88BFE5694E52A7E64F03 /* FYNXTradeDevIntegrationTests.swift in Sources */,
+ 				D9D6E99C2EBE6BD100EC08F7 /* Untitled.swift in Sources */,
+ 				D9D6E99D2EBE6BD100EC08F7 /* FYNXDataModel.xcdatamodeld in Sources */,
+ 				D9D6E99F2EBE6BD100EC08F7 /* MultiFXPriceFeed.swift in Sources */,

@@ -1,7 +1,7 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getFunctions, type Functions } from "firebase/functions";
+import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBqBeQVVD46uUaYDZf9EX-VyTpQpYIm7aI",
@@ -36,6 +36,12 @@ if (isFirebaseConfigured) {
   auth = getAuth(app);
   db = getFirestore(app);
   functions = getFunctions(app);
+  if (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true") {
+    if (firebaseConfig.projectId !== "demo-fynx-trade" || !["localhost", "127.0.0.1"].includes(window.location.hostname)) throw new Error("Trade development mode requires the local emulator project.");
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    connectFirestoreEmulator(db, "127.0.0.1", 8089);
+    connectFunctionsEmulator(functions, "127.0.0.1", 5009);
+  }
 }
 
 export { app, auth, db, functions };

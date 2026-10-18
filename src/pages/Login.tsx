@@ -78,7 +78,7 @@ export default function Login() {
     setBusy(true); setError("");
     try {
       await signIn(email, password, twoFactorRequired ? twoFactorCode : undefined);
-      navigate(isOwnerAdminEmail(email) ? "/admin" : "/dashboard");
+      navigate(import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(email) ? "/admin" : "/dashboard");
     } catch (err) { showSignInError(err); }
     finally { setTwoFactorCode(""); setBusy(false); }
   };

@@ -1,0 +1,7 @@
+TradingView Lightweight Charts™
+Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
+
+Lightweight Charts 5.2.0 is distributed under Apache License 2.0.
+The unmodified license is included in LIGHTWEIGHT_CHARTS_LICENSE.txt.
+The development web terminal shows the attribution and TradingView link.
+The native development chart uses Apple's Swift Charts framework.
