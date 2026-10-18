@@ -24,7 +24,8 @@ const rejects=async(fn,code)=>assert.rejects(fn,e=>e.code===code);
 let passed=0;async function test(name,fn){await fn();console.log('PASS',name);passed++}
 (async()=>{
  await test('Unauthenticated and unverified email rejected',async()=>{await rejects(()=>fundedMfa.run({data:{action:'status'}}),'unauthenticated');await rejects(()=>call('status',{}, {email_verified:false}),'permission-denied')});
- await test('Rollout remains closed',()=>rejects(()=>call('status'),'failed-precondition'));
+ await test('Paused rollout permits ordinary login without writes',async()=>{const before=docs.size;assert.deepEqual(await call('status'),{required:false,verified:true,version:'rollout-paused',expiresAt:null});assert.equal(docs.size,before);await rejects(()=>call('enrollStart'),'failed-precondition')});
+ await test('Paused rollout never bypasses private or legacy factors',async()=>{for(const [path,data] of [['users/alice',{twoFactorEnabled:true}],['users/alice/security/settings',{twoFactorEnabled:true}],['funded_mfa_private/alice',{enabled:true}],['funded_mfa_private/alice',{}]]){docs.set(path,data);await rejects(()=>call('status'),'failed-precondition');docs.delete(path)}});
  await test('QA rollout is scoped and expires',async()=>{const uid='funded-mfa-qa-'+'a'.repeat(20),now=Date.now();assert.equal(mfaRolloutEnabled({qaUids:[uid],qaExpiresAt:now+60000},uid,now),true);assert.equal(mfaRolloutEnabled({qaUids:[uid],qaExpiresAt:now+60000},'alice',now),false);assert.equal(mfaRolloutEnabled({qaUids:[uid],qaExpiresAt:now-1},uid,now),false)});
  docs.set('funded_mfa_rollout/current',{ready:true});
  docs.set('users/alice',{twoFactorEnabled:true});docs.set('users/alice/security/settings',{twoFactorEnabled:true,twoFactorSecret:secret,backupCodeHashes:[codeHash('AAAA-BBBB-CCCC-DDDD')]});

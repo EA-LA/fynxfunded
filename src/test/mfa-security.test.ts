@@ -4,13 +4,13 @@ vi.mock("@/lib/firebase", () => ({ auth: fake.auth, db: {}, functions: {}, isFir
 vi.mock("firebase/functions", () => ({ httpsCallable: () => fake.call }));
 vi.mock("firebase/firestore", async importOriginal => ({ ...await importOriginal<any>(), doc: (_: any, ...parts: string[]) => parts.join("/"), getDocFromServer: fake.read }));
 import { mfaStatus } from "../services/security";
-const pending = () => Object.assign(new Error("Server verification is awaiting activation."), { code: "functions/failed-precondition" });
+const pending = (suffix = "") => Object.assign(new Error("Server verification is awaiting activation." + suffix), { code: "functions/failed-precondition" });
 beforeEach(() => { vi.clearAllMocks(); fake.auth.currentUser = { uid: "owner" }; fake.read.mockResolvedValue({ data: () => ({ twoFactorEnabled: false }) }); });
-it("allows only server-confirmed non-MFA users during coordinated rollout", async () => {
-  fake.call.mockRejectedValue(pending()); expect(await mfaStatus()).toEqual({ required: false, verified: true, expiresAt: null }); expect(fake.read).toHaveBeenCalledTimes(2);
+it.each(["", " [400]"])("allows only server-confirmed non-MFA users with SDK suffix %s", async suffix => {
+  fake.call.mockRejectedValue(pending(suffix)); expect(await mfaStatus()).toEqual({ required: false, verified: true, expiresAt: null }); expect(fake.read).toHaveBeenCalledTimes(2);
 });
 it.each([0, 1])("keeps a protected customer locked when factor flag %s is set", async index => {
-  fake.call.mockRejectedValue(pending());
+  fake.call.mockRejectedValue(pending(" [400]"));
   fake.read.mockImplementation(async (path: string) => ({ data: () => ({ twoFactorEnabled: index === 0 ? path === "users/owner" : path.endsWith("settings") }) }));
   await expect(mfaStatus()).rejects.toThrow("awaiting activation");
 });

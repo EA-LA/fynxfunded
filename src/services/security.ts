@@ -162,7 +162,9 @@ export async function mfaStatus(): Promise<{ required: boolean; verified: boolea
   catch (error) {
     const code = (error as { code?: string })?.code;
     const uid = firebaseAuth?.currentUser?.uid;
-    const rolloutPending = code === "functions/not-found" || (code === "functions/failed-precondition" && (error as Error).message === "Server verification is awaiting activation.");
+    // Firebase 13 appends the HTTP status to callable messages. Match only this
+    // known rollout error; unrelated precondition failures must remain closed.
+    const rolloutPending = code === "functions/not-found" || (code === "functions/failed-precondition" && /^Server verification is awaiting activation\.(?: \[400\])?$/.test((error as Error).message));
     if (!rolloutPending || !uid || !firebaseDb) throw error;
     // Migration-compatible for non-MFA users only. Never trust a cached factor flag.
     const [profile, security] = await Promise.all([getDocFromServer(doc(firebaseDb, "users", uid)), getDocFromServer(settingsRef(uid))]);

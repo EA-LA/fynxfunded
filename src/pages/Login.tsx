@@ -15,10 +15,12 @@ export default function Login() {
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, signInWithGoogle, signInWithApple, signOut } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple, signOut, sendEmailVerification } = useAuth();
 
   // Show message from redirect (e.g. email verification required)
   const redirectMessage = (location.state as any)?.message || "";
@@ -42,12 +44,22 @@ export default function Login() {
     if (err?.code === "auth/two-factor-required") {
       setTwoFactorRequired(true); setPassword("");
       setError(err.message);
-    } else setError(mapFirebaseError(err));
+    } else {
+      setVerificationPending(err?.code === "auth/email-not-verified");
+      setError(mapFirebaseError(err));
+    }
   };
   const handleProvider = async (provider: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(true); setError("");
     try { await provider(); } catch (err) { showSignInError(err); }
+    finally { setBusy(false); }
+  };
+  const resendVerification = async () => {
+    if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try { await sendEmailVerification(); setNotice("Verification email sent. Open the link, then log in again."); }
+    catch (err) { setError(mapFirebaseError(err)); }
     finally { setBusy(false); }
   };
   const handleGoogle = () => handleProvider(signInWithGoogle);
@@ -83,13 +95,17 @@ export default function Login() {
           <p className="mt-2 text-sm text-muted-foreground">Welcome back. Log in to your dashboard.</p>
         </div>
 
-        {displayError && <p className="text-sm text-destructive mb-4 text-center">{displayError}</p>}
+        {displayError && <p role="alert" className="text-sm text-destructive mb-4 text-center">{displayError}</p>}
+
+        {notice && <p role="status" className="text-sm mb-4 text-center">{notice}</p>}
+        {verificationPending && <button type="button" disabled={busy} onClick={resendVerification} className="w-full mb-4 text-sm underline">Resend verification email</button>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div hidden={twoFactorRequired}>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
             <input
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
@@ -102,6 +118,7 @@ export default function Login() {
             <div className="relative">
               <input
                 type={showPw ? "text" : "password"}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow pr-10"
@@ -110,6 +127,7 @@ export default function Login() {
               />
               <button
                 type="button"
+                aria-label={showPw ? "Hide password" : "Show password"}
                 onClick={() => setShowPw(!showPw)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >

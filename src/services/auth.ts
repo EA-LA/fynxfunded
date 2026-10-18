@@ -75,12 +75,8 @@ async function createOrUpdateFirestoreUser(
       activeSessions: 0,
       lastSecurityUpdate: serverTimestamp(),
     });
-    await setDoc(doc(firebaseDb, "users", uid, "security", "settings"), {
-      loginAlertsEnabled: false,
-      activeSessions: 0,
-      lastSecurityUpdate: serverTimestamp(),
-      createdAt: serverTimestamp(),
-    });
+    // Security preferences are initialized when settings are opened. Creating
+    // them here coupled signup to the separately staged MFA rules rollout.
   } else {
     // The MFA status transaction may have created a metadata-only root first.
     // Fill missing public profile fields without resetting preferences or factors.
@@ -232,41 +228,40 @@ class FirebaseAuthService implements AuthService {
   }
 
   async signUp(email: string, password: string, fullName: string): Promise<User> {
-    const cred = await createUserWithEmailAndPassword(this.getAuth(), email, password);
-    await updateProfile(cred.user, { displayName: fullName });
-    await firebaseSendEmailVerification(cred.user);
-
-    await createOrUpdateFirestoreUser(cred.user.uid, {
-      email,
-      displayName: fullName,
-      provider: "email",
-    });
-
-    const user = firebaseUserToUser(cred.user);
-    user.fullName = fullName;
-    this.currentUser = user;
-
-    // Sign out — user must verify email before logging in
-    const uid = this.getAuth().currentUser?.uid;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try { await Promise.race([mfaCall("logout"), new Promise(resolve => { timer = setTimeout(resolve, 5000); })]); } catch { /* Local sign-out must still work offline. */ }
-    finally { clearTimeout(timer); }
-    if (this.getAuth().currentUser?.uid !== uid) return;
-    await firebaseSignOut(this.getAuth());
-    this.currentUser = null;
-
-    return user;
+    const auth = this.getAuth();
+    const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    try {
+      await updateProfile(cred.user, { displayName: fullName.trim() });
+      await firebaseSendEmailVerification(cred.user);
+      // Profile metadata can be repaired after verified sign-in. A transient
+      // Firestore failure must not tell an already-created user to register again.
+      try {
+        await createOrUpdateFirestoreUser(cred.user.uid, {
+          email: cred.user.email || email.trim(), displayName: fullName.trim(), provider: "email",
+        });
+      } catch { /* Repaired by verified sign-in. */ }
+      return firebaseUserToUser(cred.user);
+    } catch {
+      throw Object.assign(new Error("Your account was created, but the verification email could not be sent. Log in to resend it."), { code: "auth/verification-email-failed" });
+    } finally {
+      if (auth.currentUser?.uid === cred.user.uid) await firebaseSignOut(auth);
+      this.currentUser = null;
+    }
   }
 
   async signIn(email: string, password: string, twoFactorCode?: string): Promise<User> {
     let fbUser = this.getAuth().currentUser;
-    if (!twoFactorCode || !fbUser) fbUser = (await signInWithEmailAndPassword(this.getAuth(), email, password)).user;
+    if (!twoFactorCode || !fbUser) fbUser = (await signInWithEmailAndPassword(this.getAuth(), email.trim(), password)).user;
     if (!fbUser.emailVerified) {
-      await firebaseSignOut(this.getAuth());
-      throw new Error("Please verify your email before logging in.");
+      // Keep only the first-factor Firebase session so the user can explicitly
+      // resend verification. onAuthStateChange never publishes unverified users.
+      throw Object.assign(new Error("Please verify your email before logging in."), { code: "auth/email-not-verified" });
     }
     if (twoFactorCode) await verifySignInTwoFactor(fbUser.uid, twoFactorCode);
     await requireVerifiedSession();
+    await createOrUpdateFirestoreUser(fbUser.uid, {
+      email: fbUser.email || email.trim(), displayName: fbUser.displayName || "Trader", provider: getProviderType(fbUser),
+    });
     const user = await this.hydrateFromFirestore(firebaseUserToUser(this.getAuth().currentUser!));
     this.currentUser = user;
     recordLoginSession(user.userId).catch(console.error);

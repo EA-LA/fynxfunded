@@ -67,15 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string, twoFactorCode?: string) => {
-    await authService.signIn(email, password, twoFactorCode);
+    const signedIn = await authService.signIn(email, password, twoFactorCode);
+    setUser(signedIn);
   };
 
   const signInWithGoogle = async () => {
-    await authService.signInWithGoogle();
+    const signedIn = await authService.signInWithGoogle();
+    if (signedIn?.userId) setUser(signedIn);
   };
 
   const signInWithApple = async () => {
-    await authService.signInWithApple();
+    const signedIn = await authService.signInWithApple();
+    if (signedIn?.userId) setUser(signedIn);
   };
 
   const signOut = async () => {
