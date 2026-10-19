@@ -31,7 +31,7 @@ export async function activateTradeAccess(db: FirebaseFirestore.Firestore, uid: 
   });
 }
 
-export const fundedTradeAccess = onCall({ region: 'us-central1', maxInstances: 10 }, async request => {
+export const fundedTradeAccess = onCall({ region: 'us-central1', maxInstances: 10, invoker: 'public' }, async request => {
   const uid = await nativeCustomer(request), db = admin.firestore();
   request.rawRequest?.res?.setHeader('Cache-Control', 'no-store');
   if (request.data?.action === 'list') {

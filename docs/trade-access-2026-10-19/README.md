@@ -1,6 +1,6 @@
 # FYNX Trade account access — 19 October 2026
 
-Status: implemented and tested locally; **not deployed**. Production trading and challenge purchases remain paused. The earlier login/signup repair is already live separately.
+Status: **web portal and seven account/email backend functions deployed on 19 October 2026**, following explicit owner approval. Production trading and challenge purchases remain paused. The earlier login/signup repair remains live. Native code is prepared separately and has not been distributed.
 
 ## What this release adds
 
@@ -28,18 +28,17 @@ Status: implemented and tested locally; **not deployed**. Production trading and
 
 Read-only inspection on 19 October confirmed Mailgun's custom sending domain is active, with valid sending DNS. The deployed Stripe payment function still uses a **test-mode** key; `FYNX_FUNDED_PURCHASES_APPROVED` is false and `paymentsPaused()` remains true. The owner already confirmed Stripe/Identity business approval; no repeat approval is needed for that fact, but technical live-payment setup is still absent. No licensed execution-feed secret was found in the relevant Firebase secret inventory.
 
-## Release procedure (requires owner approval)
+## Approved release and launch procedure
 
-1. Review web PR 23 and native PR 3. Deploy the web portal and backend together; email links require the new `/trade/access` route.
+1. Web PR 23 was merged and deployed to the existing Vercel project. PR 24 corrected the production security policy to allow the official TradingView script and iframe; the chart was verified against those production headers. Native PR 3 remains a separate, unreleased app change.
 2. `node scripts/deploy-trade-access.cjs` only prepares an isolated, compiled source package. `--deploy` releases the seven listed functions to `fynx-c7a28` and enables the access-provisioning feature for future server-validated purchases. It does not release the development execution engine, open payments, enable MFA enrollment or rewrite historical orders.
-3. Publish the web build through the existing Vercel project, preserving the `/trade` rewrites. Verify the live authenticated account API and routes before any paid launch.
+3. The live `/trade/access` route now sends signed-out visitors to login and preserves the selected account across signup/login links. The callable transport is publicly reachable while the handler requires a verified Firebase identity, valid session and account ownership. Its invoker setting is explicit so an interrupted initial deployment cannot leave later updates inaccessible.
 4. Existing orders are not automatically migrated. Any backfill needs an explicit, reviewed mapping and authorization to change those records.
 5. Configure verified live Stripe credentials/webhook and approved purchase terms, then separately approve reopening checkout. No test/live key substitutions or real charges were made in this task.
-6. Deploy and observe Firestore triggers plus Cloud Scheduler, then run a controlled approved payment journey. Local checks invoke the same fulfillment/provisioning/queue functions; they do not prove live trigger delivery or a real Stripe charge.
+6. The Firestore triggers and five-minute email retry scheduler are deployed. A controlled, separately approved live-payment journey remains necessary before paid launch. Local checks invoke the same fulfillment/provisioning/queue functions; they do not prove a real Stripe charge or production purchase-trigger delivery.
 
 ## Remaining work
 
-- Owner release approval for this portal/email update. The brief says not to deploy without approval; prior approval covered the login/signup repair only.
 - Live Stripe secret/webhook setup and final purchase-launch approval. Secrets should be entered through the provider/Secret Manager, never chat or Git.
 - Full native device acceptance and app distribution. The current local app contains earlier uncommitted Funded work not present in GitHub main. PR 3 carries the new view and an exact integration patch for the current app; the older repository baseline has not been certified as a complete release build.
 - A licensed server-side market feed, approved execution/leverage terms, production execution/risk service, market hours, load/recovery verification and broader administrative controls before trading can open. The existing synthetic development engine remains isolated.
@@ -52,4 +51,4 @@ The [official TradingView hosted widgets](https://www.tradingview.com/widget/) a
 
 A future execution feed needs separate provider permission for this paid simulated-evaluation use. [Twelve Data business plans](https://twelvedata.com/pricing-business) are one provider to request a quote from; its [usage policy](https://support.twelvedata.com/en/articles/5332349-commercial-and-personal-usage) excludes third-party commercial display from individual plans. We have not purchased a plan or confirmed funded-simulation execution rights with any provider.
 
-No new paid data subscription or service was purchased. One preview email used the existing Mailgun account; marginal email charges and existing infrastructure bills were not measured. Live scheduling/functions will use the existing cloud billing plan after approval.
+No new paid data subscription or service was purchased. One preview email used the existing Mailgun account; marginal email charges and existing infrastructure bills were not measured. Deployed scheduling/functions use the existing cloud billing plan.
