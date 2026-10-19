@@ -3,3 +3,5 @@ import * as admin from 'firebase-admin';
 admin.initializeApp({ projectId: 'demo-fynx-trade' });
 export { fundedMfa } from '../fundedMfa';
 export { fynxTradeDev } from './service';
+
+export { fundedTradeAccess } from "../tradeAccess/service";

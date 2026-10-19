@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-19T14:14:41.963Z",
+  "providerAccepted": true,
+  "recipientServerAccepted": true,
+  "events": [
+    {
+      "event": "delivered",
+      "severity": null,
+      "code": 250,
+      "timestamp": 1792419174.0412664
+    },
+    {
+      "event": "accepted",
+      "severity": null,
+      "code": null,
+      "timestamp": 1792419170.6829357
+    }
+  ],
+  "previewOnly": true,
+  "productionAccountCreated": false
+}

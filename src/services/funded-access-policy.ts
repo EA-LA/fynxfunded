@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,220}$/);
-const paidStates = ['account_pending', 'provisioning', 'provisioning_failed', 'ready', 'account_unavailable'];
+const paidStates = ['trade_access_ready', 'account_pending', 'provisioning', 'provisioning_failed', 'ready', 'account_unavailable'];
 const status = z.object({
   orderId: id, challengeId: id.nullable(), accountId: id.nullable(),
-  state: z.enum(['payment_pending', 'payment_failed', 'refunded', 'account_pending', 'provisioning', 'provisioning_failed', 'ready', 'account_unavailable', 'review_required']),
+  state: z.enum(['payment_pending', 'payment_failed', 'refunded', 'trade_access_ready', 'account_pending', 'provisioning', 'provisioning_failed', 'ready', 'account_unavailable', 'review_required']),
   title: z.string().min(1).max(200), message: z.string().min(1).max(1200),
   paymentStatus: z.string().min(1).max(80), paymentConfirmed: z.boolean(), accountReady: z.boolean(),
   checkedAt: z.string().datetime({ offset: true }), simulated: z.literal(true),

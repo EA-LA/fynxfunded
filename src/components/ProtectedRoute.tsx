@@ -1,9 +1,12 @@
-import { Navigate } from "react-router-dom";
+import { loginPath } from "@/lib/auth-destination";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { isOwnerAdminEmail } from "@/lib/admin";
 
 export default function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
+  const destination = loginPath(location.pathname + location.search);
 
   if (loading) {
     return (
@@ -14,7 +17,7 @@ export default function ProtectedRoute({ children, adminOnly = false }: { childr
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={destination} replace />;
   }
 
   if (adminOnly && !isOwnerAdminEmail(user.email)) {
@@ -23,7 +26,7 @@ export default function ProtectedRoute({ children, adminOnly = false }: { childr
 
   // Block unverified email/password users (OAuth users are typically auto-verified)
   if (user.provider === "email" && !user.emailVerified) {
-    return <Navigate to="/login" replace state={{ message: "Please verify your email before accessing the dashboard." }} />;
+    return <Navigate to={destination} replace state={{ message: "Please verify your email before accessing the dashboard." }} />;
   }
 
   return <>{children}</>;

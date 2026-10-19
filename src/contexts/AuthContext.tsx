@@ -2,6 +2,7 @@
 // AUTH CONTEXT — React provider wrapping AuthService
 // ═══════════════════════════════════════════════════════════
 
+import { authDestinationFromSearch } from "@/lib/auth-destination";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { authService } from "@/services/auth";
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.handleRedirectResult().then((redirectUser) => {
       if (!cancelled && redirectUser) {
         setUser(redirectUser);
-        navigate(import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(redirectUser.email) ? "/admin" : "/dashboard", { replace: true });
+        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(redirectUser.email) ? "/admin" : "/dashboard"), { replace: true });
       }
     });
     return () => { cancelled = true; };
@@ -57,10 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!loading && user) {
       const path = location.pathname;
       if (AUTH_PAGES.some((p) => path.includes(p))) {
-        navigate(import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard", { replace: true });
+        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard"), { replace: true });
       }
     }
-  }, [loading, user, location.pathname, navigate]);
+  }, [loading, user, location.pathname, location.search, navigate]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     await authService.signUp(email, password, fullName);

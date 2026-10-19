@@ -118,6 +118,15 @@
           "value": "noindex, follow"
         }
       ]
+    },
+    {
+      "source": "/trade/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -219,6 +228,14 @@
     },
     {
       "source": "/dashboard/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/trade",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/trade/:path*",
       "destination": "/index.html"
     }
   ]

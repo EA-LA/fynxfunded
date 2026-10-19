@@ -39,3 +39,10 @@ it('encrypts credentials with fresh nonces and binds ciphertext to customer and 
 it('account-ready emails contain only an authenticated dashboard link',()=>{
  const m=accountReadyMessage('c');expect(m.text).toContain('https://www.fynxfunded.com/dashboard/accounts/c');expect(m.text).toContain('never sent by email');expect(m.html).not.toContain('Password</');
 });
+
+it('distinguishes FYNX Trade account access from enabled trading', () => {
+ const a = { platform: 'FYNX Trade', provisioningStatus: 'access_ready', status: 'active' };
+ const state = orderLifecycle({ status: 'paid' }, { status: 'active' }, a);
+ expect(state.state).toBe('trade_access_ready'); expect(state.accountReady).toBe(false); expect(state.message).toContain('Trading is not available yet');
+ expect(orderLifecycle({ status: 'refunded' }, { status: 'active' }, a).state).toBe('refunded');
+});

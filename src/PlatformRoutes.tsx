@@ -42,6 +42,8 @@ const OrderStatus = lazy(() => import("./pages/OrderStatus"));
 const Verification = lazy(() => import("./pages/Verification"));
 const CertificateVerification = lazy(() => import("./pages/CertificateVerification"));
 
+const TradeAccess = lazy(() => import("./trade-access/TradeAccess"));
+
 const TradeDev = import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? lazy(() => import("./trade-dev/TradeTerminal")) : null;
 
 export default function PlatformRoutes() {
@@ -52,7 +54,8 @@ export default function PlatformRoutes() {
     <Route path="/challenge-builder" element={<ChallengeBuilder />} /><Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} /><Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} /><Route path="/checkout/failure" element={<CheckoutFailure />} /><Route path="/order-status" element={<ProtectedRoute><OrderStatus /></ProtectedRoute>} />
     <Route path="/verification" element={<ProtectedRoute><Verification /></ProtectedRoute>} /><Route path="/certificates/verify/:certificateId" element={<CertificateVerification />} /><Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}><Route index element={<DashboardOverview />} /><Route path="accounts" element={<MyAccounts />} /><Route path="accounts/:challengeId" element={<AccountWorkspace />} /><Route path="objectives" element={<Objectives />} /><Route path="trades" element={<Trades />} /><Route path="analytics" element={<Analytics />} /><Route path="billing" element={<Billing />} /><Route path="payouts" element={<DashboardPayouts />} /><Route path="certificates" element={<Certificates />} /><Route path="learning" element={<Learning />} /><Route path="resources" element={<Resources />} /><Route path="settings" element={<DashboardSettings />} /><Route path="support" element={<Support />} /></Route>
-    {TradeDev && <Route path="/trade" element={<ProtectedRoute><TradeDev /></ProtectedRoute>} />}
+    <Route path="/trade" element={<ProtectedRoute>{TradeDev ? <TradeDev /> : <TradeAccess />}</ProtectedRoute>} />
+    <Route path="/trade/access" element={<ProtectedRoute><TradeAccess /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes></AuthProvider>;
 }

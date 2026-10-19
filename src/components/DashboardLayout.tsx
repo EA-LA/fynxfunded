@@ -23,7 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import EmailVerificationBanner from "@/components/EmailVerificationBanner";
 
 const sidebarLinks = [
-  ...(import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? [{ label: "Trade Now · Development", to: "/trade", icon: LineChart }] : []),
+  { label: "Trade Now", to: "/trade/access", icon: LineChart },
   { label: "Overview", to: "/dashboard", icon: LayoutDashboard },
   { label: "My Accounts", to: "/dashboard/accounts", icon: Wallet },
   { label: "Objectives", to: "/dashboard/objectives", icon: Target },

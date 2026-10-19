@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { mapFirebaseError } from "@/lib/auth-error-map";
@@ -14,6 +14,7 @@ export default function Signup() {
   const submitting = useRef(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
   const { signUp, signInWithGoogle, signInWithApple } = useAuth();
 
   const handleProvider = async (provider: () => Promise<void>) => {
@@ -21,7 +22,7 @@ export default function Signup() {
     submitting.current = true; setBusy(true); setError("");
     try { await provider(); }
     catch (err: any) {
-      if (err?.code === "auth/two-factor-required" || err?.code === "auth/email-not-verified") navigate("/login", { state: { message: err.message } });
+      if (err?.code === "auth/two-factor-required" || err?.code === "auth/email-not-verified") navigate(`/login${location.search}`, { state: { message: err.message } });
       else setError(mapFirebaseError(err));
     } finally { submitting.current = false; setBusy(false); }
   };
@@ -65,7 +66,7 @@ export default function Signup() {
           <p className="text-sm text-muted-foreground mb-6">
             We've sent a verification link to <strong>{email}</strong>. Please verify your email before logging in.
           </p>
-          <Link to="/login" className="text-sm text-foreground hover:underline">Go to Login</Link>
+          <Link to={`/login${location.search}`} className="text-sm text-foreground hover:underline">Go to Login</Link>
         </div>
       </div>
     );
@@ -166,7 +167,7 @@ export default function Signup() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link to="/login" className="text-foreground hover:underline">Log in</Link>
+          <Link to={`/login${location.search}`} className="text-foreground hover:underline">Log in</Link>
         </p>
         <p className="mt-2 text-center">
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to home</Link>

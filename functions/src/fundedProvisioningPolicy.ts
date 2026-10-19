@@ -19,6 +19,8 @@ export function orderLifecycle(order: RecordData, challenge?: RecordData, accoun
     state = 'account_pending'; title = 'Payment received · account setup pending'; message = 'Your payment is confirmed. Your trading account is not ready yet. Do not pay again.';
     if (challenge && ['failed', 'expired'].includes(challenge.status) || account && ['suspended', 'closed', 'disabled'].includes(account.status)) {
       state = 'account_unavailable'; title = 'Trading access unavailable'; message = 'This account is no longer available for trading. Review your account details or contact support.';
+    } else if (account?.platform === 'FYNX Trade' && account.provisioningStatus === 'access_ready' && account.status === 'active') {
+      state = 'trade_access_ready'; title = 'FYNX Trade account access ready'; message = 'Your account is connected to your FYNX login. Open FYNX Trade to view it. Trading is not available yet.';
     } else if (challenge?.provisioningStatus === 'failed') {
       state = 'provisioning_failed'; title = 'Account setup needs attention'; message = 'Your payment remains recorded, but account setup could not finish. Contact support with this order reference; do not pay again.';
     } else if (challenge?.provisioningStatus === 'provisioning') {

@@ -5,7 +5,7 @@ let stopping = false; process.on('SIGTERM', () => { stopping = true; });
 (async () => {
   while (!stopping) {
     try {
-      const now = Date.now(), rows = await admin.firestore().collection('accounts').where('status', '==', 'active').limit(100).get();
+      const now = Date.now(), rows = await admin.firestore().collection('accounts').where('environment', '==', 'development').where('status', '==', 'active').limit(100).get();
       await Promise.all(rows.docs.map(async doc => {
         try { await transact(doc.data().userId, doc.id, { action: 'tick' }, `tick-${now}`, now); }
         catch (e) { console.error('Development mark failed:', doc.id, e.message); }

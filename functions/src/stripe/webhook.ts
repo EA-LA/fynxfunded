@@ -1,5 +1,6 @@
+import { tradeAccessEnabled } from "../tradeAccess/provision";
 import { fulfillNativePayment } from "../nativePaymentFulfillment";
-import { bind as bindPurchasedRules } from "../purchasedAgreement";
+import { bindRecordedRules as bindPurchasedRules } from "../recordedPurchaseRules";
 import { defineSecret } from "firebase-functions/params";
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
@@ -95,6 +96,7 @@ export async function recordCompletedCheckout(session: Stripe.Checkout.Session, 
       if (!source.legalAcceptance || source.legalAcceptance.uid !== userId || source.legalAcceptance.releaseVersion !== session.metadata?.legal_version) throw Error("Recorded legal acceptance does not match checkout.");
       transaction.set(orderRef, {
         userId, orderNumber, challengeId: challengeRef.id, amount: session.amount_total! / 100, amountCents: session.amount_total,
+        paymentEventId: eventId, paymentLiveMode: session.livemode, tradeProvisioningRequested: tradeAccessEnabled(),
         currency: session.currency!.toUpperCase(), paymentMethod: "card", status: "paid", fulfillmentStatus: "complete",
         purchasedRules: source.purchasedRules, legalAcceptance: source.legalAcceptance,
         createdAt: recordedOrder?.createdAt ?? admin.firestore.FieldValue.serverTimestamp(), paidAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -75,6 +75,7 @@ jobs:
           })().catch(e => { console.error(e.message); process.exitCode = 1; });
           NODE
           node scripts/trade-dev/acceptance.cjs
+          node scripts/trade-dev/access-acceptance.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -6,7 +6,7 @@ import { documentId } from './nativeCustomerPolicy';
 import { confirmedAccount, tradingLink } from './fundedProvisioningPolicy';
 import { openCredential, SealedCredential } from './fundedCredentialVault';
 export const tradingCredentialKey = defineSecret('FUNDED_TRADING_CREDENTIAL_KEY');
-const metadataFields = ['userId', 'challengeId', 'platform', 'server', 'login', 'balance', 'equity', 'currency', 'status', 'currentPhase', 'nextEligiblePayoutAt', 'provisioningStatus', 'environment'];
+const metadataFields = ['userId', 'challengeId', 'platform', 'server', 'login', 'balance', 'equity', 'currency', 'status', 'currentPhase', 'nextEligiblePayoutAt', 'provisioningStatus', 'environment', 'activationStatus', 'tradingEnabled', 'tradingHoldReason'];
 export const fundedTradingAccess = onCall({ region: 'us-central1', maxInstances: 10, secrets: [tradingCredentialKey] }, async request => {
   const uid = await nativeCustomer(request), db = admin.firestore();
   request.rawRequest?.res?.setHeader('Cache-Control', 'no-store');

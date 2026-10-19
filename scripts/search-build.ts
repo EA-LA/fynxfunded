@@ -14,7 +14,7 @@ export function searchBuild(platform: boolean): Plugin {
     async closeBundle() {
       const base = 'https://www.fynxfunded.com';
       const source = fs.readFileSync(path.join(output, 'index.html'), 'utf8').replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g,'');
-      const renderer = await createServer({configFile:false,mode:'production',esbuild:{jsx:'automatic',jsxDev:false},resolve:{alias:{'@':path.resolve('src')}},server:{middlewareMode:true},appType:'custom'});
+      const renderer = await createServer({cacheDir:'node_modules/.vite-search-render',configFile:false,mode:'production',esbuild:{jsx:'automatic',jsxDev:false},resolve:{alias:{'@':path.resolve('src')}},server:{middlewareMode:true},appType:'custom'});
       try {
       const { render } = await renderer.ssrLoadModule('/src/search-render.tsx');
       const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
