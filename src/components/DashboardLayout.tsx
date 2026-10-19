@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import EmailVerificationBanner from "@/components/EmailVerificationBanner";
 
 const sidebarLinks = [
+  { label: "Trade Now", to: "/trade/access", icon: LineChart },
   { label: "Overview", to: "/dashboard", icon: LayoutDashboard },
   { label: "My Accounts", to: "/dashboard/accounts", icon: Wallet },
   { label: "Objectives", to: "/dashboard/objectives", icon: Target },

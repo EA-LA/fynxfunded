@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:functions": "vitest run --config functions/vitest.config.ts",
     "check:release": "npm run lint && npm test && npm run test:functions && npm run test:mfa && npx tsc --noEmit -p tsconfig.app.json && npm run build",
-    "test:mfa": "npm --prefix functions run build && node functions/test/mfa.integration.cjs"
+    "test:mfa": "npm --prefix functions run build && node functions/test/mfa.integration.cjs",
+    "dev:trade": "node scripts/trade-dev/start.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -54,6 +55,7 @@
     "firebase": "^13.0.0",
     "input-otp": "^1.4.2",
     "jspdf": "^4.2.1",
+    "lightweight-charts": "5.2.0",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",

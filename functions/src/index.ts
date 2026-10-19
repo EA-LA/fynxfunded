@@ -33,3 +33,5 @@ export { fundedOrderStatus } from './fundedOrderStatus';
 export { fundedTradingAccess } from './fundedTradingAccess';
 export { reconcileFundedOrders } from './fundedReconciliation';
 export { fundedOperations } from './fundedOperations';
+
+export { fundedTradeAccess, createPurchasedTradeAccess, sendTradeAccessEmail, retryTradeAccessEmails } from "./tradeAccess";

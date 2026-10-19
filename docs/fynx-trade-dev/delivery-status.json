@@ -1,0 +1,31 @@
+{
+  "updated": "2026-10-18",
+  "authentication": {
+    "status": "deployed",
+    "pullRequest": "https://github.com/EA-LA/fynxfunded/pull/22",
+    "merge": "dd71da6a390c1eb1b6ce69599e5fc4b9f8696c96",
+    "functionRevision": "fundedmfa-00004-ren",
+    "canonicalDomainAuthorized": "www.fynxfunded.com",
+    "limitations": [
+      "Real owner/OAuth sign-in and inbox delivery require user acceptance."
+    ]
+  },
+  "development": {
+    "productionDeployed": false,
+    "webPR": "https://github.com/EA-LA/fynxfunded/pull/23",
+    "nativePR": "https://github.com/EA-LA/FYNX-app/pull/3",
+    "frontendTests": 98,
+    "functionTests": 166,
+    "mockedCallableChecks": 16,
+    "emulatorAcceptanceChecks": 13,
+    "ci": "https://github.com/EA-LA/fynxfunded/actions/runs/39098452495",
+    "ciJobs": "all three passed"
+  },
+  "native": {
+    "debugSimulatorBuild": "passed",
+    "sdkAcceptance": "not yet verified; simulator runner crashed or stalled",
+    "visualAcceptance": "pending",
+    "testFlightUploaded": false
+  },
+  "newPaidPurchasesUSD": 0
+}

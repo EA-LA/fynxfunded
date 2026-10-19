@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    match /users/{uid} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) && request.resource.data.get('twoFactorEnabled', false) == false;
+      allow update: if owner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['twoFactorEnabled','mfaVersion','kycStatus']);
+      match /sessions/{sessionId} { allow read, write: if owner(uid); }
+      match /security/{documentId} { allow read: if owner(uid); allow write: if false; }
+    }
+    match /accounts/{id} { allow read: if request.auth != null && resource.data.userId == request.auth.uid; allow write: if false; }
+    match /orders/{id} { allow read: if request.auth != null && resource.data.userId == request.auth.uid; allow write: if false; }
+    match /challenges/{id} { allow read: if request.auth != null && resource.data.userId == request.auth.uid; allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

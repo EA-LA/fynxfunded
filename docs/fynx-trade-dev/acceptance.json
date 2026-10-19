@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-10-19T14:18:11.754Z",
+  "environment": "demo-fynx-trade",
+  "checks": [
+    "Registration creates an unverified development identity",
+    "Anonymous and unverified customers cannot trade",
+    "Verified login passes the paused-MFA status service",
+    "Concurrent simulated purchase provisions exactly one $25K account",
+    "Protected accounts cannot bypass the shared two-factor gate",
+    "Account-ready message is captured once with no secret and no delivery claim",
+    "Concurrent order retries execute once and ignore client-supplied financial fields",
+    "Reusing an idempotency key for a different order is rejected",
+    "Another customer cannot read or close the account",
+    "Firestore rules reject client balance tampering",
+    "Partial and final closes update the shared authoritative snapshot",
+    "Closed target passes phase one and atomically creates phase two",
+    "Failed challenge liquidates, disables trading, and preserves records"
+  ],
+  "count": 13,
+  "limitations": [
+    "SMTP delivery is not tested; messages are captured locally.",
+    "Progression/failure uses server-controlled synthetic timestamps.",
+    "Real provider OAuth, commercial data and iOS visual acceptance are separate checks."
+  ]
+}

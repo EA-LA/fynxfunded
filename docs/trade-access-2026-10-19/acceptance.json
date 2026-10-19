@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-10-19T14:17:56.003Z",
+  "environment": "demo-fynx-trade",
+  "checks": [
+    "Pending payment cannot create account access",
+    "Verified web payment provisions one account and one email under concurrent retries",
+    "Native payment uses the same account provisioning and email queue",
+    "Existing verified FYNX login lists and activates its purchased account idempotently",
+    "Guests, unverified users and another customer cannot open account access",
+    "Trading commands and client account mutations are rejected",
+    "Concurrent email jobs submit one password-free notification and retain provider acknowledgement",
+    "Rejected email schedules a retry; uncertain delivery does not automatically resend",
+    "Refunded accounts become history-only and pending ready mail is cancelled",
+    "Fulfillment replay preserves existing account activation and financial values"
+  ],
+  "count": 10,
+  "externalDelivery": false
+}

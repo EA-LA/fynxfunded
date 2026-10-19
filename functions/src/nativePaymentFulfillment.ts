@@ -1,6 +1,7 @@
+import { tradeAccessEnabled } from "./tradeAccess/provision";
 import * as admin from "firebase-admin";
 import type Stripe from "stripe";
-import { bind as bindPurchasedRules } from "./purchasedAgreement";
+import { bindRecordedRules as bindPurchasedRules } from "./recordedPurchaseRules";
 import { documentHash } from "./fundedLegal";
 
 /** Native payments must never be fulfilled by a client callback or a web Checkout event. */
@@ -39,6 +40,7 @@ export async function fulfillNativePayment(intent: Stripe.PaymentIntent, eventId
     if (meta.rule_policy_version !== policy.policy_version) throw Error("Payment policy version does not match the purchased rules.");
     const now = admin.firestore.FieldValue.serverTimestamp();
     tx.set(orderRef, { userId: uid, channel: "ios_native", challengeId: intent.id, status: "paid", fulfillmentStatus: "complete",
+      paymentEventId: eventId, paymentLiveMode: intent.livemode, tradeProvisioningRequested: tradeAccessEnabled(),
       amount: intent.amount / 100, amountCents: intent.amount, currency: "USD", accountSize: attempt.accountSize,
       phase: `${attempt.phase}-phase`, style: attempt.style, purchasedRules: attempt.rules, legalAcceptance: legal,
       stripePaymentIntentId: intent.id, createdAt: order?.createdAt ?? now, paidAt: now }, { merge: true });

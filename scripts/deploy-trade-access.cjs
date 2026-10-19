@@ -1,0 +1,21 @@
+// Default prepares only. Run --deploy only after the owner approves this reviewed release.
+const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), { execFileSync } = require('node:child_process');
+const root = path.resolve(__dirname, '..');
+const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'fynx-trade-access-release-'));
+const names = ['fundedTradeAccess', 'createPurchasedTradeAccess', 'sendTradeAccessEmail', 'retryTradeAccessEmails', 'stripeWebhook', 'fundedOrderStatus', 'fundedTradingAccess'];
+fs.cpSync(path.join(root, 'functions/src'), path.join(stage, 'functions/src'), { recursive: true });
+for (const name of ['package.json', 'package-lock.json', 'tsconfig.json']) fs.copyFileSync(path.join(root, 'functions', name), path.join(stage, 'functions', name));
+fs.symlinkSync(path.join(root, 'functions/node_modules'), path.join(stage, 'functions/node_modules'), 'dir');
+fs.writeFileSync(path.join(stage, 'functions/src/index.ts'), `import * as admin from 'firebase-admin';
+admin.initializeApp();
+export { fundedTradeAccess, createPurchasedTradeAccess, sendTradeAccessEmail, retryTradeAccessEmails } from './tradeAccess';
+export { stripeWebhook } from './stripe/webhook';
+export { fundedOrderStatus } from './fundedOrderStatus';
+export { fundedTradingAccess } from './fundedTradingAccess';
+`);
+fs.writeFileSync(path.join(stage, 'functions/.env.fynx-c7a28'), 'FYNX_TRADE_ACCESS_ENABLED=true\n');
+fs.writeFileSync(path.join(stage, 'firebase.json'), JSON.stringify({ functions: { source: 'functions' } }));
+execFileSync('npm', ['run', 'build'], { cwd: path.join(stage, 'functions'), stdio: 'inherit' });
+const report = { stage, names, deploy: process.argv.includes('--deploy'), tradingEnabled: false, purchasesPaused: true, historicalOrdersBackfilled: false };
+console.log(JSON.stringify(report, null, 2));
+if (report.deploy) execFileSync(process.env.FIREBASE_CLI || 'firebase', ['deploy', '--project', 'fynx-c7a28', '--only', names.map(n => 'functions:' + n).join(','), '--non-interactive'], { cwd: stage, stdio: 'inherit' });

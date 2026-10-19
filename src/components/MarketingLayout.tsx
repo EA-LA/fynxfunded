@@ -46,6 +46,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 {t(link.key)}
               </Link>
             ))}
+            <Link to="/trade/access" className="text-sm font-semibold">Trade Now</Link>
             <a href="https://www.fynxfinanceworld.com/api/" className="text-sm font-medium text-muted-foreground hover:text-foreground">API</a>
           </div>
 
@@ -91,6 +92,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 {t(link.key)}
               </Link>
             ))}
+            <Link to="/trade/access" onClick={() => setMobileOpen(false)} className="block text-sm font-semibold">Trade Now</Link>
             <a href="https://www.fynxfinanceworld.com/api/" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-muted-foreground hover:text-foreground">API</a>
             <div className="pt-3 border-t border-border flex flex-wrap items-center gap-3">
               <LanguageSelector />
@@ -119,7 +121,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 <Link to="/challenges" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.challenges")}</Link>
                 <Link to="/rules" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.rules")}</Link>
                 <Link to="/payouts" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.payouts")}</Link>
-                <a href="https://www.fynxfinanceworld.com/api/" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">FYNX API</a>
+                <Link to="/trade/access" className="text-sm font-semibold">Trade Now</Link>
+            <a href="https://www.fynxfinanceworld.com/api/" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">FYNX API</a>
                 <a href="https://www.fynxfinanceworld.com/api/docs.html" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">API documentation</a>
                 <a href="https://www.fynxfinanceworld.com/api/pricing.html" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">API pricing</a>
               </div>

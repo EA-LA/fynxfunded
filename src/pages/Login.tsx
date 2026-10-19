@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { mapFirebaseError } from "@/lib/auth-error-map";
 import { onIdTokenChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { mfaStatus } from "@/services/security";
-import { isOwnerAdminEmail } from "@/lib/admin";
+import { authDestinationFromSearch } from "@/lib/auth-destination";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -18,7 +18,6 @@ export default function Login() {
   const [verificationPending, setVerificationPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const navigate = useNavigate();
   const location = useLocation();
   const { signIn, signInWithGoogle, signInWithApple, signOut, sendEmailVerification } = useAuth();
 
@@ -78,7 +77,7 @@ export default function Login() {
     setBusy(true); setError("");
     try {
       await signIn(email, password, twoFactorRequired ? twoFactorCode : undefined);
-      navigate(isOwnerAdminEmail(email) ? "/admin" : "/dashboard");
+      // AuthContext navigates after the verified session has been published.
     } catch (err) { showSignInError(err); }
     finally { setTwoFactorCode(""); setBusy(false); }
   };
@@ -194,7 +193,7 @@ export default function Login() {
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link to="/signup" className="text-foreground hover:underline">Sign up</Link>
+          <Link to={`/signup${authDestinationFromSearch(location.search) ? location.search : ""}`} className="text-foreground hover:underline">Sign up</Link>
         </p>
         <p className="mt-2 text-center">
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to home</Link>
