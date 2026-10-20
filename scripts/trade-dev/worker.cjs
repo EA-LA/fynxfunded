@@ -1,5 +1,6 @@
 const admin = require('../../functions/node_modules/firebase-admin');
 const { developmentOnly, transact } = require('../../functions/lib/tradeDev/service');
+const { deliverDevelopmentMail } = require('../../functions/lib/tradeDev/lifecycle');
 developmentOnly(); admin.initializeApp({ projectId: 'demo-fynx-trade' });
 let stopping = false; process.on('SIGTERM', () => { stopping = true; });
 (async () => {
@@ -10,6 +11,7 @@ let stopping = false; process.on('SIGTERM', () => { stopping = true; });
         try { await transact(doc.data().userId, doc.id, { action: 'tick' }, `tick-${now}`, now); }
         catch (e) { console.error('Development mark failed:', doc.id, e.message); }
       }));
+      await deliverDevelopmentMail();
     } catch (e) { console.error('Development worker:', e.message); }
     await new Promise(r => setTimeout(r, 1000));
   }

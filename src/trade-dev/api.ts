@@ -9,7 +9,7 @@ export interface Snapshot {
   instruments: { symbol: SymbolName; name: string; assetClass: string; tickSize: number; contractSize: number; leverage: number; spreadTicks: number }[];
   candles: { time: number; open: number; high: number; low: number; close: number }[];
   rules: { dailyLossPercent: number; maximumLossPercent: number; phaseOneTarget: number; phaseTwoTarget: number; minimumTradingDays: number };
-  outbox: { accountId: string; type: string; subject: string; status: string; createdAt: number }[];
+  outbox: { accountId: string; type: string; subject: string; text?: string; status: string; createdAt: number }[];
 }
 export async function tradeCall<T = unknown>(data: Record<string, unknown>): Promise<T> {
   if (!import.meta.env.DEV || import.meta.env.VITE_FYNX_TRADE_DEV !== 'true' || !functions) throw Error('This terminal is available only in local development.');

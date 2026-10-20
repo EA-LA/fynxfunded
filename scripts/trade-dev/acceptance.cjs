@@ -3,7 +3,8 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), path = re
 process.env.GCLOUD_PROJECT = 'demo-fynx-trade'; process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8089'; process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
 delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 const admin = require('../../functions/node_modules/firebase-admin'); admin.initializeApp({ projectId: 'demo-fynx-trade' });
-const { purchase, transact } = require('../../functions/lib/tradeDev/service'), { syntheticMarket } = require('../../functions/lib/tradeDev/market');
+const { purchase, transact, activateDevelopmentAccount } = require('../../functions/lib/tradeDev/service'), { syntheticMarket } = require('../../functions/lib/tradeDev/market');
+const { deliverDevelopmentMail } = require('../../functions/lib/tradeDev/lifecycle');
 const db = admin.firestore(), checks = [], suffix = Date.now(), email = `acceptance-${suffix}@example.invalid`, password = 'DevelopmentOnly!123';
 async function authCall(action, body) { const response = await fetch(`http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:${action}?key=development-only`, { signal: AbortSignal.timeout(30000), method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const data = await response.json(); if (!response.ok) throw Error(data.error?.message); return data; }
 async function call(token, data, name = 'fynxTradeDev') { const response = await fetch(`http://127.0.0.1:5009/demo-fynx-trade/us-central1/${name}`, { signal: AbortSignal.timeout(30000), method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ data }) }); return { response, body: await response.json() }; }
@@ -28,8 +29,19 @@ async function check(name, fn) { await fn(); checks.push(name); console.log('PAS
    try { assert.equal((await call(login.idToken, { action: 'snapshot', accountId })).response.status, 400); }
    finally { await ref.delete(); }
  });
- await check('Account-ready message is captured once with no secret and no delivery claim', async () => {
-   const messages = await db.collection('trade_dev_outbox').where('accountId', '==', accountId).get(); assert.equal(messages.size, 1); assert.equal(messages.docs[0].data().status, 'captured_locally'); assert.equal(messages.docs[0].data().password, undefined);
+ await check('Account creation delivers one activation message to the local test mailbox', async () => {
+   await deliverDevelopmentMail();
+   const messages = await db.collection('trade_dev_mailbox').where('accountId', '==', accountId).get(); assert.equal(messages.size, 1);
+   assert.equal(messages.docs[0].data().transport, 'local_mailbox'); assert.equal(messages.docs[0].data().password, undefined);
+   assert.ok(messages.docs[0].data().text.includes('Activate'));
+ });
+ await check('Trading requires activation and concurrent activations emit one confirmation', async () => {
+   assert.equal((await call(login.idToken, { action: 'place', accountId, requestId: 'before_activation', order: { symbol: 'EURUSD', side: 'buy', kind: 'market', lots: 0.1 } })).response.status, 400);
+   const activated = await Promise.all([call(login.idToken, { action: 'activate', accountId }), call(login.idToken, { action: 'activate', accountId })]);
+   activated.forEach(r => assert.equal(r.response.status, 200, JSON.stringify(r.body)));
+   await deliverDevelopmentMail();
+   const message = (await db.doc(`trade_dev_mailbox/${accountId}-account_activated`).get()).data(); assert.equal(message.transport, 'local_mailbox');
+   assert.equal((await db.collection('trade_dev_mailbox').where('accountId', '==', accountId).get()).size, 2);
  });
  const order = { action: 'place', accountId, requestId: `market_${suffix}`, order: { symbol: 'EURUSD', side: 'buy', kind: 'market', lots: 0.1, fillPrice: 0, balance: 999999 } };
  await check('Concurrent order retries execute once and ignore client-supplied financial fields', async () => {
@@ -37,6 +49,13 @@ async function check(name, fn) { await fn(); checks.push(name); console.log('PAS
    const a = (await db.doc(`accounts/${accountId}`).get()).data(); assert.equal(a.positions.length, 1); assert.ok(a.positions[0].entry > 1); assert.equal(a.balance, 24999.65);
  });
  await check('Reusing an idempotency key for a different order is rejected', async () => { const r = await call(login.idToken, { ...order, order: { ...order.order, lots: 0.2 } }); assert.equal(r.response.status, 409); });
+ await check('SL/TP can be edited and removed through the same authenticated account API', async () => {
+   let r = await call(login.idToken, { action: 'protect', accountId, requestId: `protect_${suffix}`, positionId: order.requestId, sl: 1, tp: 2 });
+   assert.equal(r.response.status, 200, JSON.stringify(r.body));
+   const a = (await db.doc(`accounts/${accountId}`).get()).data(); assert.equal(a.positions[0].sl, 1); assert.equal(a.positions[0].tp, 2);
+   r = await call(login.idToken, { action: 'protect', accountId, requestId: `unprotect_${suffix}`, positionId: order.requestId, sl: null, tp: null });
+   assert.equal(r.response.status, 200, JSON.stringify(r.body));
+ });
  const other = await authCall('signUp', { email: `other-${suffix}@example.invalid`, password, returnSecureToken: true }); await admin.auth().updateUser(other.localId, { emailVerified: true }); const otherLogin = await authCall('signInWithPassword', { email: `other-${suffix}@example.invalid`, password, returnSecureToken: true });
  await check('Another customer cannot read or close the account', async () => { for (const data of [{ action: 'snapshot', accountId }, { action: 'close', accountId, requestId: 'ownership_test', positionId: order.requestId, lots: 0.1 }]) assert.equal((await call(otherLogin.idToken, data)).response.status, 404); });
  await check('Firestore rules reject client balance tampering', async () => {
@@ -51,21 +70,32 @@ async function check(name, fn) { await fn(); checks.push(name); console.log('PAS
  for (let i = 1; i < 500; i++) { const time = start + i * 1000, quote = syntheticMarket.quote('EURUSD', time); if (quote.ask < low.quote.ask) low = { time, quote }; }
  let high = { time: low.time + 1000, quote: syntheticMarket.quote('EURUSD', low.time + 1000) };
  for (let i = 1; i < 700; i++) { const time = low.time + i * 1000, quote = syntheticMarket.quote('EURUSD', time); if (quote.bid > high.quote.bid) high = { time, quote }; }
- const progression = await purchase(uid, `progression_${suffix}`);
+ const progression = await purchase(uid, `progression_${suffix}`); await activateDevelopmentAccount(uid, progression.accountId);
  await check('Closed target passes phase one and atomically creates phase two', async () => {
    await transact(uid, progression.accountId, { action: 'place', order: { id: `progress_buy_${suffix}`, symbol: 'EURUSD', side: 'buy', kind: 'market', lots: 6 } }, 'progression_open', low.time);
    await transact(uid, progression.accountId, { action: 'close', positionId: `progress_buy_${suffix}`, lots: 6 }, 'progression_close', high.time);
    const a = (await db.doc(`accounts/${progression.accountId}`).get()).data(); assert.equal(a.status, 'passed'); assert.ok(a.balance >= 27000); assert.ok(a.nextAccountId);
    const next = (await db.doc(`accounts/${a.nextAccountId}`).get()).data(); assert.equal(next.balance, 25000); assert.equal(next.phase, 2); assert.equal(next.userId, uid);
-   assert.equal((await db.doc(`trade_dev_outbox/${a.nextAccountId}-phase_two_ready`).get()).data().status, 'captured_locally');
+   await deliverDevelopmentMail(); assert.equal((await db.doc(`trade_dev_mailbox/${a.nextAccountId}-phase_two_ready`).get()).data().transport, 'local_mailbox');
+   assert.equal(next.activationStatus, 'pending'); await activateDevelopmentAccount(uid, a.nextAccountId);
  });
- const failed = await purchase(uid, `failure_${suffix}`);
+ const failed = await purchase(uid, `failure_${suffix}`); await activateDevelopmentAccount(uid, failed.accountId);
  await check('Failed challenge liquidates, disables trading, and preserves records', async () => {
    await transact(uid, failed.accountId, { action: 'place', order: { id: `failure_sell_${suffix}`, symbol: 'EURUSD', side: 'sell', kind: 'market', lots: 6 } }, 'failure_open', low.time);
    await transact(uid, failed.accountId, { action: 'tick' }, 'failure_tick', high.time);
    const a = (await db.doc(`accounts/${failed.accountId}`).get()).data(); assert.equal(a.status, 'failed'); assert.equal(a.positions.length, 0); assert.equal(a.history.length, 1);
+   await deliverDevelopmentMail(); assert.ok((await db.doc(`trade_dev_mailbox/${failed.accountId}-challenge_failed`).get()).exists);
    await assert.rejects(() => transact(uid, failed.accountId, { action: 'place', order: { id: 'cannot_reopen', symbol: 'EURUSD', side: 'buy', kind: 'market', lots: 1 } }, 'cannot_reopen', high.time + 1), /history-only/);
  });
- const report = { checkedAt: new Date().toISOString(), environment: 'demo-fynx-trade', checks, count: checks.length, limitations: ['SMTP delivery is not tested; messages are captured locally.', 'Progression/failure uses server-controlled synthetic timestamps.', 'Real provider OAuth, commercial data and iOS visual acceptance are separate checks.'] };
- fs.mkdirSync(path.join(__dirname, '../../docs/fynx-trade-dev'), { recursive: true }); fs.writeFileSync(path.join(__dirname, '../../docs/fynx-trade-dev/acceptance.json'), JSON.stringify(report, null, 2) + '\n');
+ const stopped = await purchase(uid, `rejected_after_stop_${suffix}`); await activateDevelopmentAccount(uid, stopped.accountId);
+ await check('A rejected close persists its automatic stop fill and replays without executing twice', async () => {
+   await transact(uid, stopped.accountId, { action: 'place', order: { id: `stopped_sell_${suffix}`, symbol: 'EURUSD', side: 'sell', kind: 'market', lots: 0.1, sl: Number((low.quote.ask + 0.001).toFixed(5)) } }, 'stopped_open', low.time);
+   const close = { action: 'close', positionId: `stopped_sell_${suffix}`, lots: 0.1 };
+   await assert.rejects(() => transact(uid, stopped.accountId, close, 'rejected_close', high.time), /already closed/);
+   const a = (await db.doc(`accounts/${stopped.accountId}`).get()).data(); assert.equal(a.positions.length, 0); assert.equal(a.history.length, 1); assert.equal(a.history[0].reason, 'stop_loss');
+   await assert.rejects(() => transact(uid, stopped.accountId, close, 'rejected_close', high.time + 1), /already closed/);
+   const b = (await db.doc(`accounts/${stopped.accountId}`).get()).data(); assert.equal(b.revision, a.revision); assert.equal(b.balance, a.balance);
+ });
+ const report = { checkedAt: new Date().toISOString(), environment: 'demo-fynx-trade', checks, count: checks.length, limitations: ['Lifecycle messages are delivered to the isolated local mailbox; external SMTP delivery is not tested.', 'Progression/failure uses server-controlled synthetic timestamps.', 'Real provider OAuth, commercial data and iOS visual acceptance are separate checks.'] };
+ fs.mkdirSync(path.join(__dirname, '../../docs/trade-engine-2026-10-20'), { recursive: true }); fs.writeFileSync(path.join(__dirname, '../../docs/trade-engine-2026-10-20/engine-acceptance.json'), JSON.stringify(report, null, 2) + '\n');
 })().catch(error => { console.error(error); process.exitCode = 1; });

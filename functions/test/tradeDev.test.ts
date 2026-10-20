@@ -71,4 +71,55 @@ describe('development server execution', () => {
       expect(rows.every((r, i) => r.high >= Math.max(r.open, r.close) && r.low <= Math.min(r.open, r.close) && (i === 0 || r.time > rows[i-1].time))).toBe(true);
     }
   });
+  it('requires activation before any customer command, but pending accounts can be polled', () => {
+    const a = { ...seed(), activationStatus: 'pending' as const };
+    expect(() => execute(a, buy(), prices(), now, true)).toThrow('Activate');
+    expect(execute(a, { action: 'tick' }, prices(), now).account).toEqual(a);
+  });
+  it('persists a stop fill when a simultaneous customer close is rejected', () => {
+    const command = buy(); if (command.action !== 'place') throw Error('test');
+    command.order.sl = 1.099;
+    const a = execute(seed(), command, prices(), now).account;
+    const result = execute(a, { action: 'close', positionId: 'order_test', lots: 1 }, prices(1.098), now + 1, true);
+    expect(result.rejection).toContain('already closed');
+    expect(result.account.positions).toHaveLength(0);
+    expect(result.account.history[0].reason).toBe('stop_loss');
+    expect(result.events.map(e => e.type)).toEqual(['position_closed', 'command_rejected']);
+  });
+  it('retains triggered pending orders and rejects a bad new order independently', () => {
+    const a = execute(seed(), { action: 'place', order: { id: 'pending_good', symbol: 'EURUSD', side: 'buy', kind: 'limit', lots: 0.1, price: 1.099 } }, prices(), now).account;
+    const result = execute(a, buy(-1), prices(1.098), now + 1, true);
+    expect(result.rejection).toContain('lot sizes');
+    expect(result.account.positions[0].id).toBe('pending_good');
+    expect(result.account.orders).toHaveLength(0);
+    expect(result.account.balance).toBe(24999.65);
+  });
+  it('commits the breach and rejects new trading when risk fails during a command', () => {
+    const a = execute(seed(), buy(2), prices(), now).account;
+    const result = execute(a, { action: 'cancel', orderId: 'missing_order' }, prices(1.093), now + 1, true);
+    expect(result.rejection).toContain('risk checks');
+    expect(result.account.status).toBe('failed');
+    expect(result.account.history[0].reason).toBe('risk_liquidation');
+  });
+  it('closes a pending fill beyond its stop in the same market update', () => {
+    const a = execute(seed(), { action: 'place', order: { id: 'pending_gap', symbol: 'EURUSD', side: 'buy', kind: 'limit', lots: 0.1, price: 1.099, sl: 1.0985 } }, prices(), now).account;
+    const result = execute(a, { action: 'tick' }, prices(1.098), now + 1);
+    expect(result.account.positions).toHaveLength(0);
+    expect(result.account.history[0].reason).toBe('stop_loss');
+  });
+  it('edits and removes protection using current executable prices', () => {
+    const a = execute(seed(), buy(), prices(), now).account;
+    const b = execute(a, { action: 'protect', positionId: 'order_test', sl: 1.101, tp: 1.104 }, prices(1.102), now + 1).account;
+    expect(b.positions[0].sl).toBe(1.101); // A profitable stop above entry is valid.
+    const c = execute(b, { action: 'protect', positionId: 'order_test', sl: null }, prices(1.102), now + 2).account;
+    expect(c.positions[0].sl).toBeUndefined(); expect(c.positions[0].tp).toBe(1.104);
+  });
+  it('rejects an invalid protection edit without partially removing an existing stop', () => {
+    const a = execute(seed(), buy(), prices(), now).account;
+    const b = execute(a, { action: 'protect', positionId: 'order_test', sl: 1.099, tp: 1.102 }, prices(), now + 1).account;
+    const result = execute(b, { action: 'protect', positionId: 'order_test', sl: null, tp: 1.09 }, prices(), now + 2, true);
+    expect(result.rejection).toContain('correct side');
+    expect(result.account.positions[0].sl).toBe(1.099);
+    expect(result.account.positions[0].tp).toBe(1.102);
+  });
 });

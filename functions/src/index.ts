@@ -34,4 +34,4 @@ export { fundedTradingAccess } from './fundedTradingAccess';
 export { reconcileFundedOrders } from './fundedReconciliation';
 export { fundedOperations } from './fundedOperations';
 
-export { fundedTradeAccess, createPurchasedTradeAccess, sendTradeAccessEmail, retryTradeAccessEmails } from "./tradeAccess";
+export { fundedTradeAccess, createPurchasedTradeAccess, sendTradeAccessEmail, retryTradeAccessEmails, tradeMailDeliveryWebhook } from "./tradeAccess";

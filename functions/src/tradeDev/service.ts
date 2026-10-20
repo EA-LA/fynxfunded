@@ -4,15 +4,14 @@ import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https
 import { Command, devRules, execute, newAccount, TradeAccount } from './engine';
 import { candles, instruments, marketQuotes, SymbolName } from './market';
 import { fundedMfa } from '../fundedMfa';
-export function developmentOnly() {
-  if (process.env.GCLOUD_PROJECT !== 'demo-fynx-trade' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8089' || process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:9099') throw new HttpsError('failed-precondition', 'FYNX Trade is available only in the isolated development emulator.');
-}
+import { developmentEmail, LifecycleKind } from './lifecycle';
+import { developmentOnly } from './environment';
+export { developmentOnly } from './environment';
 const id = (value: unknown) => { if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{8,100}$/.test(value)) throw new HttpsError('invalid-argument', 'Invalid request identifier.'); return value; };
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-function notification(tx: FirebaseFirestore.Transaction, db: FirebaseFirestore.Firestore, uid: string, accountId: string, type: string, now: number) {
+function notification(tx: FirebaseFirestore.Transaction, db: FirebaseFirestore.Firestore, uid: string, accountId: string, type: LifecycleKind, now: number) {
   const messageId = `${accountId}-${type}`;
-  // Local captured outbox. This deliberately never claims SMTP delivery.
-  tx.create(db.doc(`trade_dev_outbox/${messageId}`), { userId: uid, accountId, type, subject: `FYNX Trade: ${type.replace(/_/g, ' ')}`, status: 'captured_locally', link: `http://127.0.0.1:5189/trade?account=${accountId}`, createdAt: now });
+  tx.create(db.doc(`trade_dev_outbox/${messageId}`), { userId: uid, accountId, type, ...developmentEmail(accountId, type), status: 'pending', link: `http://127.0.0.1:5189/trade?account=${accountId}`, createdAt: now });
 }
 export async function purchase(uid: string, key: string) {
   developmentOnly(); const db = admin.firestore(), orderId = `dev_${digest([uid, key]).slice(0, 24)}`, accountId = `${orderId}_p1`, now = Date.now();
@@ -22,6 +21,7 @@ export async function purchase(uid: string, key: string) {
     const owned = await tx.get(db.collection('accounts').where('userId', '==', uid));
     if (owned.size >= 20) throw new HttpsError('resource-exhausted', 'Development account limit reached.');
     const account = newAccount({ accountId, userId: uid, orderId, challengeId: orderId, phase: 1 }, now);
+    account.activationStatus = 'pending';
     tx.create(orderRef, { userId: uid, orderId, accountId, challengeId: orderId, status: 'paid', paymentMode: 'synthetic', chargedAmount: 0, amount: 0, currency: 'USD', environment: 'development', createdAt: now });
     tx.create(db.doc(`challenges/${orderId}`), { userId: uid, orderId, status: 'active', currentPhase: 1, brokerAccountId: accountId, accountSize: 25000, rulesVersion: 'dev-25k-v1', environment: 'development', createdAt: now });
     tx.create(db.doc(`accounts/${accountId}`), account);
@@ -31,15 +31,32 @@ export async function purchase(uid: string, key: string) {
   });
   return result;
 }
+export async function activateDevelopmentAccount(uid: string, accountId: string) {
+  developmentOnly(); id(accountId);
+  const db = admin.firestore();
+  return db.runTransaction(async tx => {
+    const ref = db.doc(`accounts/${accountId}`), a = (await tx.get(ref)).data() as TradeAccount | undefined;
+    if (!a || a.userId !== uid || a.environment !== 'development' || a.provider !== 'fynx-synthetic') throw new HttpsError('not-found', 'Development account not found.');
+    const [order, challenge] = await Promise.all([tx.get(db.doc(`orders/${a.orderId}`)), tx.get(db.doc(`challenges/${a.challengeId}`))]);
+    if (order.data()?.userId !== uid || order.data()?.paymentMode !== 'synthetic' || order.data()?.status !== 'paid'
+      || challenge.data()?.userId !== uid || challenge.data()?.brokerAccountId !== accountId || a.status !== 'active') throw new HttpsError('failed-precondition', 'This account cannot be activated.');
+    if (a.activationStatus !== 'pending') return { accountId, replayed: true };
+    const now = Date.now();
+    tx.update(ref, { activationStatus: 'active', activatedAt: now });
+    tx.create(db.doc(`trade_dev_events/activated_${accountId}`), { userId: uid, accountId, type: 'account_activated', at: now });
+    notification(tx, db, uid, accountId, 'account_activated', now);
+    return { accountId, replayed: false };
+  });
+}
 export async function transact(uid: string, accountId: string, command: Command, key: string, testTime?: number) {
   developmentOnly(); const db = admin.firestore(), fingerprint = digest(command), receiptId = digest([uid, accountId, key]);
-  return db.runTransaction(async tx => {
+  const outcome = await db.runTransaction(async tx => {
     const ref = db.doc(`accounts/${accountId}`), receiptRef = db.doc(`trade_dev_requests/${receiptId}`);
     const [snapshot, receipt] = await Promise.all([tx.get(ref), tx.get(receiptRef)]);
     if (!snapshot.exists || snapshot.data()!.userId !== uid) throw new HttpsError('not-found', 'Trading account not found.');
     if (receipt.exists) {
       if (receipt.data()!.fingerprint !== fingerprint) throw new HttpsError('already-exists', 'Request identifier was already used for a different command.');
-      return { replayed: true, status: receipt.data()!.status, revision: receipt.data()!.revision };
+      return { replayed: true, status: receipt.data()!.status, revision: receipt.data()!.revision, rejection: receipt.data()!.rejection as string | undefined };
     }
     const previous = snapshot.data() as TradeAccount;
     // Recompute after the read on every retry. A worker can commit a newer
@@ -52,11 +69,11 @@ export async function transact(uid: string, accountId: string, command: Command,
       if (recent.length >= 60) throw new HttpsError('resource-exhausted', 'Too many orders. Wait a minute.');
       tx.set(db.doc(`trade_dev_limits/${uid}`), { timestamps: [...recent, now] });
     }
-    const result = execute(previous, command, marketQuotes(now), now);
+    const result = execute(previous, command, marketQuotes(now), now, true);
     if (result.account.status === 'passed' && previous.status === 'active' && result.account.phase === 1) {
       const nextId = `${previous.orderId}_p2`;
       result.account.nextAccountId = nextId;
-      tx.create(db.doc(`accounts/${nextId}`), newAccount({ accountId: nextId, userId: uid, orderId: previous.orderId, challengeId: previous.challengeId, phase: 2 }, now));
+      tx.create(db.doc(`accounts/${nextId}`), { ...newAccount({ accountId: nextId, userId: uid, orderId: previous.orderId, challengeId: previous.challengeId, phase: 2 }, now), activationStatus: 'pending' });
       tx.update(db.doc(`challenges/${previous.challengeId}`), { currentPhase: 2, brokerAccountId: nextId });
       notification(tx, db, uid, nextId, 'phase_two_ready', now);
     }
@@ -67,9 +84,12 @@ export async function transact(uid: string, accountId: string, command: Command,
     tx.set(ref, result.account);
     for (const [index, event] of result.events.entries()) tx.create(db.doc(`trade_dev_events/${accountId}_${result.account.revision}_${index}`), { userId: uid, accountId, revision: result.account.revision, ...event });
     // Every customer command has a durable receipt. Background ticks need none.
-    if (command.action !== 'tick') tx.create(receiptRef, { userId: uid, accountId, fingerprint, status: result.account.status, revision: result.account.revision, createdAt: now });
-    return { replayed: false, status: result.account.status, revision: result.account.revision };
+    if (command.action !== 'tick') tx.create(receiptRef, { userId: uid, accountId, fingerprint, status: result.account.status, revision: result.account.revision, ...(result.rejection ? { rejection: result.rejection } : {}), createdAt: now });
+    return { replayed: false, status: result.account.status, revision: result.account.revision, rejection: result.rejection };
   });
+  // Report failure only after the automatic updates and rejection receipt commit.
+  if (outcome.rejection) throw new HttpsError('failed-precondition', outcome.rejection, { revision: outcome.revision, status: outcome.status });
+  return { replayed: outcome.replayed, status: outcome.status, revision: outcome.revision };
 }
 async function customer(request: CallableRequest) {
   developmentOnly();
@@ -87,6 +107,7 @@ export const fynxTradeDev = onCall({ region: 'us-central1', maxInstances: 1 }, a
   const uid = await customer(request), data = request.data ?? {}, db = admin.firestore();
   try {
     if (data.action === 'purchase') return purchase(uid, id(data.requestId));
+    if (data.action === 'activate') return activateDevelopmentAccount(uid, id(data.accountId));
     if (data.action === 'snapshot') {
       const rows = await db.collection('accounts').where('userId', '==', uid).limit(21).get();
       if (rows.size > 20) throw new HttpsError('resource-exhausted', 'Development account limit exceeded.');
@@ -94,8 +115,8 @@ export const fynxTradeDev = onCall({ region: 'us-central1', maxInstances: 1 }, a
       const account = data.accountId ? owned.find(a => a.accountId === id(data.accountId)) : owned.find(a => a.status === 'active') ?? owned[0];
       if (data.accountId && !account) throw new HttpsError('not-found', 'Trading account not found.');
       const symbol = (data.symbol || 'EURUSD') as SymbolName, now = Date.now();
-      const outbox = await db.collection('trade_dev_outbox').where('userId', '==', uid).limit(40).get();
-      return { environment: 'development', accounts: owned.map(a => ({ accountId: a.accountId, phase: a.phase, status: a.status, balance: a.balance, equity: a.equity })), account: account ?? null, quotes: marketQuotes(now), instruments, candles: candles(symbol, Number(data.timeframe) || 60, now), rules: devRules, outbox: outbox.docs.map(d => d.data()), serverTime: now };
+      const outbox = await db.collection('trade_dev_outbox').where('userId', '==', uid).orderBy('createdAt', 'desc').limit(40).get();
+      return { environment: 'development', accounts: owned.map(a => ({ accountId: a.accountId, phase: a.phase, status: a.status, balance: a.balance, equity: a.equity })), account: account ?? null, quotes: marketQuotes(now), instruments, candles: candles(symbol, Number(data.timeframe) || 60, now), rules: devRules, outbox: outbox.docs.map(d => d.data()).sort((a,b) => b.createdAt - a.createdAt), serverTime: now };
     }
     const accountId = id(data.accountId), requestId = id(data.requestId);
     let command: Command;
@@ -105,6 +126,8 @@ export const fynxTradeDev = onCall({ region: 'us-central1', maxInstances: 1 }, a
       command = { action: 'place', order: { id: requestId, symbol: input.symbol, side: input.side, kind: input.kind, lots: input.lots,
         ...(input.price !== undefined ? { price: input.price } : {}), ...(input.sl !== undefined ? { sl: input.sl } : {}), ...(input.tp !== undefined ? { tp: input.tp } : {}) } };
     } else if (data.action === 'close') command = { action: 'close', positionId: id(data.positionId), lots: data.lots };
+    else if (data.action === 'protect') command = { action: 'protect', positionId: id(data.positionId),
+      ...(data.sl !== undefined ? { sl: data.sl } : {}), ...(data.tp !== undefined ? { tp: data.tp } : {}) };
     else if (data.action === 'cancel') command = { action: 'cancel', orderId: id(data.orderId) };
     else throw new HttpsError('invalid-argument', 'Unsupported trading action.');
     return await transact(uid, accountId, command, requestId);
