@@ -81,5 +81,6 @@ jobs:
         with:
           name: trade-development-acceptance
           path: |
-            docs/fynx-trade-dev/acceptance.json
+            docs/trade-engine-2026-10-20/engine-acceptance.json
+            docs/trade-engine-2026-10-20/access-acceptance.json
             /tmp/fynx-trade.log

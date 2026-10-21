@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, ArrowDownRight, ArrowUpRight, ChevronLeft, Moon, Search, ShieldCheck, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { snapshot, tradeCall } from './api';
-import type { OrderKind, Side } from '../../functions/src/tradeDev/engine';
+import type { OrderKind, Side, Position } from '../../functions/src/tradeDev/engine';
 import type { SymbolName } from '../../functions/src/tradeDev/market';
 import TradeChart from './TradeChart';
 import './trade.css';
@@ -16,7 +16,9 @@ export default function TradeTerminal() {
   const [symbol, setSymbol] = useState<SymbolName>('EURUSD'), [timeframe, setTimeframe] = useState(60), [line, setLine] = useState(false), [light, setLight] = useState(false);
   const [filter, setFilter] = useState(''), [side, setSide] = useState<Side>('buy'), [kind, setKind] = useState<OrderKind>('market'), [lots, setLots] = useState('0.10'), [entry, setEntry] = useState(''), [sl, setSl] = useState(''), [tp, setTp] = useState('');
   const [tab, setTab] = useState('positions'), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
+  const [protection, setProtection] = useState<{ accountId: string; position: Position; sl: string; tp: string } | null>(null);
   const submitting = useRef(false);
+  const currentUser = useRef(user?.userId); currentUser.current = user?.userId;
   const query = useQuery({ queryKey: ['trade-dev', user?.userId, accountId, symbol, timeframe], queryFn: () => snapshot(accountId, symbol, timeframe), enabled: !!user, refetchInterval: 2000, retry: 1, refetchOnWindowFocus: true });
   const data = query.data, account = data?.account, quote = data?.quotes[symbol], spec = data?.instruments.find(i => i.symbol === symbol);
   const stale = !data || Date.now() - data.serverTime > 6000 || query.isError;
@@ -26,13 +28,13 @@ export default function TradeTerminal() {
     const uid = user?.userId;
     try {
       const result = await tradeCall<{ accountId?: string }>({ ...payload, requestId: crypto.randomUUID() });
-      if (uid !== user?.userId) return;
+      if (uid !== currentUser.current) return;
       if (result.accountId) setAccountId(result.accountId);
-      setMessage(success); await client.invalidateQueries({ queryKey: ['trade-dev'] });
-    } catch (e) { setError(e instanceof Error ? e.message.replace(/ \[\d+\]$/, '') : 'Request failed. Refresh the account before retrying.'); }
-    finally { submitting.current = false; setBusy(false); }
+      setMessage(success); setProtection(null);
+    } catch (e) { if (uid === currentUser.current) setError(e instanceof Error ? e.message.replace(/ \[\d+\]$/, '') : 'Request failed. Refresh the account before retrying.'); }
+    finally { await client.invalidateQueries({ queryKey: ['trade-dev'] }); submitting.current = false; setBusy(false); }
   }
-  const tradeDisabled = busy || stale || account?.status !== 'active';
+  const tradeDisabled = busy || stale || account?.status !== 'active' || account.activationStatus === 'pending';
   const profit = account ? account.balance - account.initialBalance : 0, target = account ? account.initialBalance * (account.phase === 1 ? 0.08 : 0.05) : 2000;
   return <main className={`trade-terminal ${light ? 'trade-light' : ''}`}>
     <div className="trade-dev-banner"><ShieldCheck size={14} /> DEVELOPMENT SIMULATION <span>Synthetic prices · Virtual funds · No real orders or charges</span></div>
@@ -51,6 +53,7 @@ export default function TradeTerminal() {
     {(error || query.error) && <div role="alert" className="trade-error">{error || (query.error as Error).message}</div>}
     {message && <div role="status" className="trade-message">{message}</div>}
     {account?.status !== 'active' && account && <div className="trade-message">{account.status === 'failed' ? `${account.failureReason}. Trading is disabled; your history is preserved.` : `Phase ${account.phase} passed. This account is history-only.`}{account.nextAccountId && <button onClick={() => setAccountId(account.nextAccountId!)}>Open Phase 2 →</button>}</div>}
+    {account?.activationStatus === 'pending' && account.status === 'active' && <div className="trade-message"><strong>Activate this demo account to trade.</strong> Use your existing development login. <button disabled={busy} onClick={() => command({ action: 'activate', accountId: account.accountId }, 'Development account activated. You can now trade synthetic prices.')}>Activate account</button></div>}
     <section className="trade-metrics" aria-label="Server account balances">
       {[['Balance', account?.balance], ['Equity', account?.equity], ['Unrealized P&L', account ? account.equity - account.balance : undefined], ['Used margin', account?.margin], ['Free margin', account?.freeMargin]].map(([label, value]) => <div key={String(label)}><span>{label}</span><strong className={label === 'Unrealized P&L' ? Number(value) < 0 ? 'negative' : 'positive' : ''}>{typeof value === 'number' ? money(value) : '—'}</strong></div>)}
     </section>
@@ -76,12 +79,12 @@ export default function TradeTerminal() {
           <p className="trade-ticket-note">The server sets the fill price and checks margin and challenge rules. Pending orders do not reserve margin.</p>
         </form>
       </aside>
-      <section className="trade-panel trade-activity"><div className="trade-tabs">{['positions','pending','history','messages'].map(t => <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t === 'messages' ? 'Development inbox' : t[0].toUpperCase()+t.slice(1)}{t === 'positions' ? ` (${account?.positions.length ?? 0})` : t === 'pending' ? ` (${account?.orders.length ?? 0})` : ''}</button>)}</div>
+      <section className="trade-panel trade-activity">{protection && protection.accountId === account?.accountId && <form className="trade-protection" onSubmit={e => { e.preventDefault(); command({ action: 'protect', accountId: protection.accountId, positionId: protection.position.id, sl: protection.sl ? Number(protection.sl) : null, tp: protection.tp ? Number(protection.tp) : null }, 'Position protection updated.'); }}><strong>Edit {protection.position.symbol} protection</strong><label>Stop loss<input aria-label="Edit stop loss" type="number" min="0" step="any" value={protection.sl} onChange={e => setProtection({ ...protection, sl: e.target.value })}/></label><label>Take profit<input aria-label="Edit take profit" type="number" min="0" step="any" value={protection.tp} onChange={e => setProtection({ ...protection, tp: e.target.value })}/></label><span>Leave a field empty to remove that protection.</span><button disabled={tradeDisabled}>Save protection</button><button type="button" onClick={() => setProtection(null)}>Cancel</button></form>}<div className="trade-tabs">{['positions','pending','history','messages'].map(t => <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t === 'messages' ? 'Development inbox' : t[0].toUpperCase()+t.slice(1)}{t === 'positions' ? ` (${account?.positions.length ?? 0})` : t === 'pending' ? ` (${account?.orders.length ?? 0})` : ''}</button>)}</div>
         <div className="trade-table-wrap"><table><thead><tr>{(tab === 'positions' ? ['Instrument','Side / lots','Entry','Stop / target','Actions'] : tab === 'pending' ? ['Instrument','Type','Side / lots','Order price','Actions'] : tab === 'history' ? ['Instrument','Side / lots','Entry → exit','Realized P&L*','Reason'] : ['Event','Account','Status','Created']).map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>
-          {tab === 'positions' && account?.positions.map(p => <tr key={p.id}><td>{p.symbol}</td><td className={p.side === 'buy' ? 'positive' : 'negative'}>{p.side.toUpperCase()} {p.lots}</td><td>{price(p.entry)}</td><td>{price(p.sl)} / {price(p.tp)}</td><td className="trade-close"><button disabled={tradeDisabled} onClick={() => command({ action: 'close', accountId: account.accountId, positionId: p.id, lots: p.lots }, 'Position closed at the server price.')}>Close</button>{p.lots >= 0.02 && <button disabled={tradeDisabled} onClick={() => command({ action: 'close', accountId: account.accountId, positionId: p.id, lots: Math.floor(p.lots * 50) / 100 }, 'Partial close processed.')}>Close ½</button>}</td></tr>)}
+          {tab === 'positions' && account?.positions.map(p => <tr key={p.id}><td>{p.symbol}</td><td className={p.side === 'buy' ? 'positive' : 'negative'}>{p.side.toUpperCase()} {p.lots}</td><td>{price(p.entry)}</td><td>{price(p.sl)} / {price(p.tp)}</td><td className="trade-close"><button disabled={tradeDisabled} onClick={() => setProtection({ accountId: account.accountId, position: p, sl: p.sl?.toString() ?? '', tp: p.tp?.toString() ?? '' })}>Edit SL/TP</button><button disabled={tradeDisabled} onClick={() => command({ action: 'close', accountId: account.accountId, positionId: p.id, lots: p.lots }, 'Position closed at the server price.')}>Close</button>{p.lots >= 0.02 && <button disabled={tradeDisabled} onClick={() => command({ action: 'close', accountId: account.accountId, positionId: p.id, lots: Math.floor(p.lots * 50) / 100 }, 'Partial close processed.')}>Close ½</button>}</td></tr>)}
           {tab === 'pending' && account?.orders.map(o => <tr key={o.id}><td>{o.symbol}</td><td>{o.kind}</td><td>{o.side.toUpperCase()} {o.lots}</td><td>{price(o.price)}</td><td><button disabled={tradeDisabled} onClick={() => command({ action: 'cancel', accountId: account.accountId, orderId: o.id }, 'Pending order cancelled.')}>Cancel</button></td></tr>)}
           {tab === 'history' && [...(account?.history ?? [])].reverse().map(f => <tr key={f.id}><td>{f.symbol}</td><td>{f.side.toUpperCase()} {f.lots}</td><td>{price(f.entry)} → {price(f.exit)}</td><td className={f.netPnl >= 0 ? 'positive' : 'negative'}>{money(f.netPnl)}</td><td>{f.reason.replace(/_/g, ' ')}</td></tr>)}
-          {tab === 'messages' && data?.outbox.map(m => <tr key={`${m.accountId}-${m.type}`}><td>{m.subject}</td><td>{m.accountId.slice(-10)}</td><td>Captured locally · not emailed</td><td>{new Date(m.createdAt).toLocaleString()}</td></tr>)}
+          {tab === 'messages' && data?.outbox.map(m => <tr key={`${m.accountId}-${m.type}`}><td><details><summary>{m.subject}</summary><p className="trade-mail-body">{m.text}</p><button onClick={() => setAccountId(m.accountId)}>Open account</button></details></td><td>{m.accountId.slice(-10)}</td><td>{m.status === 'delivered_to_local_mailbox' ? 'Delivered to local test mailbox' : 'Queued for local test mailbox'}</td><td>{new Date(m.createdAt).toLocaleString()}</td></tr>)}
         </tbody></table>
         {((tab === 'positions' && !account?.positions.length) || (tab === 'pending' && !account?.orders.length) || (tab === 'history' && !account?.history.length) || (tab === 'messages' && !data?.outbox.length)) && <div className="trade-empty">{!account ? 'Create an internal demo to start your first simulated trade.' : `No ${tab === 'messages' ? 'messages' : tab} yet.`}</div>}
         {tab === 'history' && <p className="trade-history-note">*Includes exit commission. Entry commission is deducted from balance when the position opens.</p>}

@@ -13,8 +13,9 @@ export interface TradeAccount {
   day: string; dayStartEquity: number; tradingDays: string[]; rulesVersion: 'dev-25k-v1';
   positions: Position[]; orders: Order[]; history: Fill[]; revision: number; updatedAt: number;
   failureReason?: string; nextAccountId?: string;
+  activationStatus?: 'pending' | 'active';
 }
-export type Command = { action: 'place'; order: Omit<Order, 'createdAt'> } | { action: 'close'; positionId: string; lots: number } | { action: 'cancel'; orderId: string } | { action: 'tick' };
+export type Command = { action: 'place'; order: Omit<Order, 'createdAt'> } | { action: 'close'; positionId: string; lots: number } | { action: 'cancel'; orderId: string } | { action: 'protect'; positionId: string; sl?: number | null; tp?: number | null } | { action: 'tick' };
 export const devRules = { initialBalance: 25000, dailyLossPercent: 5, maximumLossPercent: 10, phaseOneTarget: 8, phaseTwoTarget: 5, minimumTradingDays: 1, commissionPerLotPerSide: 3.5, slippageTicks: 1, maxQuoteAgeMs: 5000 } as const;
 const cash = (n: Decimal.Value) => new Decimal(n).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
 const dateKey = (now: number) => new Date(now).toISOString().slice(0, 10);
@@ -57,6 +58,13 @@ function risk(a: TradeAccount, quotes: Record<SymbolName, Quote>, now: number, e
     events.push({ type: 'challenge_failed', at: now, detail: a.failureReason }); mark(a, quotes, now);
   }
 }
+function protectPositions(a: TradeAccount, quotes: Record<SymbolName, Quote>, now: number, events: Event[]) {
+  for (const p of [...a.positions]) {
+    const q = getQuote(quotes, p.symbol, now), price = p.side === 'buy' ? q.bid : q.ask;
+    if (p.sl && (p.side === 'buy' ? price <= p.sl : price >= p.sl)) close(a, p, p.lots, quotes, now, events, 'stop_loss');
+    else if (p.tp && (p.side === 'buy' ? price >= p.tp : price <= p.tp)) close(a, p, p.lots, quotes, now, events, 'take_profit');
+  }
+}
 function open(a: TradeAccount, order: Order, quotes: Record<SymbolName, Quote>, now: number, events: Event[]) {
   const q = getQuote(quotes, order.symbol, now), spec = instrument(order.symbol);
   let entry = fillPrice(order, q, true);
@@ -74,20 +82,19 @@ function open(a: TradeAccount, order: Order, quotes: Record<SymbolName, Quote>, 
 export function newAccount(input: Pick<TradeAccount, 'accountId' | 'userId' | 'orderId' | 'challengeId' | 'phase'>, now: number): TradeAccount {
   return { ...input, status: 'active', environment: 'development', provider: 'fynx-synthetic', initialBalance: 25000, balance: 25000, equity: 25000, margin: 0, freeMargin: 25000, day: dateKey(now), dayStartEquity: 25000, tradingDays: [], rulesVersion: 'dev-25k-v1', positions: [], orders: [], history: [], revision: 0, updatedAt: now };
 }
-export function execute(previous: TradeAccount, command: Command, quotes: Record<SymbolName, Quote>, now: number) {
-  const a: TradeAccount = structuredClone(previous), events: Event[] = [];
+export function execute(previous: TradeAccount, command: Command, quotes: Record<SymbolName, Quote>, now: number, captureRejection = false) {
+  let a: TradeAccount = structuredClone(previous);
+  const events: Event[] = [];
+  let rejection: string | undefined;
   if (a.environment !== 'development' || a.provider !== 'fynx-synthetic' || a.rulesVersion !== 'dev-25k-v1') throw Error('Development account required.');
+  if (a.activationStatus === 'pending') { if (command.action === 'tick') return { account: a, events }; throw Error('Activate this development account before trading.'); }
   if (a.status !== 'active') { if (command.action === 'tick') return { account: a, events }; throw Error('This account is history-only.'); }
   if (a.history.length > 400 || a.revision > 1000000) throw Error('Development history limit reached.');
   if (now < a.updatedAt) throw Error('Out-of-order market update.');
   if (dateKey(now) !== a.day) { a.day = dateKey(now); a.dayStartEquity = a.equity; }
   risk(a, quotes, now, events);
   if (a.status === 'active') {
-    for (const p of [...a.positions]) {
-      const q = getQuote(quotes, p.symbol, now), price = p.side === 'buy' ? q.bid : q.ask;
-      if (p.sl && (p.side === 'buy' ? price <= p.sl : price >= p.sl)) close(a, p, p.lots, quotes, now, events, 'stop_loss');
-      else if (p.tp && (p.side === 'buy' ? price >= p.tp : price <= p.tp)) close(a, p, p.lots, quotes, now, events, 'take_profit');
-    }
+    protectPositions(a, quotes, now, events);
     risk(a, quotes, now, events);
   }
   if (a.status === 'active') {
@@ -96,14 +103,17 @@ export function execute(previous: TradeAccount, command: Command, quotes: Record
       const triggered = order.kind === 'limit' ? (order.side === 'buy' ? price <= order.price! : price >= order.price!) : (order.side === 'buy' ? price >= order.price! : price <= order.price!);
       if (!triggered) continue;
       a.orders = a.orders.filter(x => x.id !== order.id);
-      try { open(a, order, quotes, now, events); }
+      try { open(a, order, quotes, now, events); protectPositions(a, quotes, now, events); }
       catch (e) { events.push({ type: 'order_rejected', at: now, detail: `${order.id}: ${(e as Error).message}` }); }
       risk(a, quotes, now, events); if (a.status !== 'active') break;
     }
   }
+  // Automatic market/risk effects must survive rejection of a customer command.
+  const afterMarket = structuredClone(a), marketEventCount = events.length;
+  try {
   if (a.status !== 'active' && command.action !== 'tick') {
     // Preserve the authoritative risk outcome; never roll it back due to a new order.
-    events.push({ type: 'command_rejected', at: now, detail: 'Account failed its risk checks before this command.' });
+    throw Error('Account failed its risk checks before this command.');
   } else if (command.action === 'place') {
     const o: Order = { ...command.order, createdAt: now }; const spec = instrument(o.symbol);
     if (!['buy', 'sell'].includes(o.side) || !['market', 'limit', 'stop'].includes(o.kind)) throw Error('Invalid order direction or type.');
@@ -125,15 +135,38 @@ export function execute(previous: TradeAccount, command: Command, quotes: Record
   } else if (command.action === 'close') {
     const p = a.positions.find(x => x.id === command.positionId); if (!p) throw Error('Position already closed or unavailable.');
     close(a, p, command.lots, quotes, now, events, 'customer');
+  } else if (command.action === 'protect') {
+    const p = a.positions.find(x => x.id === command.positionId);
+    if (!p) throw Error('Position already closed or unavailable.');
+    if (command.sl === undefined && command.tp === undefined) throw Error('Choose a stop loss or take profit to update.');
+    const q = getQuote(quotes, p.symbol, now), reference = p.side === 'buy' ? q.bid : q.ask;
+    for (const key of ['sl', 'tp'] as const) {
+      const value = command[key];
+      if (value === undefined) continue;
+      if (value === null) { delete p[key]; continue; }
+      if (!Number.isFinite(value) || value <= 0 || !new Decimal(value).div(instrument(p.symbol).tickSize).isInteger()) throw Error('Prices must be positive multiples of the instrument tick size.');
+      const below = key === 'sl' ? p.side === 'buy' : p.side === 'sell';
+      if (below ? value >= reference : value <= reference) throw Error('Protection must be on the correct side of the current executable price.');
+      p[key] = value;
+    }
+    events.push({ type: 'position_protection_updated', at: now, detail: `${p.id}: SL ${p.sl ?? 'none'}; TP ${p.tp ?? 'none'}` });
   } else if (command.action === 'cancel') {
     if (!a.orders.some(x => x.id === command.orderId)) throw Error('Pending order is unavailable.');
     a.orders = a.orders.filter(x => x.id !== command.orderId); events.push({ type: 'order_cancelled', at: now, detail: command.orderId });
   }
+  } catch (error) {
+    if (!captureRejection) throw error;
+    a = afterMarket; events.splice(marketEventCount);
+    rejection = error instanceof Error ? error.message : 'Order rejected.';
+    events.push({ type: 'command_rejected', at: now, detail: rejection });
+  }
+  // A gap can fill a pending order beyond its protection; do not leave it open until another tick.
+  if (a.status === 'active') protectPositions(a, quotes, now, events);
   risk(a, quotes, now, events);
   const target = a.initialBalance * (1 + (a.phase === 1 ? devRules.phaseOneTarget : devRules.phaseTwoTarget) / 100);
   if (a.status === 'active' && a.positions.length === 0 && a.orders.length === 0 && a.balance >= target && a.tradingDays.length >= devRules.minimumTradingDays) {
     a.status = 'passed'; events.push({ type: 'challenge_passed', at: now, detail: `Development phase ${a.phase}; closed balance ${a.balance}; rule ${a.rulesVersion}` });
   }
   a.revision++; a.updatedAt = now;
-  return { account: a, events };
+  return { account: a, events, ...(rejection ? { rejection } : {}) };
 }

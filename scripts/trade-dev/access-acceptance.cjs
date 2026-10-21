@@ -6,6 +6,9 @@ const admin = require('../../functions/node_modules/firebase-admin'); admin.init
 const { recordCompletedCheckout } = require('../../functions/lib/stripe/webhook');
 const { fulfillNativePayment } = require('../../functions/lib/nativePaymentFulfillment');
 const { provisionTradeAccess, tradeAccountId } = require('../../functions/lib/tradeAccess/provision');
+const { recordDelivery } = require('../../functions/lib/tradeAccess/delivery');
+const { verifiedDeliveryEvent } = require('../../functions/lib/tradeAccess/deliveryPolicy');
+const { createHmac } = require('node:crypto');
 const { deliverAccessEmail, MailRejected } = require('../../functions/lib/tradeAccess/mail');
 const { build } = require('../../functions/lib/purchasedAgreement'), { VERSION } = require('../../functions/lib/fundedPolicy');
 const { documentHash, recordLegalAcceptance } = require('../../functions/lib/fundedLegal');
@@ -43,6 +46,14 @@ async function fixture(uid, channel, tag) {
     const list = await call(token, { action: 'list' }); assert.equal(list.status, 200); assert.equal(list.body.result.accounts.length, 2);
     const results = await Promise.all([call(token, { action: 'open', accountId }), call(token, { action: 'open', accountId })]); for (const r of results) { assert.equal(r.status, 200); assert.equal(r.body.result.activationStatus, 'active'); assert.equal(r.body.result.tradingEnabled, false); }
   });
+  await check('First account activation queues one state-confirmed confirmation email', async () => {
+    const ref = db.doc(`trade_access_mail/activated_${accountId}`);
+    assert.equal((await ref.get()).data().kind, 'account_access_activated');
+    let count = 0;
+    const send = async (to, message) => { count++; assert.equal(to, email); assert.ok(message.subject.includes('activated')); assert.ok(message.text.includes('Trading is not available yet')); return { providerId: 'local-activation-ack' }; };
+    await Promise.all([deliverAccessEmail(db, admin.auth(), ref.id, send), deliverAccessEmail(db, admin.auth(), ref.id, send)]);
+    assert.equal(count, 1);
+  });
   await check('Guests, unverified users and another customer cannot open account access', async () => {
     assert.equal((await call('', { action: 'list' })).status, 401);
     const otherEmail = `other-access-${suffix}@example.invalid`; await admin.auth().createUser({ email: otherEmail, password, emailVerified: false }); const unverified = await login(otherEmail);
@@ -65,6 +76,34 @@ async function fixture(uid, channel, tag) {
     await nativeRef.update({ nextAttemptAt: 0 }); await deliverAccessEmail(db, admin.auth(), nativeJob, async () => { throw Error('network timeout'); }); assert.equal((await nativeRef.get()).data().status, 'delivery_unknown');
     await deliverAccessEmail(db, admin.auth(), nativeJob, async () => { throw Error('Must not run'); });
   });
+  function signedEvent(id, state = 'delivered', severity) {
+    const at = Math.floor(Date.now() / 1000), signingKey = 'local-delivery-test-secret', timestamp = String(at), token = `local-token-${id}`;
+    const body = { signature: { timestamp, token, signature: createHmac('sha256', signingKey).update(timestamp + token).digest('hex') }, 'event-data': { id, event: state, severity, timestamp: at, domain: { name: 'mail.fynxfunded.com' }, recipient: email, message: { headers: { 'message-id': '<local-provider-ack>' } }, 'user-variables': { 'notification-id': jobId } } };
+    return verifiedDeliveryEvent(body, signingKey);
+  }
+  await check('Signed delivery receipts deduplicate, correlate, and update the customer portal', async () => {
+    const event = signedEvent(`delivered-${suffix}`);
+    const results = await Promise.all([recordDelivery(db, event), recordDelivery(db, event)]);
+    assert.equal(results.filter(r => r.duplicate).length, 1);
+    assert.equal((await call(token, { action: 'open', accountId })).body.result.accountEmailStatus, 'delivered');
+    await recordDelivery(db, signedEvent(`late-delay-${suffix}`, 'failed', 'temporary'));
+    assert.equal((await jobRef.get()).data().deliveryStatus, 'delivered');
+    await assert.rejects(() => recordDelivery(db, { ...signedEvent(`mismatch-${suffix}`), providerId: 'different-message' }), /correlation/);
+    await assert.rejects(() => recordDelivery(db, { ...signedEvent(`wrong-recipient-${suffix}`), recipientHash: '0'.repeat(64) }), /correlation/);
+    await assert.rejects(() => recordDelivery(db, { ...signedEvent(`replayed-token-${suffix}`), tokenId: event.tokenId }), /already used/);
+    await deliverAccessEmail(db, admin.auth(), jobId, sender); assert.equal(sends, 1);
+  });
+  const racing = await fixture(uid, 'web', 'delivery-race'), racingAccount = tradeAccountId(racing.id);
+  await check('A delivery receipt arriving before the send acknowledgement is preserved', async () => {
+    await racing.fulfill(); await provisionTradeAccess(db, racing.id);
+    const racingJob = `ready_${racingAccount}`;
+    await deliverAccessEmail(db, admin.auth(), racingJob, async () => {
+      await recordDelivery(db, { ...signedEvent(`early-receipt-${suffix}`), jobId: racingJob, providerId: 'early-provider-id' });
+      return { providerId: '<early-provider-id>' };
+    });
+    assert.equal((await db.doc(`trade_access_mail/${racingJob}`).get()).data().deliveryStatus, 'delivered');
+    assert.equal((await call(token, { action: 'open', accountId: racingAccount })).body.result.accountEmailStatus, 'delivered');
+  });
   await check('Refunded accounts become history-only and pending ready mail is cancelled', async () => {
     await db.doc(`orders/${web.id}`).update({ status: 'refunded' }); await jobRef.update({ status: 'pending', nextAttemptAt: 0 });
     const r = await call(token, { action: 'open', accountId }); assert.equal(r.body.result.access, 'history_only');
@@ -75,6 +114,16 @@ async function fixture(uid, channel, tag) {
     const ref = db.doc(`accounts/${tradeAccountId(native.id)}`); await ref.update({ balance: 24000, activationStatus: 'active', status: 'closed' }); await native.fulfill(); await provisionTradeAccess(db, native.id);
     const a = (await ref.get()).data(); assert.equal(a.balance, 24000); assert.equal(a.status, 'closed'); assert.equal(a.activationStatus, 'active');
   });
-  fs.mkdirSync('docs/trade-access-2026-10-19', { recursive: true }); fs.writeFileSync('docs/trade-access-2026-10-19/acceptance.json', JSON.stringify({ checkedAt: new Date().toISOString(), environment: 'demo-fynx-trade', checks, count: checks.length, externalDelivery: false }, null, 2) + '\n');
+  await check('A verified complaint suppresses further mail and cannot be undone by delayed events', async () => {
+    await jobRef.update({ status: 'provider_accepted' });
+    await recordDelivery(db, signedEvent(`complaint-${suffix}`, 'complained'));
+    await recordDelivery(db, signedEvent(`late-delivery-${suffix}`));
+    assert.equal((await jobRef.get()).data().deliveryStatus, 'complained');
+    let suppressedSends = 0;
+    await deliverAccessEmail(db, admin.auth(), `activated_${racingAccount}`, async () => { suppressedSends++; return { providerId: 'must-not-send' }; });
+    assert.equal(suppressedSends, 0);
+    assert.equal((await db.doc(`trade_access_mail/activated_${racingAccount}`).get()).data().status, 'blocked');
+  });
+  fs.mkdirSync('docs/trade-engine-2026-10-20', { recursive: true }); fs.writeFileSync('docs/trade-engine-2026-10-20/access-acceptance.json', JSON.stringify({ checkedAt: new Date().toISOString(), environment: 'demo-fynx-trade', checks, count: checks.length, externalDelivery: false }, null, 2) + '\n');
   await admin.app().delete();
 })().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { setTimeout(() => process.exit(process.exitCode || 0), 200).unref(); });

@@ -5,11 +5,12 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
 import MarketChart from './MarketChart';
+import { accountEmailStatus } from './email-status';
 
 interface Account {
   accountId: string; challengeId: string; orderId: string; platform: string; status: string;
   activationStatus: string; currentPhase: number; startingBalance: number; balance: number; equity: number;
-  tradingEnabled: false; tradingHoldReason: string; access?: string;
+  tradingEnabled: false; tradingHoldReason: string; access?: string; accountEmailStatus?: string;
   rules: { profit_target_percent: string; daily_loss_percent: string; max_loss_percent: string; min_trading_days: number };
 }
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
@@ -62,7 +63,7 @@ export default function TradeAccess() {
             {loadedFor === uid && accounts.length > 0 && <label className="mt-4 block text-xs text-muted-foreground">Select account<select value={requested || accounts[0]?.accountId} onChange={e => setParams({ account: e.target.value })} className="mt-2 w-full min-w-0 rounded-lg border bg-background p-3 text-sm text-foreground">{accounts.map(a => <option key={a.accountId} value={a.accountId}>{money(a.startingBalance)} · …{a.accountId.slice(-9)} · {a.status}</option>)}</select></label>}
             {visible && <div className="mt-5 space-y-4"><div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs"><CheckCircle2 size={13}/>{visible.access === 'history_only' ? 'History only' : 'Access activated'}</div><p className="break-all font-mono text-xs text-muted-foreground">{visible.accountId}</p><div className="grid grid-cols-2 gap-3">{[['Balance', money(visible.balance)], ['Equity', money(visible.equity)], ['Stage', `Phase ${visible.currentPhase}`], ['Funds', 'Simulated']].map(([label, value]) => <div key={label} className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>)}</div><dl className="space-y-3 text-sm">{[['Profit target', `${visible.rules.profit_target_percent}%`], ['Daily loss limit', `${visible.rules.daily_loss_percent}%`], ['Total loss limit', `${visible.rules.max_loss_percent}%`], ['Minimum trading days', visible.rules.min_trading_days]].map(([k,v]) => <div key={k} className="flex justify-between gap-2"><dt className="text-muted-foreground">{k}</dt><dd>{v}</dd></div>)}</dl><p className="text-xs text-muted-foreground">Rules recorded with your purchase. Viewing charts does not start a trading day.</p><Link className="block text-sm underline" to={`/dashboard/accounts/${encodeURIComponent(visible.challengeId)}`}>View challenge details</Link></div>}
           </section>
-          <section className="rounded-2xl border bg-card p-5"><div className="flex items-center gap-2"><Mail size={17}/><h2 className="font-semibold">Your account email</h2></div><p className="mt-3 text-sm text-muted-foreground">After payment and account creation, we email a secure account link. Sign in with your existing FYNX login. No trading password is sent.</p><p className="mt-3 text-xs text-muted-foreground">Missing the email? Check spam, then open your account here or contact support.</p></section>
+          <section className="rounded-2xl border bg-card p-5"><div className="flex items-center gap-2"><Mail size={17}/><h2 className="font-semibold">Your account email</h2></div><p className="mt-3 text-sm text-muted-foreground">After payment and account creation, we email a secure account link. Sign in with your existing FYNX login. No trading password is sent.</p>{visible && <p role="status" className="mt-3 text-sm">{accountEmailStatus(visible.accountEmailStatus)}</p>}<p className="mt-3 text-xs text-muted-foreground">Missing the email? Check spam, then open your account here or contact support.</p></section>
         </aside>
       </div>
     </main>
