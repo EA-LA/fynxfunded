@@ -1,6 +1,7 @@
 import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import { RULE_POLICY_VERSION as VERSION } from "@/lib/challengeConfig";
 import MarketingLayout from "@/components/MarketingLayout";
+import RuleCalculator from "@/components/RuleCalculator";
 import {
   AlertTriangle,
   Clock,
@@ -73,6 +74,7 @@ export default function RulesPage() {
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
             Approved numerical schedule for new accounts once purchases open. Existing accounts retain the terms accepted at purchase; this page does not migrate them.
           </p>
+          <a href="#calculator" className="mt-4 inline-block text-sm font-medium underline underline-offset-4">Work out your limits in dollars with the rules calculator</a>
         </div>
 
         <div className="premium-card mb-8 overflow-x-auto">
@@ -87,6 +89,8 @@ export default function RulesPage() {
           </table>
           <p className="mt-4 text-sm text-muted-foreground">Net profit includes trading charges. Eligibility also requires no recorded breach and no open positions. Evaluation is subject to human review and does not automatically advance a phase or authorize a payout. Your purchase must record this version before it applies to your account.</p>
         </div>
+
+        <RuleCalculator />
 
         <div className="grid md:grid-cols-2 gap-6">
           {rules.map((rule, i) => (
