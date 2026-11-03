@@ -121,8 +121,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
                 <Link to="/challenges" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.challenges")}</Link>
                 <Link to="/rules" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.rules")}</Link>
                 <Link to="/payouts" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.payouts")}</Link>
-                <Link to="/trade/access" className="text-sm font-semibold">Trade Now</Link>
-            <a href="https://www.fynxfinanceworld.com/api/" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">FYNX API</a>
+                <Link to="/trade/access" className="block pt-2 text-sm font-semibold">Trade Now</Link>
+                <a href="https://www.fynxfinanceworld.com/api/" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">FYNX API</a>
                 <a href="https://www.fynxfinanceworld.com/api/docs.html" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">API documentation</a>
                 <a href="https://www.fynxfinanceworld.com/api/pricing.html" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">API pricing</a>
               </div>
