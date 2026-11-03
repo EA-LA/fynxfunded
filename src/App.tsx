@@ -1,4 +1,5 @@
 import SearchMetadata from "./components/SearchMetadata";
+import ScrollManager from "./components/ScrollManager";
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -19,7 +20,7 @@ function RouteLoader() {
 export default function App() {
   return <ThemeProvider><I18nProvider><QueryClientProvider client={queryClient}><TooltipProvider>
     <Toaster /><Sonner />
-    <BrowserRouter basename={routerBasename}><SearchMetadata platform={true} /><Suspense fallback={<RouteLoader />}>
+    <BrowserRouter basename={routerBasename}><SearchMetadata platform={true} /><ScrollManager /><Suspense fallback={<RouteLoader />}>
       <PlatformRoutes />
     </Suspense></BrowserRouter>
   </TooltipProvider></QueryClientProvider></I18nProvider></ThemeProvider>;

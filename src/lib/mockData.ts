@@ -71,37 +71,4 @@ export const mockPayoutHistory = [
   { id: "PO-003", date: "2026-01-01", amount: 1100, status: "Paid", method: "Wire Transfer" },
 ];
 
-export const faqItems = [
-  {
-    q: "What is FYNX Funded?",
-    a: "FYNX Funded provides trading evaluation programs. Traders who meet the applicable objectives and eligibility requirements may advance to the funded stage described in their selected plan.",
-  },
-  {
-    q: "How does the evaluation work?",
-    a: "The approved new-account schedule offers 1, 2 or 3 phases. Each phase requires its profit target, minimum trading days, 40% consistency and no loss breach. Eligibility requires human review; purchases remain closed. See Trading Rules for each program.",
-  },
-  {
-    q: "What instruments can I trade?",
-    a: "The planned scope is Forex with a USD account ledger. No production pairs or leverage are approved yet. Crypto and other markets are unavailable; the broker catalog is still being verified.",
-  },
-  {
-    q: "How quickly can I get paid?",
-    a: "Eligible users can submit a payout request from the dashboard. Available methods and estimated processing times are shown during the request and may depend on verification and the payment provider.",
-  },
-  {
-    q: "Is the fee refundable?",
-    a: "Fee-refund eligibility depends on the selected plan and the terms displayed at purchase. Check your order details for the rule that applies to you.",
-  },
-  {
-    q: "What happens if I breach a rule?",
-    a: "If you violate a daily-loss limit, maximum-loss limit, or another applicable rule, the account may be marked breached. Any restart option and price will be shown separately if available.",
-  },
-  {
-    q: "Can I hold trades over the weekend?",
-    a: "No universal weekend or overnight permission is offered, including for Swing style. Permissions require the final account terms and verified broker instrument schedule. Purchases remain closed.",
-  },
-  {
-    q: "Is there a time limit to pass the challenge?",
-    a: "No. There is no maximum time limit. Take as long as you need, as long as you meet the minimum trading days requirement.",
-  },
-];
+export { faqItems } from "@/lib/faqContent";

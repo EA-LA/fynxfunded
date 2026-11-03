@@ -3,6 +3,7 @@ import { CheckCircle2, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import PayoutEstimator, { SplitTable } from "@/components/PayoutEstimator";
 import { splitRange } from "@/lib/payoutEstimator";
+import NextPayoutWindow from "@/components/NextPayoutWindow";
 
 const timeline = [
   { step: "1", title: "Meet Profit Target", desc: "Reach the minimum profit threshold in your funded account." },
@@ -78,7 +79,9 @@ export default function PayoutsPage() {
         </div>
 
         {/* Calendar */}
-        <h2 className="text-2xl font-bold mb-8 animate-fade-up">Payout Calendar</h2>
+        <section id="calendar" aria-labelledby="calendar-title" className="scroll-mt-24">
+        <h2 id="calendar-title" className="text-2xl font-bold mb-8 animate-fade-up">Payout Calendar</h2>
+        <NextPayoutWindow />
         <div className="overflow-x-auto animate-fade-up delay-200">
           <table className="w-full text-sm">
             <thead>
@@ -99,6 +102,7 @@ export default function PayoutsPage() {
             </tbody>
           </table>
         </div>
+        </section>
 
         <div className="mt-16 text-center animate-fade-up">
           <Link

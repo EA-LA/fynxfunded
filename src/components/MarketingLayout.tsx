@@ -151,7 +151,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               <div className="space-y-2">
                 <span className="block text-sm text-muted-foreground">Discord</span>
                 <span className="block text-sm text-muted-foreground">Twitter</span>
-                <span className="block break-all text-sm text-muted-foreground">support@fynxfunded.com</span>
+                <a href="mailto:support@fynxfunded.com" aria-label="Write to support@fynxfunded.com" className="block break-all text-sm text-muted-foreground hover:text-foreground transition-colors">support@fynxfunded.com</a>
               </div>
             </div>
           </div>

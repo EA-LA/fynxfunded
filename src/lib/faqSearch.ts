@@ -1,5 +1,5 @@
 /** Case-insensitive search: every word must appear in the question or answer. */
-export function filterFaq(items: { q: string; a: string }[], query: string) {
+export function filterFaq<T extends { q: string; a: string }>(items: T[], query: string): T[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return items;
   return items.filter((item) => {

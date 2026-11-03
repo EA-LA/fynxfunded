@@ -6,7 +6,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Friendly 404 page with navigation, helpful links and correct title/noindex (2026-11-03)
 - [x] Footer "Trade Now" spacing fix (2026-11-03)
 - [ ] Footer "Discord" / "Twitter" are plain text, not links: link them once real URLs are confirmed (or hide)
-- [ ] Footer support email: make it a clickable mailto link (it wraps mid-word on phones)
+- [x] Footer support email is now a clickable mailto link (2026-11-03)
+- [x] New pages open at the top and #section links jump to the section (was: footer links left you at the bottom of the next page) (2026-11-03)
 - [ ] Mobile: ecosystem footer list has very tall spacing on phones; tighten it
 - [ ] Performance: main bundle chunk is >500 kB; split heavy routes/libs further
 - [ ] Accessibility pass (skip-to-content link, focus outlines, heading order)
@@ -33,14 +34,18 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 ## Payouts (/payouts)
 - [x] Payout split estimator from approved profit-split table, clearly labelled estimate (2026-11-03)
 - [x] Fix incomplete profit-split tiers: full size × program table from the catalog (2026-11-03)
-- [ ] Payout calendar: show the next request window based on today's date
+- [x] Payout calendar: live "next request window" card based on today's date, linkable as /payouts#calendar (2026-11-03)
+- [ ] Offer an "add to calendar" (.ics) download for the next request window
 
 ## FAQ (/faq)
 - [x] Search, FAQPage structured data, related links and "Email support" block (2026-11-03)
-- [ ] Group questions by topic and add accurate answers on consistency, daily reset time and loss floors
+- [x] Questions grouped by topic with filter chips; 13 new answers (reset time, loss floors, consistency, targets, days, split, payout windows, verification) with figures pulled from the published schedule (2026-11-03)
+- [x] Each question has its own shareable link (/faq#question-id) and a next-step link (2026-11-03)
+- [ ] Home FAQ preview: link each question to its FAQ anchor
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)
-- [ ] Add table of contents with anchor links and "last updated" date
+- [x] Table of contents with anchor links and "last updated" date (already present; verified 2026-11-03)
+- [ ] Highlight the current section in the table of contents while scrolling
 
 ## Dashboard (/dashboard/*)
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile

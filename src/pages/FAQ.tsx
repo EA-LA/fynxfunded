@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import MarketingLayout from "@/components/MarketingLayout";
 import { faqItems } from "@/lib/mockData";
+import { faqTopics, type FaqTopicId } from "@/lib/faqContent";
 import { filterFaq } from "@/lib/faqSearch";
-import { ChevronRight, Mail, Search, X } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Link2, Mail, Search, X } from "lucide-react";
 
 const FAQ_SCHEMA_ID = "faq-schema";
 
@@ -15,8 +16,38 @@ const relatedPages = [
 ];
 
 export default function FAQ() {
+  const location = useLocation();
   const [query, setQuery] = useState("");
-  const results = useMemo(() => filterFaq(faqItems, query), [query]);
+  const [topic, setTopic] = useState<FaqTopicId | "all">("all");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const searched = useMemo(() => filterFaq(faqItems, query), [query]);
+  const results = useMemo(() => (topic === "all" ? searched : searched.filter((item) => item.topic === topic)), [searched, topic]);
+  const filtering = query.trim() !== "" || topic !== "all";
+  const groups = faqTopics
+    .map((t) => ({ ...t, items: results.filter((item) => item.topic === t.id) }))
+    .filter((g) => g.items.length > 0);
+
+  // Open the question named in the address (e.g. /faq#daily-reset) so answers can be shared.
+  useEffect(() => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (id && faqItems.some((item) => item.id === id)) setOpenId(id);
+  }, [location.hash]);
+
+  const copyLink = async (id: string) => {
+    const url = `${window.location.origin}${window.location.pathname}#${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.location.hash = id;
+    }
+    setCopiedId(id);
+    window.setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 2000);
+  };
+
+  const countText = filtering
+    ? `${results.length} of ${faqItems.length} questions match`
+    : `${faqItems.length} questions in ${faqTopics.length} topics`;
 
   useEffect(() => {
     const schema = document.createElement("script");
@@ -70,22 +101,87 @@ export default function FAQ() {
           )}
         </div>
         <p id="faq-count" className="mb-6 text-xs text-muted-foreground" aria-live="polite">
-          {query ? `${results.length} of ${faqItems.length} questions match` : `${faqItems.length} questions`}
+          {countText}
         </p>
 
-        <div className="space-y-4">
-          {results.map((faq) => (
-            <details key={faq.q} className="group premium-card cursor-pointer" open={query.trim() !== "" && results.length <= 3}>
-              <summary className="flex items-center justify-between text-sm font-medium list-none">
-                {faq.q}
-                <ChevronRight size={16} aria-hidden="true" className="text-muted-foreground transition-transform group-open:rotate-90 shrink-0 ml-4" />
-              </summary>
-              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{faq.a}</p>
-            </details>
+        <div role="group" aria-label="Filter by topic" className="mb-8 flex flex-wrap gap-2">
+          {[{ id: "all" as const, label: "All topics" }, ...faqTopics].map((t) => {
+            const count = t.id === "all" ? searched.length : searched.filter((item) => item.topic === t.id).length;
+            const active = topic === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setTopic(t.id)}
+                className={`min-h-9 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  active ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
+              >
+                {t.label} <span className={active ? "opacity-80" : "opacity-60"}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-10">
+          {groups.map((group) => (
+            <section key={group.id} aria-labelledby={`topic-${group.id}`}>
+              <h2 id={`topic-${group.id}`} className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.label}
+              </h2>
+              <div className="space-y-4">
+                {group.items.map((faq) => {
+                  const isOpen = openId === faq.id || (query.trim() !== "" && results.length <= 3);
+                  return (
+                    <details
+                      key={faq.id}
+                      id={faq.id}
+                      className="group premium-card cursor-pointer scroll-mt-24"
+                      open={isOpen}
+                      onToggle={(e) => {
+                        const nowOpen = (e.currentTarget as HTMLDetailsElement).open;
+                        if (nowOpen && openId !== faq.id) setOpenId(faq.id);
+                        if (!nowOpen && openId === faq.id) setOpenId(null);
+                      }}
+                    >
+                      <summary className="flex items-center justify-between text-sm font-medium list-none">
+                        {faq.q}
+                        <ChevronRight size={16} aria-hidden="true" className="text-muted-foreground transition-transform group-open:rotate-90 shrink-0 ml-4" />
+                      </summary>
+                      <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{faq.a}</p>
+                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+                        {faq.link && (
+                          <Link to={faq.link.to} className="inline-flex items-center gap-1 font-medium text-foreground hover:underline underline-offset-4">
+                            {faq.link.label} <ArrowRight size={12} aria-hidden="true" />
+                          </Link>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => copyLink(faq.id)}
+                          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                          aria-label={`Copy link to "${faq.q}"`}
+                        >
+                          {copiedId === faq.id ? <Check size={12} aria-hidden="true" /> : <Link2 size={12} aria-hidden="true" />}
+                          {copiedId === faq.id ? "Link copied" : "Copy link"}
+                        </button>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            </section>
           ))}
           {results.length === 0 && (
             <div className="premium-card text-sm text-muted-foreground">
-              No questions match "{query}". Try a shorter word, browse the pages below, or ask our support team.
+              <p>
+                No questions match "{query}"{topic !== "all" ? ` in ${faqTopics.find((t) => t.id === topic)?.label}` : ""}. Try a shorter word, browse the pages below, or ask our support team.
+              </p>
+              {topic !== "all" && (
+                <button type="button" onClick={() => setTopic("all")} className="mt-3 text-xs font-medium text-foreground underline underline-offset-4">
+                  Search all topics
+                </button>
+              )}
             </div>
           )}
         </div>

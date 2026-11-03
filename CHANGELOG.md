@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-03 20:30 UTC — [autopilot] A much fuller FAQ and a live "next payout window"
+- FAQ now has 21 questions sorted into four topics (Getting started, Rules & limits, Payouts, Account & purchases) with topic buttons next to the search box. New answers cover the 22:00 UTC daily reset, how the daily and maximum loss floors are worked out, the 40% consistency rule, profit targets, minimum trading days, profit split, payout requirements and windows, and identity checks, each with a worked dollar example taken from the published rules. https://www.fynxfunded.com/faq
+- Every question can be shared with its own link (for example https://www.fynxfunded.com/faq#daily-reset opens that answer) and has a "next step" link to the right calculator or page.
+- Payouts page: the calendar now shows whether a request window is open today, how many days are left or until it opens, and when approved requests are scheduled to be paid. https://www.fynxfunded.com/payouts#calendar
+- Fixed: clicking a link in the footer used to open the next page scrolled to the very bottom; pages now open at the top, and links to a section (like the calculator) jump straight to it.
+- Fixed: the support email in the footer is now clickable.
+
 ## 2026-11-03 16:20 UTC — [autopilot] Step-by-step program path and a payout estimator
 
 - How It Works now lets you pick any program (1, 2 or 3 phases) and account size and shows every step in dollars: targets, loss limits, minimum days and the funded profit split. https://www.fynxfunded.com/how-it-works
