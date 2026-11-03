@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 12:30 UTC — [autopilot] Compare programs side by side, linked to the rules calculator
+- The Challenges page (https://www.fynxfunded.com/challenges#compare-programs) has a new "Which program fits you?" section: pick an account size and see the 1, 2 and 3-phase programs next to each other in dollars: fee, each phase's profit target, total profit to make, daily and maximum loss, minimum trading days and profit split.
+- Badges point out the lowest fee, the most room before the maximum loss and the fastest minimum, and every plan has a "Plan it in the rules calculator" / "See the rules in dollars" button.
+- Those buttons open the Rules calculator already set to that size and program (for example https://www.fynxfunded.com/rules?size=50000&program=3-phase#calculator). The calculator now lets you pick which phase you're in, and the page address updates so you can share your setup.
+
 ## 2026-11-03 08:20 UTC — [autopilot] Rules calculator and searchable FAQ
 - The Trading Rules page now has a Rules calculator (https://www.fynxfunded.com/rules#calculator): pick an account size and program to see each phase's profit target, the maximum-loss floor and the minimum trading days in dollars.
 - Type your balance at the 22:00 UTC reset and it shows today's exact equity floor; enter your daily results and it tells you whether you meet the 40% consistency rule, and how much more profit you'd need if not.

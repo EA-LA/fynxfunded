@@ -102,3 +102,63 @@ export function checkConsistency(dailyResults: number[], limitPercent = CONSISTE
     profitNeededForBestDay: round2((bestDay * 100) / limitPercent),
   };
 }
+
+export const PROGRAMS: ProgramId[] = ["1-phase", "2-phase", "3-phase"];
+
+export interface CalculatorPreset {
+  accountSize: number;
+  program: ProgramId;
+  phase: number;
+}
+
+export const DEFAULT_PRESET: CalculatorPreset = { accountSize: 25000, program: "2-phase", phase: 1 };
+
+/**
+ * Reads `size`, `program` and `phase` from a query string so other pages can
+ * deep-link into the calculator. Unknown or out-of-range values fall back to defaults.
+ */
+export function parseCalculatorPreset(params: URLSearchParams): CalculatorPreset {
+  const size = Number(params.get("size"));
+  const accountSize = challengeConfigs.some((c) => c.accountSize === size) ? size : DEFAULT_PRESET.accountSize;
+  const rawProgram = params.get("program");
+  const program = PROGRAMS.find((p) => p === rawProgram) ?? DEFAULT_PRESET.program;
+  const phaseCount = getRulePlan(accountSize, program).phases.length;
+  const rawPhase = Number(params.get("phase"));
+  const phase = Number.isInteger(rawPhase) && rawPhase >= 1 && rawPhase <= phaseCount ? rawPhase : 1;
+  return { accountSize, program, phase };
+}
+
+/** Link to the Rules page calculator preloaded with a size/program (and optional phase). */
+export function calculatorLink(accountSize: number, program: ProgramId, phase?: number) {
+  const params = new URLSearchParams({ size: String(accountSize), program });
+  if (phase && phase > 1) params.set("phase", String(phase));
+  return `/rules?${params.toString()}#calculator`;
+}
+
+export interface ProgramSummary {
+  plan: RulePlan;
+  price: number;
+  /** Sum of every phase's profit target; each phase restarts from the full account size. */
+  combinedTargetProfit: number;
+  /** Minimum trading days across all phases (minimum per phase × number of phases). */
+  minimumTotalDays: number;
+  /** Daily loss allowance on the starting balance. */
+  startingDailyLossAmount: number;
+  /** Fee as a share of the account size. */
+  feePercentOfAccount: number;
+}
+
+/** Everything needed to compare the three programs side by side for one account size. */
+export function summarizeProgram(accountSize: number, program: ProgramId): ProgramSummary {
+  const plan = getRulePlan(accountSize, program);
+  const config = challengeConfigs.find((c) => c.accountSize === accountSize)!;
+  const price = config.phases[program].price;
+  return {
+    plan,
+    price,
+    combinedTargetProfit: round2(plan.phases.reduce((s, p) => s + p.targetProfit, 0)),
+    minimumTotalDays: plan.minDays * plan.phases.length,
+    startingDailyLossAmount: dailyLossFloor(accountSize, plan.dailyLossPercent).amount,
+    feePercentOfAccount: round2((price / accountSize) * 100),
+  };
+}

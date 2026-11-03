@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Calculator, CheckCircle2, Plus, Trash2, XCircle } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import {
@@ -7,10 +8,10 @@ import {
   checkConsistency,
   effectiveFloor,
   getRulePlan,
+  parseCalculatorPreset,
+  PROGRAMS as programs,
   type ProgramId,
 } from "@/lib/ruleCalculator";
-
-const programs: ProgramId[] = ["1-phase", "2-phase", "3-phase"];
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
@@ -23,8 +24,13 @@ const inputClass =
   "w-full rounded-md border border-input bg-background px-3 py-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function RuleCalculator() {
-  const [accountSize, setAccountSize] = useState(25000);
-  const [program, setProgram] = useState<ProgramId>("2-phase");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const sectionRef = useRef<HTMLElement>(null);
+  const [initial] = useState(() => parseCalculatorPreset(searchParams));
+  const [accountSize, setAccountSize] = useState(initial.accountSize);
+  const [program, setProgram] = useState<ProgramId>(initial.program);
+  const [phase, setPhase] = useState(initial.phase);
   const [resetBalanceInput, setResetBalanceInput] = useState("");
   const [days, setDays] = useState<string[]>(["", "", ""]);
 
@@ -36,10 +42,35 @@ export default function RuleCalculator() {
   const enteredDays = days.filter((d) => d.trim() !== "");
   const invalidDays = enteredDays.some((d) => !Number.isFinite(Number(d)));
   const consistency = checkConsistency(invalidDays ? [] : enteredDays.map(Number));
-  const firstTarget = plan.phases[0];
+  const currentPhase = Math.min(phase, plan.phases.length);
+  const phaseTarget = plan.phases[currentPhase - 1];
+
+  // Deep links such as /rules?size=50000&program=3-phase#calculator land on the calculator.
+  useEffect(() => {
+    if (location.hash === "#calculator") sectionRef.current?.scrollIntoView?.({ block: "start" });
+    // Only on first render: later choices must not yank the page around.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the address shareable: the current choice is mirrored into the query string.
+  const choose = (next: { accountSize?: number; program?: ProgramId; phase?: number }) => {
+    const size = next.accountSize ?? accountSize;
+    const prog = next.program ?? program;
+    const maxPhase = getRulePlan(size, prog).phases.length;
+    const ph = Math.min(next.phase ?? currentPhase, maxPhase);
+    setAccountSize(size);
+    setProgram(prog);
+    setPhase(ph);
+    const params = new URLSearchParams(searchParams);
+    params.set("size", String(size));
+    params.set("program", prog);
+    if (ph > 1) params.set("phase", String(ph));
+    else params.delete("phase");
+    setSearchParams(params, { replace: true, preventScrollReset: true });
+  };
 
   return (
-    <section id="calculator" aria-labelledby="calculator-title" className="premium-card mb-8 scroll-mt-24">
+    <section ref={sectionRef} id="calculator" aria-labelledby="calculator-title" className="premium-card mb-8 scroll-mt-24">
       <div className="flex items-start gap-3">
         <div className="shrink-0 w-10 h-10 rounded-md bg-secondary flex items-center justify-center">
           <Calculator size={18} className="text-muted-foreground" aria-hidden="true" />
@@ -57,7 +88,7 @@ export default function RuleCalculator() {
           <legend className="text-sm font-medium mb-2">Account size</legend>
           <div className="flex flex-wrap gap-2">
             {challengeConfigs.map((c) => (
-              <button key={c.accountSize} type="button" aria-pressed={accountSize === c.accountSize} className={chip(accountSize === c.accountSize)} onClick={() => setAccountSize(c.accountSize)}>
+              <button key={c.accountSize} type="button" aria-pressed={accountSize === c.accountSize} className={chip(accountSize === c.accountSize)} onClick={() => choose({ accountSize: c.accountSize })}>
                 {c.label}
               </button>
             ))}
@@ -67,7 +98,7 @@ export default function RuleCalculator() {
           <legend className="text-sm font-medium mb-2">Program</legend>
           <div className="flex flex-wrap gap-2">
             {programs.map((p) => (
-              <button key={p} type="button" aria-pressed={program === p} className={chip(program === p)} onClick={() => setProgram(p)}>
+              <button key={p} type="button" aria-pressed={program === p} className={chip(program === p)} onClick={() => choose({ program: p })}>
                 {p}
               </button>
             ))}
@@ -75,12 +106,28 @@ export default function RuleCalculator() {
         </fieldset>
       </div>
 
+      {plan.phases.length > 1 && (
+        <fieldset className="mt-6">
+          <legend className="text-sm font-medium mb-2">Phase you're in</legend>
+          <div className="flex flex-wrap gap-2">
+            {plan.phases.map((ph) => (
+              <button key={ph.phase} type="button" aria-pressed={currentPhase === ph.phase} className={chip(currentPhase === ph.phase)} onClick={() => choose({ phase: ph.phase })}>
+                Phase {ph.phase}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Every phase starts again from {usd(accountSize)}, so the loss floors stay the same; only the profit target changes.
+          </p>
+        </fieldset>
+      )}
+
       {/* Targets and limits */}
       <div className="mt-8">
         <h3 className="text-sm font-semibold mb-3">Your targets and limits</h3>
         <dl className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {plan.phases.map((ph) => (
-            <div key={ph.phase} className="rounded-md bg-secondary/50 p-3">
+            <div key={ph.phase} className={`rounded-md bg-secondary/50 p-3 ${plan.phases.length > 1 && ph.phase === currentPhase ? "ring-2 ring-primary" : ""}`}>
               <dt className="text-xs text-muted-foreground">Phase {ph.phase} target ({ph.targetPercent}%)</dt>
               <dd className="mt-1 text-base font-semibold tabular-nums">+{usd(ph.targetProfit)}</dd>
               <dd className="text-xs text-muted-foreground tabular-nums">Balance {usd(ph.targetBalance)}</dd>
@@ -200,8 +247,8 @@ export default function RuleCalculator() {
                   </span>
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Phase 1 target is {usd(firstTarget.targetProfit)}
-                  {consistency.totalProfit >= firstTarget.targetProfit ? " — reached in these numbers." : ` — ${usd(Math.max(0, firstTarget.targetProfit - consistency.totalProfit))} to go.`}{" "}
+                  Phase {currentPhase} target is {usd(phaseTarget.targetProfit)}
+                  {consistency.totalProfit >= phaseTarget.targetProfit ? " — reached in these numbers." : ` — ${usd(Math.max(0, phaseTarget.targetProfit - consistency.totalProfit))} to go.`}{" "}
                   Not meeting consistency only delays eligibility; it is not a breach.
                 </p>
               </>

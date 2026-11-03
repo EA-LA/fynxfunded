@@ -14,18 +14,20 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 
 ## Home (/)
 - [ ] Review hero and plan cards on mobile; add a short "how the rules work" teaser linking to the calculator
+- [ ] Home plan cards: add "See the rules in dollars" links (calculatorLink helper exists)
 
 ## Challenges (/challenges)
-- [ ] Side-by-side comparison of 1/2/3-phase programs for a chosen size (targets, limits, split, price) using challengeConfig
-- [ ] Link each plan to the rules calculator preset for that size/program (e.g. /rules?size=25000&program=2-phase#calculator)
+- [x] Side-by-side comparison of 1/2/3-phase programs for a chosen size, in dollars (2026-11-03)
+- [x] Link each plan to the rules calculator preset for that size/program (2026-11-03)
+- [ ] Let "Start challenge" preselect size/program in the builder (needs care: builder feeds checkout)
 
 ## How it works (/how-it-works)
 - [ ] Page is short (74 lines): add a visual timeline per program with phase targets and minimum days
 
 ## Trading rules (/rules)
 - [x] Rules calculator: targets/floors in dollars, today's loss floor, 40% consistency check (2026-11-03)
-- [ ] Let the calculator pick which phase you're in (targets after phase 1)
-- [ ] Accept size/program from the URL so other pages can deep-link
+- [x] Let the calculator pick which phase you're in (2026-11-03)
+- [x] Accept size/program/phase from the URL and keep the address shareable (2026-11-03)
 
 ## Payouts (/payouts)
 - [ ] Payout split estimator from approved profit-split table (clearly labelled estimate, no promises)

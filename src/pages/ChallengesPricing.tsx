@@ -3,7 +3,9 @@ import { useState } from "react";
 import MarketingLayout from "@/components/MarketingLayout";
 import { challengeConfigs, marketingPlans } from "@/lib/challengeConfig";
 import { Link } from "react-router-dom";
-import { ArrowRight, Check, Globe2 } from "lucide-react";
+import { ArrowRight, Calculator, Check, Globe2 } from "lucide-react";
+import ProgramComparison from "@/components/ProgramComparison";
+import { calculatorLink } from "@/lib/ruleCalculator";
 
 type CompareView = "quick" | "full";
 type PhaseType = "1-phase" | "2-phase" | "3-phase";
@@ -21,13 +23,14 @@ export default function ChallengesPricing() {
             Challenges & Pricing
           </h1>
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
-            Featured two-phase evaluations. Compare all phase options below.
+            Featured two-phase evaluations.{" "}
+            <a href="#compare-programs" className="underline underline-offset-4 hover:text-foreground">Compare 1, 2 and 3-phase programs</a> for any account size below.
           </p>
 
         </div>
 
         {/* Plan cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-24">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {marketingPlans.map((plan, i) => (
             <div
               key={plan.name}
@@ -60,15 +63,23 @@ export default function ChallengesPricing() {
               >
                 Start Challenge <ArrowRight size={14} />
               </Link>
+              <Link
+                to={calculatorLink(plan.accountValue, plan.phase)}
+                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <Calculator size={13} aria-hidden="true" /> See the rules in dollars
+              </Link>
             </div>
           ))}
         </div>
+
+        <ProgramComparison />
 
         <div className="glow-line mb-16" />
 
         {/* Compare Plans — Enhanced */}
         <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-up">
-          <h2 className="text-2xl font-bold">Compare Plans</h2>
+          <h2 className="text-2xl font-bold">Compare all sizes</h2>
           <div className="flex flex-wrap items-center gap-2">
             {/* Phase filter */}
             <div className="inline-flex items-center gap-1 bg-secondary rounded-md p-0.5">
