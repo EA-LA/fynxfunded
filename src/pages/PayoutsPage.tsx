@@ -1,6 +1,8 @@
 import MarketingLayout from "@/components/MarketingLayout";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import PayoutEstimator, { SplitTable } from "@/components/PayoutEstimator";
+import { splitRange } from "@/lib/payoutEstimator";
 
 const timeline = [
   { step: "1", title: "Meet Profit Target", desc: "Reach the minimum profit threshold in your funded account." },
@@ -23,6 +25,7 @@ const calendarData = [
 ];
 
 export default function PayoutsPage() {
+  const split = splitRange();
   return (
     <MarketingLayout>
       <section className="max-w-7xl mx-auto px-6 py-24 md:py-32">
@@ -37,21 +40,15 @@ export default function PayoutsPage() {
         <div className="premium-card mb-12 animate-fade-up delay-300">
           <h2 className="text-xl font-bold mb-4">Profit Split</h2>
           <p className="text-muted-foreground text-sm mb-4">
-            Funded traders keep up to 90% of profits generated. The split scales with your account tier:
+            Funded traders keep {split.min}% to {split.max}% of net profit. The split depends on the account size and the program you passed:
           </p>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {[
-              { tier: "$10K – $25K", split: "80/20" },
-              { tier: "$50K", split: "85/15" },
-              { tier: "$100K+", split: "90/10" },
-            ].map((t) => (
-              <div key={t.tier} className="bg-secondary rounded-md p-4 text-center">
-                <p className="text-sm text-muted-foreground">{t.tier}</p>
-                <p className="text-2xl font-bold mt-1">{t.split}</p>
-              </div>
-            ))}
-          </div>
+          <SplitTable />
+          <p className="mt-3 text-xs text-muted-foreground">
+            Published schedule for new accounts. The split recorded with your purchase always applies.
+          </p>
         </div>
+
+        <PayoutEstimator />
 
         {/* Timeline */}
         <h2 className="text-2xl font-bold mb-8 animate-fade-up">Payout Timeline</h2>

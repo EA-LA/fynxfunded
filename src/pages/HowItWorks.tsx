@@ -1,30 +1,80 @@
 import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import MarketingLayout from "@/components/MarketingLayout";
 import { Link } from "react-router-dom";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Calculator, CheckCircle2, Clock } from "lucide-react";
+import { challengeConfigs } from "@/lib/challengeConfig";
+import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, PROGRAMS, calculatorLink, summarizeProgram, type ProgramId } from "@/lib/ruleCalculator";
 
-const phases = [
-  {
-    num: "Phase 1",
-    title: "Evaluation",
-    desc: "Demonstrate your trading ability by reaching the profit target while staying within risk limits.",
-    details: ["Hit 8% profit target", "Stay within 5% daily loss", "Static maximum loss: 10%", "Trade minimum 5 days", "No time limit"],
-  },
-  {
-    num: "Phase 2",
-    title: "Verification",
-    desc: "Confirm your consistency with a second round of trading under the same risk parameters.",
-    details: ["Hit 5% profit target", "Same risk limits apply", "Trade minimum 5 days", "Best day at most 40% of net phase profit", "No time limit"],
-  },
-  {
+const usd = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+const phaseTitles = ["Evaluation", "Verification", "Final verification"];
+const phaseDescriptions = [
+  "Demonstrate your trading ability by reaching the profit target while staying within risk limits.",
+  "Confirm your consistency with another round of trading under the same risk parameters.",
+  "A last, smaller target under the same limits before the funded stage.",
+];
+
+const chip = (active: boolean) =>
+  `px-3 py-2 rounded-md border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+    active ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"
+  }`;
+
+export interface PathStep {
+  num: string;
+  title: string;
+  desc: string;
+  details: string[];
+  link?: { to: string; label: string };
+}
+
+/** The steps of one program for one account size, built from the published schedule. */
+export function buildPath(accountSize: number, program: ProgramId): PathStep[] {
+  const { plan, startingDailyLossAmount } = summarizeProgram(accountSize, program);
+  const steps: PathStep[] = plan.phases.map((ph, i) => ({
+    num: `Phase ${ph.phase}`,
+    title: plan.phases.length === 1 ? "Evaluation" : phaseTitles[i],
+    desc: phaseDescriptions[i],
+    details: [
+      `Hit ${ph.targetPercent}% profit target (+${usd(ph.targetProfit)}, balance ${usd(ph.targetBalance)})`,
+      `Stay within ${plan.dailyLossPercent}% daily loss (${usd(startingDailyLossAmount)} on the starting balance)`,
+      `Static maximum loss: ${plan.maxLossPercent}% (equity floor ${usd(plan.maxLossFloor)})`,
+      `Trade minimum ${plan.minDays} days`,
+      `Best day at most ${CONSISTENCY_LIMIT_PERCENT}% of net phase profit`,
+      "No time limit",
+    ],
+    link: { to: calculatorLink(accountSize, program, ph.phase), label: `Plan phase ${ph.phase} in the calculator` },
+  }));
+  steps.push({
     num: "Funded",
     title: "Funded Stage",
     desc: "Eligible traders may advance to the funded stage under the terms of their selected plan.",
-    details: ["Plan-specific profit split", "Eligibility-based payouts", "Account progress tracking", "Dashboard access", "Fee refund where included in the purchased plan"],
-  },
+    details: [
+      `Plan-specific profit split: ${plan.profitSplitPercent}% for this plan`,
+      "Eligibility-based payouts",
+      "Account progress tracking",
+      "Dashboard access",
+      "Fee refund where included in the purchased plan",
+    ],
+    link: { to: "/payouts#estimator", label: "Estimate a payout" },
+  });
+  return steps;
+}
+
+const dayRules = [
+  `Each trading day resets at ${DAILY_RESET_UTC_HOUR}:00 UTC, all year round.`,
+  "At the reset, your daily loss floor is recalculated from the balance at that moment.",
+  "Your maximum loss floor never moves: it is fixed from the starting balance.",
+  "Touching a loss floor is allowed; falling below it records a breach.",
 ];
 
 export default function HowItWorks() {
+  const [program, setProgram] = useState<ProgramId>("2-phase");
+  const [accountSize, setAccountSize] = useState(25000);
+  const phases = buildPath(accountSize, program);
+  const summary = summarizeProgram(accountSize, program);
+
   return (
     <MarketingLayout>
       <section className="max-w-7xl mx-auto px-6 py-24 md:py-32">
@@ -32,13 +82,40 @@ export default function HowItWorks() {
         <div className="max-w-2xl mb-16">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight animate-fade-up">How It Works</h1>
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
-            Two-phase program example below. The 1-phase and 3-phase programs have different targets and limits; see Trading Rules. Purchases remain closed.
+            Pick a program and account size to see every step in dollars, from the first trade to the funded stage. Purchases remain closed.
           </p>
         </div>
 
+        <div className="mb-10 grid gap-4 md:grid-cols-2 animate-fade-up">
+          <fieldset>
+            <legend className="text-sm font-medium mb-2">Program</legend>
+            <div className="flex flex-wrap gap-2">
+              {PROGRAMS.map((p) => (
+                <button key={p} type="button" aria-pressed={program === p} className={`${chip(program === p)} capitalize`} onClick={() => setProgram(p)}>
+                  {p.replace("-", " ")}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className="text-sm font-medium mb-2">Account size</legend>
+            <div className="flex flex-wrap gap-2">
+              {challengeConfigs.map((c) => (
+                <button key={c.accountSize} type="button" aria-pressed={accountSize === c.accountSize} className={chip(accountSize === c.accountSize)} onClick={() => setAccountSize(c.accountSize)}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        <p className="mb-8 text-sm text-muted-foreground" aria-live="polite" data-testid="path-summary">
+          {summary.plan.phases.length} {summary.plan.phases.length === 1 ? "phase" : "phases"} · {usd(summary.price)} one-time fee · {usd(summary.combinedTargetProfit)} profit to make in total · at least {summary.minimumTotalDays} trading days
+        </p>
+
         <div className="space-y-8">
           {phases.map((phase, i) => (
-            <div key={phase.num} className={`premium-card hover-lift animate-fade-up delay-${(i + 1) * 200}`}>
+            <div key={`${program}-${phase.num}`} className={`premium-card hover-lift animate-fade-up delay-${Math.min(i + 1, 4) * 200}`}>
               <div className="flex flex-col md:flex-row md:items-start gap-6">
                 <div className="shrink-0">
                   <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">{phase.num}</span>
@@ -54,11 +131,31 @@ export default function HowItWorks() {
                       </div>
                     ))}
                   </div>
+                  {phase.link && (
+                    <Link to={phase.link.to} className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline">
+                      <Calculator size={14} aria-hidden="true" /> {phase.link.label}
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
           ))}
         </div>
+
+        <section aria-labelledby="trading-day-title" className="mt-16 premium-card animate-fade-up">
+          <h2 id="trading-day-title" className="flex items-center gap-2 text-xl font-bold">
+            <Clock size={18} aria-hidden="true" /> How a trading day works
+          </h2>
+          <ul className="mt-4 space-y-2 text-sm">
+            {dayRules.map((r) => (
+              <li key={r} className="flex items-start gap-2">
+                <CheckCircle2 size={14} className="mt-0.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                {r}
+              </li>
+            ))}
+          </ul>
+          <Link to="/faq" className="mt-4 inline-block text-sm underline">More questions? Read the FAQ</Link>
+        </section>
 
         <div className="mt-16 text-center animate-fade-up delay-800">
           <Link

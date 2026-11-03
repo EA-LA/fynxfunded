@@ -22,7 +22,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [ ] Let "Start challenge" preselect size/program in the builder (needs care: builder feeds checkout)
 
 ## How it works (/how-it-works)
-- [ ] Page is short (74 lines): add a visual timeline per program with phase targets and minimum days
+- [x] Program/size picker showing every phase in dollars, plus "How a trading day works" (2026-11-03)
+- [ ] Make the chosen program/size shareable in the URL
 
 ## Trading rules (/rules)
 - [x] Rules calculator: targets/floors in dollars, today's loss floor, 40% consistency check (2026-11-03)
@@ -30,7 +31,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Accept size/program/phase from the URL and keep the address shareable (2026-11-03)
 
 ## Payouts (/payouts)
-- [ ] Payout split estimator from approved profit-split table (clearly labelled estimate, no promises)
+- [x] Payout split estimator from approved profit-split table, clearly labelled estimate (2026-11-03)
+- [x] Fix incomplete profit-split tiers: full size × program table from the catalog (2026-11-03)
+- [ ] Payout calendar: show the next request window based on today's date
 
 ## FAQ (/faq)
 - [x] Search, FAQPage structured data, related links and "Email support" block (2026-11-03)

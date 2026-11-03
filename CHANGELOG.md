@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-03 16:20 UTC — [autopilot] Step-by-step program path and a payout estimator
+
+- How It Works now lets you pick any program (1, 2 or 3 phases) and account size and shows every step in dollars: targets, loss limits, minimum days and the funded profit split. https://www.fynxfunded.com/how-it-works
+- New "How a trading day works" box on the same page explains the 22:00 UTC reset and loss floors in plain words.
+- Payouts now shows the full profit-split table for every size and program (the old three-tier box was incomplete), plus an estimator that splits a profit amount and checks the $50 minimum. https://www.fynxfunded.com/payouts#estimator
+
 ## 2026-11-03 12:30 UTC — [autopilot] Compare programs side by side, linked to the rules calculator
 - The Challenges page (https://www.fynxfunded.com/challenges#compare-programs) has a new "Which program fits you?" section: pick an account size and see the 1, 2 and 3-phase programs next to each other in dollars: fee, each phase's profit target, total profit to make, daily and maximum loss, minimum trading days and profit split.
 - Badges point out the lowest fee, the most room before the maximum loss and the fastest minimum, and every plan has a "Plan it in the rules calculator" / "See the rules in dollars" button.
