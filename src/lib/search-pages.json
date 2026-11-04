@@ -13,7 +13,7 @@
   ],
   "/rules": [
     "Trading Rules & Drawdown Limits",
-    "Review FYNX Funded trading rules, daily loss limits, maximum drawdown and evaluation requirements."
+    "FYNX Funded trading rules, daily and maximum loss limits, with a rules calculator, risk planner and a daily-reset clock in your time zone."
   ],
   "/payouts": [
     "Payout Requirements",

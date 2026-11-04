@@ -1,4 +1,5 @@
 import type { DocumentData } from "firebase/firestore";
+import { journalSessionForUtcHour } from "@/lib/tradingDayClock";
 
 export interface Trade { id:string; accountId:string; challengeId:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss"|"Breakeven" }
 export interface AccountObjectives { profitTarget:{current:number;target:number}; dailyLoss:{current:number;limit:number}; maxLoss:{current:number;limit:number}; minTradingDays:{current:number;target:number}; consistency:{largestWinDay:number;threshold:number}|null }
@@ -36,7 +37,7 @@ export function mapClosedTrade(id: string, data: DocumentData): Trade | null {
   if (openTime && closeTime < openTime) return null;
   const minutes = openTime ? Math.round((Date.parse(closeTime) - Date.parse(openTime)) / 60000) : null;
   const hour = openTime ? new Date(openTime).getUTCHours() : new Date(closeTime).getUTCHours();
-  const inferredSession = hour < 8 ? "Asia" : hour < 13 ? "London" : "New York";
+  const inferredSession = journalSessionForUtcHour(hour);
   return {
     id, accountId: String(data.accountId ?? data.brokerAccountId ?? ""), challengeId: String(data.challengeId ?? ""),
     symbol: String(data.symbol ?? data.instrument ?? "—"), type: String(data.type ?? data.side).toLowerCase() === "sell" ? "Sell" : "Buy",

@@ -107,6 +107,7 @@ export const faqItems: FaqItem[] = [
     topic: "rules",
     q: "When does the trading day reset?",
     a: `Every trading day resets at ${DAILY_RESET_UTC_HOUR}:00 UTC, all year round, with no daylight-saving change. At that moment the daily loss floor is recalculated from your balance.`,
+    link: { to: "/rules#trading-day", label: "See the reset in your time" },
   },
   {
     id: "daily-loss",

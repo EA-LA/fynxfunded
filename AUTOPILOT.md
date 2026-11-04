@@ -37,6 +37,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Risk and pace planner (/rules#risk-planner): risk per trade in % or $, losing trades that fit before the daily and maximum-loss floors, winners needed for the target, break-even win rate, steady daily pace and the biggest day that fits the 40% rule (2026-11-04)
 - [x] Risk planner linked from the home "Know your numbers" section, How it works and the dashboard Objectives page (opens on the trader's account size and slider risk) (2026-11-04)
 - [x] "Copy a link to this plan": the planner's size/program/phase, risk, reward and days are saved in a shareable address (2026-11-04)
+- [x] Trading-day clock (/rules#trading-day): UTC and local time, live countdown to the 22:00 UTC reset, 24-hour bar, journal session labels in local time, and "Check a time" to see which daily-loss period a moment counts against; linked from the hero and the FAQ reset answer (2026-11-04)
+- [ ] Trading-day clock: optional "Add the daily reset to my calendar" (.ics, recurring daily)
 - [ ] Show the planner's daily pace against the trader's real progress on the dashboard (needs verified evaluation data)
 
 ## Payouts (/payouts)
@@ -63,5 +65,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [ ] Learning certificates: hide rows that don't apply (passed/funded date, profit split) instead of showing "—"
 
 ## Dashboard (/dashboard/*)
+- [x] Trades: Breakeven filter (was missing), Buy/Sell and session filters, "Clear filters", sortable columns with screen-reader order, totals that follow the filters, wins/losses/average/largest row, filtered CSV export (2026-11-04)
+- [x] Trades: losing P/L showed as "$-80.00"; now "-$80.00" (2026-11-04)
+- [ ] Trades: show trade times in the trader's local time (currently raw timestamps)
+- [ ] Analytics: P/L by weekday and by hour of day from recorded trades
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile
 - [ ] Add tests covering public marketing pages render (Index, Challenges, Rules, Payouts)

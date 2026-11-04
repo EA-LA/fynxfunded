@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-04 16:30 UTC — [autopilot] A trading-day clock, and a much more useful Trades journal
+
+- New "Trading-day clock" on the Rules page: shows the time now in UTC and in your own time zone, a live countdown to the 22:00 UTC daily reset (and what time that is where you live), and a 24-hour bar showing where today is. https://www.fynxfunded.com/rules#trading-day
+- The clock lists the Asia / London / New York labels the dashboard uses for your trades, converted to your time, with a clear note that these are journal labels, not broker trading hours.
+- "Check a time": pick any date and time in your own time zone and see which daily-loss period it counts against and how long before the next reset.
+- The FAQ answer "When does the trading day reset?" now links straight to the clock. https://www.fynxfunded.com/faq#daily-reset
+- Dashboard Trades page (signed in): you can now filter by Breakeven results (the option was missing), by Buy/Sell and by session, clear all filters in one click, and sort by symbol, close time, lots, pips, P/L, risk or R:R by clicking the column title. https://www.fynxfunded.com/dashboard/trades
+- The totals at the top of Trades now follow your filters ("3 of 12 trades"), and a new row shows wins/losses/breakeven, average win, average loss and the largest win and loss. Exporting while filtered downloads just those trades.
+- Fixed: losing trades showed their P/L as "$-80.00"; they now read "-$80.00".
+
 ## 2026-11-04 12:35 UTC — [autopilot] A public "Verify a certificate" page, and easier-to-read legal pages
 - New page where anyone (an employer, a friend, a follower) can check that a FYNX Funded certificate is real: type the certificate ID or paste the link the trader shared, and the page shows whether it is valid and still active. https://www.fynxfunded.com/certificates/verify
 - Certificate pages now have the normal site menu and footer, a "Copy verification link" button, the time the status was checked, and a short explanation of what a verified certificate means.
