@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-11-04 06:35 UTC — Removed the "FYNX Ecosystem" list from the page footer
+## 2026-11-04 01:30 UTC — Removed the "FYNX Ecosystem" list from the page footer
 - At your request, the long "FYNX Ecosystem" list of links no longer appears at the bottom of every page (including the dashboard). The FYNX sites are still one tap away in the grid menu next to the logo at the top. https://www.fynxfunded.com/
 
 ## 2026-11-04 00:25 UTC — [autopilot] Home page planning tools, rules in dollars, and "add to calendar" for payouts
