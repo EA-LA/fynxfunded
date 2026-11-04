@@ -9,7 +9,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com https://s3.tradingview.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://ipapi.co https://api.ipify.org; frame-src https://*.firebaseapp.com https://*.stripe.com https://www.tradingview-widget.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com https://s3.tradingview.com https://www.google.com/recaptcha/ https://www.recaptcha.net/recaptcha/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com https://*.googleusercontent.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://ipapi.co https://api.ipify.org https://www.google.com/recaptcha/ https://www.recaptcha.net/recaptcha/; frame-src https://*.firebaseapp.com https://*.stripe.com https://www.tradingview-widget.com https://www.google.com/recaptcha/ https://www.recaptcha.net/recaptcha/ https://recaptcha.google.com/recaptcha/; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -127,9 +127,22 @@
           "value": "noindex, nofollow"
         }
       ]
+    },
+    {
+      "source": "/account",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/account",
+      "destination": "/index.html"
+    },
     {
       "source": "/",
       "destination": "/index.html"

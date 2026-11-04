@@ -10,19 +10,20 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
-  const { signUp, signInWithGoogle, signInWithApple } = useAuth();
+  const { signUp, signInWithGoogle, signInWithApple, sendEmailVerification } = useAuth();
 
   const handleProvider = async (provider: () => Promise<void>) => {
     if (submitting.current) return;
     submitting.current = true; setBusy(true); setError("");
     try { await provider(); }
     catch (err: any) {
-      if (err?.code === "auth/two-factor-required" || err?.code === "auth/email-not-verified") navigate(`/login${location.search}`, { state: { message: err.message } });
+      if (err?.code === "auth/two-factor-required" || err?.code === "auth/email-not-verified") navigate(`/login${location.search}`, { state: { message: err.message, code: err.code } });
       else setError(mapFirebaseError(err));
     } finally { submitting.current = false; setBusy(false); }
   };
@@ -46,11 +47,23 @@ export default function Signup() {
 
     submitting.current = true; setBusy(true);
     try {
-      await signUp(email.trim(), password, name.trim());
+      const normalizedEmail = email.trim().toLowerCase();
+      const result = await signUp(normalizedEmail, password, name.trim());
+      setEmail(normalizedEmail);
+      setVerificationSent(result.verificationEmailSent === true);
+      if (result.verificationEmailSent !== true) setError(result.verificationEmailError || "Your account was created, but the verification email could not be sent. Please try again.");
       setSignupSuccess(true);
     } catch (err: any) {
       setError(mapFirebaseError(err));
     } finally { submitting.current = false; setBusy(false); }
+  };
+
+  const resendVerification = async () => {
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true); setError("");
+    try { await sendEmailVerification(); setVerificationSent(true); }
+    catch (err) { setError(mapFirebaseError(err)); }
+    finally { submitting.current = false; setBusy(false); }
   };
 
   if (signupSuccess) {
@@ -62,10 +75,12 @@ export default function Signup() {
               FYNX<span className="text-muted-foreground font-light ml-1">Funded</span>
             </Link>
           </div>
-          <h2 className="text-lg font-semibold mb-2">Check your email</h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            We've sent a verification link to <strong>{email}</strong>. Please verify your email before logging in.
-          </p>
+          <h2 className="text-lg font-semibold mb-2">{verificationSent ? "Check your email" : "Your account is created"}</h2>
+          {verificationSent ? <p role="status" className="text-sm text-muted-foreground mb-6">
+            We've sent a verification link to <strong>{email}</strong>. Open the link, then log in.
+          </p> : <p className="text-sm text-muted-foreground mb-6">Verify <strong>{email}</strong> to finish setting up your account. You do not need to sign up again.</p>}
+          {error && <p role="alert" className="text-sm text-destructive mb-4">{error}</p>}
+          <button type="button" disabled={busy} onClick={resendVerification} className="block w-full mb-4 text-sm underline">{busy ? "Sending…" : verificationSent ? "Resend verification email" : "Send verification email"}</button>
           <Link to={`/login${location.search}`} className="text-sm text-foreground hover:underline">Go to Login</Link>
         </div>
       </div>
@@ -79,15 +94,18 @@ export default function Signup() {
           <Link to="/" className="text-2xl font-bold tracking-tight">
             FYNX<span className="text-muted-foreground font-light ml-1">Funded</span>
           </Link>
-          <p className="mt-2 text-sm text-muted-foreground">Create your account and start trading.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Create your FYNX account. New purchases and trading remain paused.</p>
         </div>
 
-        {error && <p className="text-sm text-destructive mb-4 text-center">{error}</p>}
+        {error && <p role="alert" className="text-sm text-destructive mb-4 text-center">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form aria-busy={busy} onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Full Name</label>
+            <label htmlFor="signup-name" className="text-xs font-medium text-muted-foreground block mb-1.5">Full Name</label>
             <input
+              id="signup-name"
+              name="name"
+              disabled={busy}
               type="text"
               autoComplete="name"
               value={name}
@@ -98,8 +116,13 @@ export default function Signup() {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
+            <label htmlFor="signup-email" className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
             <input
+              id="signup-email"
+              name="email"
+              disabled={busy}
+              autoCapitalize="none"
+              spellCheck={false}
               type="email"
               autoComplete="email"
               value={email}
@@ -110,9 +133,13 @@ export default function Signup() {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Password</label>
+            <label htmlFor="signup-password" className="text-xs font-medium text-muted-foreground block mb-1.5">Password</label>
             <div className="relative">
               <input
+                id="signup-password"
+                name="password"
+                disabled={busy}
+                aria-describedby="signup-password-hint"
                 type={showPw ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -123,12 +150,14 @@ export default function Signup() {
               />
               <button
                 type="button"
+                aria-label={showPw ? "Hide password" : "Show password"}
                 onClick={() => setShowPw(!showPw)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            <p id="signup-password-hint" className="mt-1 text-xs text-muted-foreground">Use at least 8 characters, including a symbol.</p>
           </div>
           <button
             type="submit"

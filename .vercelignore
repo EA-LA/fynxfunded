@@ -1,0 +1,7 @@
+.git
+.env*
+functions
+docs
+src/test
+output
+node_modules

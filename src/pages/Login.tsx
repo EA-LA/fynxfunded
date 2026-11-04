@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,9 +15,11 @@ export default function Login() {
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   const [verificationPending, setVerificationPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [redirectDismissed, setRedirectDismissed] = useState(false);
   const location = useLocation();
   const { signIn, signInWithGoogle, signInWithApple, signOut, sendEmailVerification } = useAuth();
 
@@ -27,12 +29,22 @@ export default function Login() {
   useEffect(() => {
     if (!auth) return;
     let active = true;
+    let generation = 0;
     const unsubscribe = onIdTokenChanged(auth, async (user) => {
-      if (!user?.emailVerified) return;
+      const turn = ++generation;
+      if (!user) {
+        setTwoFactorRequired(false); setTwoFactorCode(""); setVerificationPending(false);
+        return;
+      }
+      if (!user.emailVerified) {
+        setEmail(user.email || ""); setVerificationPending(true);
+        setTwoFactorRequired(false);
+        return;
+      }
       try {
         const status = await mfaStatus();
-        if (active && auth?.currentUser?.uid === user.uid && status.required && !status.verified) {
-          setEmail(user.email || ""); setPassword(""); setTwoFactorRequired(true);
+        if (active && turn === generation && auth?.currentUser?.uid === user.uid && status.required && !status.verified) {
+          setEmail(user.email || ""); setPassword(""); setTwoFactorRequired(true); setVerificationPending(false);
         }
       } catch { /* Sign-in actions display service errors. */ }
     });
@@ -41,7 +53,7 @@ export default function Login() {
 
   const showSignInError = (err: any) => {
     if (err?.code === "auth/two-factor-required") {
-      setTwoFactorRequired(true); setPassword("");
+      setTwoFactorRequired(true); setPassword(""); setVerificationPending(false);
       setError(err.message);
     } else {
       setVerificationPending(err?.code === "auth/email-not-verified");
@@ -49,40 +61,42 @@ export default function Login() {
     }
   };
   const handleProvider = async (provider: () => Promise<unknown>) => {
-    if (busy) return;
-    setBusy(true); setError("");
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true); setError(""); setNotice(""); setRedirectDismissed(true);
     try { await provider(); } catch (err) { showSignInError(err); }
-    finally { setBusy(false); }
+    finally { submitting.current = false; setBusy(false); }
   };
   const resendVerification = async () => {
-    if (busy) return;
-    setBusy(true); setError(""); setNotice("");
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true); setError(""); setNotice(""); setRedirectDismissed(true);
     try { await sendEmailVerification(); setNotice("Verification email sent. Open the link, then log in again."); }
     catch (err) { setError(mapFirebaseError(err)); }
-    finally { setBusy(false); }
+    finally { submitting.current = false; setBusy(false); }
   };
   const handleGoogle = () => handleProvider(signInWithGoogle);
   const handleApple = () => handleProvider(signInWithApple);
   const restartSignIn = async () => {
-    if (busy) return;
-    setBusy(true);
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true); setRedirectDismissed(true);
     try {
-      await signOut(); setTwoFactorRequired(false); setTwoFactorCode(""); setPassword(""); setError("");
+      await signOut(); setTwoFactorRequired(false); setTwoFactorCode(""); setPassword(""); setError(""); setNotice(""); setVerificationPending(false);
     } catch (err) { showSignInError(err); }
-    finally { setBusy(false); }
+    finally { submitting.current = false; setBusy(false); }
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy) return;
-    setBusy(true); setError("");
+    if (submitting.current) return;
+    submitting.current = true; setBusy(true); setError(""); setNotice(""); setRedirectDismissed(true);
     try {
-      await signIn(email, password, twoFactorRequired ? twoFactorCode : undefined);
+      const normalizedEmail = email.trim().toLowerCase();
+      setEmail(normalizedEmail);
+      await signIn(normalizedEmail, password, twoFactorRequired ? twoFactorCode.trim() : undefined);
       // AuthContext navigates after the verified session has been published.
     } catch (err) { showSignInError(err); }
-    finally { setTwoFactorCode(""); setBusy(false); }
+    finally { submitting.current = false; setTwoFactorCode(""); setBusy(false); }
   };
 
-  const displayError = error || redirectMessage;
+  const displayError = error || (!redirectDismissed ? redirectMessage : "");
 
   return (
     <div className="min-h-screen flex items-center justify-center dot-grid relative px-6">
@@ -99,23 +113,31 @@ export default function Login() {
         {notice && <p role="status" className="text-sm mb-4 text-center">{notice}</p>}
         {verificationPending && <button type="button" disabled={busy} onClick={resendVerification} className="w-full mb-4 text-sm underline">Resend verification email</button>}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form aria-busy={busy} onSubmit={handleSubmit} className="space-y-4">
           <div hidden={twoFactorRequired}>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
+            <label htmlFor="login-email" className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
             <input
+              id="login-email"
+              name="email"
+              disabled={busy}
+              autoCapitalize="none"
+              spellCheck={false}
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setVerificationPending(false); setNotice(""); }}
               className="w-full bg-card border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30 transition-shadow"
               placeholder="trader@example.com"
               required={!twoFactorRequired}
             />
           </div>
           <div hidden={twoFactorRequired}>
-            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Password</label>
+            <label htmlFor="login-password" className="text-xs font-medium text-muted-foreground block mb-1.5">Password</label>
             <div className="relative">
               <input
+                id="login-password"
+                name="password"
+                disabled={busy}
                 type={showPw ? "text" : "password"}
                 autoComplete="current-password"
                 value={password}
@@ -137,8 +159,14 @@ export default function Login() {
 
           {twoFactorRequired && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Authenticator or recovery code</label>
+              <label htmlFor="login-code" className="text-xs font-medium text-muted-foreground block mb-1.5">Authenticator or recovery code</label>
               <input
+                id="login-code"
+                name="one-time-code"
+                disabled={busy}
+                autoCapitalize="characters"
+                spellCheck={false}
+                autoFocus
                 autoComplete="one-time-code"
                 maxLength={19}
                 value={twoFactorCode}
