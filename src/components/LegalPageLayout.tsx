@@ -32,8 +32,8 @@ export default function LegalPageLayout({ title, lastUpdated, disclaimer, sectio
         </div>
 
         {/* Table of Contents */}
-        <nav className="mb-12 border border-border rounded-md p-5 bg-card animate-fade-up delay-100">
-          <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Table of Contents</h2>
+        <nav id="contents" aria-labelledby="contents-heading" className="mb-12 scroll-mt-24 border border-border rounded-md p-5 bg-card animate-fade-up delay-100">
+          <h2 id="contents-heading" className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Table of Contents</h2>
           <ol className="space-y-1.5">
             {sections.map((s, i) => (
               <li key={s.id}>
@@ -61,6 +61,9 @@ export default function LegalPageLayout({ title, lastUpdated, disclaimer, sectio
                 <div className="text-sm text-muted-foreground leading-relaxed space-y-3">
                   {s.content}
                 </div>
+                <a href="#contents" className="mt-4 inline-block text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                  ↑ Back to contents<span className="sr-only"> (from {s.title})</span>
+                </a>
               </section>
             ))}
           </div>

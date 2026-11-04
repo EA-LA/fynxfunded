@@ -163,6 +163,13 @@ export const faqItems: FaqItem[] = [
     link: { to: "/aml-kyc", label: "Read the AML/KYC policy" },
   },
   {
+    id: "certificate-verification",
+    topic: "account",
+    q: "How can someone check that my certificate is real?",
+    a: "Every certificate has a public ID (FYNX-CERT-… or FYNX-LEARN-…) and a verification link. Anyone can enter the ID on the certificate verification page to see whether it is valid and still active. Revoked certificates show as not verified.",
+    link: { to: "/certificates/verify", label: "Verify a certificate" },
+  },
+  {
     id: "simulated-accounts",
     topic: "account",
     q: "Is the account balance real money?",

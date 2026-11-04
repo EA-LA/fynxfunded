@@ -53,7 +53,14 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)
 - [x] Table of contents with anchor links and "last updated" date (already present; verified 2026-11-03)
-- [ ] "Back to contents" links after each section (the table of contents is not sticky, so scroll-highlighting adds little)
+- [x] "Back to contents" link after each section (2026-11-04)
+
+## Certificate verification (/certificates/verify)
+- [x] Public lookup page: enter an ID or paste a verification link; IDs are tidied (spaces, lower case, full links) (2026-11-04)
+- [x] Site header/footer, "Copy verification link", status-checked time, "Try again" when the lookup is unavailable, help when not found, "What a verified certificate tells you" (2026-11-04)
+- [x] Linked from the footer and a new FAQ answer (/faq#certificate-verification) (2026-11-04)
+- [ ] Add /certificates/verify to the search-engine page list (needs a static render route; check the Vercel rewrite first)
+- [ ] Learning certificates: hide rows that don't apply (passed/funded date, profit split) instead of showing "—"
 
 ## Dashboard (/dashboard/*)
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile

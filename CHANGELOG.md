@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-04 12:35 UTC — [autopilot] A public "Verify a certificate" page, and easier-to-read legal pages
+- New page where anyone (an employer, a friend, a follower) can check that a FYNX Funded certificate is real: type the certificate ID or paste the link the trader shared, and the page shows whether it is valid and still active. https://www.fynxfunded.com/certificates/verify
+- Certificate pages now have the normal site menu and footer, a "Copy verification link" button, the time the status was checked, and a short explanation of what a verified certificate means.
+- If a certificate isn't found, the page explains what to check and how to contact support. If the check can't run for a moment, there's a "Try again" button instead of a dead end.
+- "Verify a certificate" is linked from the footer of every page, and the FAQ has a new answer about it. https://www.fynxfunded.com/faq#certificate-verification
+- Terms, Privacy, Risk Disclosure and Refund Policy: every section now ends with a "Back to contents" link, so long legal pages are easier to move around, especially on phones. https://www.fynxfunded.com/terms
+
 ## 2026-11-04 08:25 UTC — [autopilot] Shareable risk plans, and the risk planner linked from more pages
 
 - The Risk and pace planner now has a "Copy a link to this plan" button. The link remembers the account size, program, phase, risk per trade, reward and number of days, so a trader can save a plan or send it to someone: https://www.fynxfunded.com/rules#risk-planner
