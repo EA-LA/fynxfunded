@@ -24,7 +24,9 @@ async function main() {
   if (!account) throw safeFailure('Firebase CLI authentication is unavailable.');
   const access = await oauth.getAccessToken(account.tokens.refresh_token, ['https://www.googleapis.com/auth/cloud-platform']);
   const app = admin.initializeApp({ projectId: project, credential: { getAccessToken: async () => ({ access_token: access.access_token, expires_in: 3600 }) } }, 'auth-repair-smoke-' + crypto.randomBytes(4).toString('hex'));
-  const auth = app.auth(), db = app.firestore();
+  const auth = app.auth();
+  const documentsUrl = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+  const adminHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${access.access_token}` };
   const nonce = crypto.randomBytes(12).toString('hex');
   const email = `fynx-auth-repair-${nonce}@example.invalid`;
   const password = crypto.randomBytes(32).toString('base64url') + '!Aa1';
@@ -82,23 +84,35 @@ async function main() {
     await assertOwnedUser(user);
     uid = user.uid;
     report.qaUID = uid;
-    const sessions = await db.collection('funded_mfa_sessions').where('uid', '==', uid).get();
-    for (const session of sessions.docs) {
-      const data = session.data();
-      if (data.uid !== uid || !/^[a-f0-9]{64}$/.test(session.id) || !Number.isFinite(data.expiresAt) || data.expiresAt < startedAt || data.expiresAt > Date.now() + 3_600_000) {
+    const sessions = await jsonRequest(`${documentsUrl}:runQuery`, {
+      method: 'POST', headers: adminHeaders,
+      body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'funded_mfa_sessions' }], where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: uid } } } } }),
+    });
+    if (!sessions.ok || !Array.isArray(sessions.body)) throw safeFailure('Could not inspect disposable MFA sessions for cleanup.');
+    const sessionDocuments = sessions.body.flatMap(item => item.document ? [item.document] : []);
+    for (const session of sessionDocuments) {
+      const sessionId = session.name.split('/').at(-1);
+      const expiresAt = Number(session.fields?.expiresAt?.integerValue ?? session.fields?.expiresAt?.doubleValue);
+      if (session.fields?.uid?.stringValue !== uid || !/^[a-f0-9]{64}$/.test(sessionId) || !Number.isFinite(expiresAt) || expiresAt < startedAt || expiresAt > Date.now() + 3_600_000) {
         throw safeFailure('Unexpected disposable MFA session; cleanup requires review.');
       }
     }
-    const references = [db.doc(`users/${uid}/security/settings`), db.doc(`users/${uid}`), db.doc(`funded_mfa_private/${uid}`), ...sessions.docs.map(doc => doc.ref)];
-    const batch = db.batch();
-    references.forEach(ref => batch.delete(ref));
-    await batch.commit();
+    const references = [`users/${uid}/security/settings`, `users/${uid}`, `funded_mfa_private/${uid}`, ...sessionDocuments.map(doc => `funded_mfa_sessions/${doc.name.split('/').at(-1)}`)];
+    let deletedDocuments = 0;
+    for (const reference of references) {
+      const existing = await jsonRequest(`${documentsUrl}/${reference}`, { headers: adminHeaders });
+      if (existing.status === 404) continue;
+      if (!existing.ok || !existing.body.updateTime) throw safeFailure('Could not inspect disposable document for cleanup.');
+      const removed = await jsonRequest(`${documentsUrl}/${reference}?currentDocument.updateTime=${encodeURIComponent(existing.body.updateTime)}`, { method: 'DELETE', headers: adminHeaders });
+      if (!removed.ok) throw safeFailure('Disposable document changed during cleanup; stopped.');
+      deletedDocuments++;
+    }
     await auth.deleteUser(uid);
     let absent = false;
     try { await auth.getUser(uid); } catch (error) { if (error.code === 'auth/user-not-found') absent = true; else throw error; }
-    const remaining = await Promise.all(references.map(ref => ref.get()));
-    report.cleanedUp = absent && remaining.every(snapshot => !snapshot.exists);
-    report.cleanupDeletedTaskDocuments = references.length;
+    const remaining = await Promise.all(references.map(reference => jsonRequest(`${documentsUrl}/${reference}`, { headers: adminHeaders })));
+    report.cleanedUp = absent && remaining.every(result => result.status === 404);
+    report.cleanupDeletedTaskDocuments = deletedDocuments;
     if (!report.cleanedUp) throw safeFailure('Disposable identity cleanup could not be verified.');
   }
   try {
