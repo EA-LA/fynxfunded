@@ -77,3 +77,44 @@ export function formatRange(start: Date, end: Date) {
 
 /** "Nov 18" style day. */
 export const formatDay = (date: Date) => monthDay.format(date);
+
+const icsDate = (date: Date) =>
+  `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}`;
+
+const nextDay = (date: Date) => new Date(date.getTime() + DAY_MS);
+
+/** Escapes iCalendar TEXT values (RFC 5545 §3.3.11). */
+const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+
+/**
+ * Folds long content lines (RFC 5545 §3.1 allows 75 octets). Folding at 60
+ * characters keeps lines under the limit even with multi-byte dashes.
+ */
+function fold(line: string): string {
+  if (line.length <= 60) return line;
+  const parts = [line.slice(0, 60)];
+  for (let i = 60; i < line.length; i += 59) parts.push(` ${line.slice(i, i + 59)}`);
+  return parts.join("\r\n");
+}
+
+/**
+ * Builds an iCalendar (.ics) file with all-day reminders for the given request
+ * windows so traders can add them to Google, Apple or Outlook calendars.
+ * `stamp` is the creation time written into DTSTAMP.
+ */
+export function payoutWindowsIcs(windows: PayoutWindow[], stamp: Date): string {
+  const dtstamp = `${icsDate(stamp)}T${String(stamp.getUTCHours()).padStart(2, "0")}${String(stamp.getUTCMinutes()).padStart(2, "0")}00Z`;
+  const events = windows.flatMap((w) => [
+    "BEGIN:VEVENT",
+    `UID:fynx-payout-request-${icsDate(w.requestStart)}@fynxfunded.com`,
+    `DTSTAMP:${dtstamp}`,
+    `DTSTART;VALUE=DATE:${icsDate(w.requestStart)}`,
+    // All-day DTEND is exclusive, so it is the day after the last request day.
+    `DTEND;VALUE=DATE:${icsDate(nextDay(w.requestEnd))}`,
+    `SUMMARY:${icsText(`FYNX Funded payout request window (${formatRange(w.requestStart, w.requestEnd)})`)}`,
+    `DESCRIPTION:${icsText(`Request window for eligible funded accounts. Approved requests are scheduled for ${formatRange(w.payoutStart, w.payoutEnd)} (UTC). Eligibility and the final payment date are confirmed when your request is reviewed. https://www.fynxfunded.com/payouts#calendar`)}`,
+    "TRANSP:TRANSPARENT",
+    "END:VEVENT",
+  ]);
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//FYNX Funded//Payout calendar//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", ...events, "END:VCALENDAR"].map(fold).join("\r\n") + "\r\n";
+}

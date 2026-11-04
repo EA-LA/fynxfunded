@@ -120,4 +120,19 @@ describe("scroll manager", () => {
     expect(scrollTo).toHaveBeenCalledWith(0, 0);
     vi.unstubAllGlobals();
   });
+
+  it("jumps to the #section when a shared link is opened directly", () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <MemoryRouter initialEntries={["/payouts#calendar"]}>
+        <ScrollManager />
+        <section id="calendar">calendar</section>
+      </MemoryRouter>,
+    );
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById("calendar"));
+    Element.prototype.scrollIntoView = original;
+  });
 });

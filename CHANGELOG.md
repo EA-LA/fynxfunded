@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-04 00:25 UTC — [autopilot] Home page planning tools, rules in dollars, and "add to calendar" for payouts
+- Home page plan cards now show the real numbers for each account: the phase 1 profit target, the daily and maximum loss allowance in dollars and the minimum trading days, with a "See these rules in dollars" link that opens the rules calculator already set to that plan. https://www.fynxfunded.com/
+- New home page section "Know Your Numbers Before You Start" with one-click links to the rules calculator, the side-by-side program comparison and the payout estimator, plus the live next payout window. https://www.fynxfunded.com/#tools
+- The home page FAQ now shows five of the most-asked questions from the full FAQ, each with a "Read in the full FAQ" link that opens that exact answer.
+- Payouts page: new "Add both windows to my calendar" button downloads the next two payout request windows for Google, Apple or Outlook calendars. https://www.fynxfunded.com/payouts#calendar
+- Fixed: opening a shared link to a section (for example https://www.fynxfunded.com/payouts#calendar or a FAQ answer link) used to leave you at the top of the page; it now jumps straight to that section.
+
 ## 2026-11-03 20:30 UTC — [autopilot] A much fuller FAQ and a live "next payout window"
 - FAQ now has 21 questions sorted into four topics (Getting started, Rules & limits, Payouts, Account & purchases) with topic buttons next to the search box. New answers cover the 22:00 UTC daily reset, how the daily and maximum loss floors are worked out, the 40% consistency rule, profit targets, minimum trading days, profit split, payout requirements and windows, and identity checks, each with a worked dollar example taken from the published rules. https://www.fynxfunded.com/faq
 - Every question can be shared with its own link (for example https://www.fynxfunded.com/faq#daily-reset opens that answer) and has a "next step" link to the right calculator or page.
