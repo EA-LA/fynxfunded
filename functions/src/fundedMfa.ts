@@ -1,3 +1,4 @@
+import { requirePrivateFundedOwner } from "./privateFundedOwner";
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -20,7 +21,10 @@ function auth(request: Pick<CallableRequest, "auth">) {
 async function assertActiveUser(identity: NonNullable<CallableRequest["auth"]>) {
   const firebaseUser = await admin.auth().getUser(identity.uid);
   const validAfter = Date.parse(firebaseUser.tokensValidAfterTime ?? "") / 1000;
-  if (firebaseUser.disabled || (Number.isFinite(validAfter) && Number(identity.token.auth_time) < validAfter)) {
+  const authTime = Number(identity.token.auth_time);
+  if (firebaseUser.uid !== identity.uid || firebaseUser.disabled || firebaseUser.emailVerified !== true ||
+      !Number.isFinite(authTime) || authTime <= 0 || authTime > Date.now() / 1000 + 30 ||
+      (Number.isFinite(validAfter) && authTime < validAfter)) {
     throw new HttpsError("unauthenticated", "Sign in again to continue.");
   }
 }
@@ -53,9 +57,16 @@ async function validSession(request: Pick<CallableRequest, "auth">, state: Facto
 }
 /** Call before protected Admin-SDK customer operations: Admin SDK bypasses Firestore rules. */
 export async function requireFundedMfa(request: Pick<CallableRequest, "auth">): Promise<void> {
+  await requirePrivateFundedOwner(request);
   const identity = auth(request);
   const rollout = await admin.firestore().doc("funded_mfa_rollout/current").get();
-  if (!mfaRolloutEnabled(rollout.data(), identity.uid)) return; // Existing behavior until coordinated activation.
+  if (!mfaRolloutEnabled(rollout.data(), identity.uid)) {
+    const db = admin.firestore();
+    const [factor, profile, security] = await Promise.all([db.doc(`funded_mfa_private/${identity.uid}`).get(), db.doc(`users/${identity.uid}`).get(), db.doc(`users/${identity.uid}/security/settings`).get()]);
+    const required = factor.exists ? factor.data()?.enabled !== false : profile.data()?.twoFactorEnabled === true || security.data()?.twoFactorEnabled === true;
+    if (required) throw new HttpsError("failed-precondition", "Two-factor verification must be activated before private access.");
+    return;
+  }
 
   await assertActiveUser(identity);
   const state = await stateFor(identity.uid);
@@ -87,6 +98,9 @@ async function issueSession(uid: string, state: FactorState): Promise<{ customTo
 }
 
 export const fundedMfa = onCall({ region: "us-central1", maxInstances: 10 }, async request => {
+  // Account authentication and MFA are available to customers. Private Funded
+  // authorization remains enforced separately by requireFundedMfa on every
+  // protected Funded operation; a successful status/verify grants no owner role.
   const identity = auth(request);
   await assertActiveUser(identity);
   // Logout revokes only the caller's session-local proof, including during a paused rollout.

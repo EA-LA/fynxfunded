@@ -5,14 +5,14 @@
 import { authDestinationFromSearch } from "@/lib/auth-destination";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { authService } from "@/services/auth";
-import { isOwnerAdminEmail } from "@/lib/admin";
+import { authService, type SignupResult } from "@/services/auth";
+import { mapFirebaseError } from "@/lib/auth-error-map";
 import type { User } from "@/services/types";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string) => Promise<SignupResult>;
   signIn: (email: string, password: string, twoFactorCode?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -25,7 +25,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const AUTH_PAGES = ["/login", "/signup", "/reset-password"];
+const AUTH_PAGES = ["/login", "/signup"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -39,8 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.handleRedirectResult().then((redirectUser) => {
       if (!cancelled && redirectUser) {
         setUser(redirectUser);
-        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(redirectUser.email) ? "/admin" : "/dashboard"), { replace: true });
+        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : "/account"), { replace: true });
       }
+    }).catch((error) => {
+      if (!cancelled) navigate("/login", { replace: true, state: { message: mapFirebaseError(error) } });
     });
     return () => { cancelled = true; };
   }, [navigate]);
@@ -57,14 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading && user) {
       const path = location.pathname;
-      if (AUTH_PAGES.some((p) => path.includes(p))) {
-        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : isOwnerAdminEmail(user.email) ? "/admin" : "/dashboard"), { replace: true });
+      if (AUTH_PAGES.includes(path)) {
+        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : "/account"), { replace: true });
       }
     }
   }, [loading, user, location.pathname, location.search, navigate]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    await authService.signUp(email, password, fullName);
+    return authService.signUp(email, password, fullName);
   };
 
   const signIn = async (email: string, password: string, twoFactorCode?: string) => {

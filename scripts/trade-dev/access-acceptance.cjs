@@ -12,7 +12,9 @@ const { createHmac } = require('node:crypto');
 const { deliverAccessEmail, MailRejected } = require('../../functions/lib/tradeAccess/mail');
 const { build } = require('../../functions/lib/purchasedAgreement'), { VERSION } = require('../../functions/lib/fundedPolicy');
 const { documentHash, recordLegalAcceptance } = require('../../functions/lib/fundedLegal');
+const { FUNDED_OWNER_EMAIL } = require('../../functions/lib/privateFundedPolicy');
 const db = admin.firestore(), checks = [], suffix = Date.now(), password = 'LocalAccess!123';
+let fixtureOwnerUid;
 async function check(label, fn) { await fn(); checks.push(label); console.log('PASS', label); }
 async function call(token, data) { const r = await fetch('http://127.0.0.1:5009/demo-fynx-trade/us-central1/fundedTradeAccess', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ data }), signal: AbortSignal.timeout(20000) }); return { status: r.status, body: await r.json() }; }
 async function login(email) { const r = await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=development-only', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, returnSecureToken: true }), signal: AbortSignal.timeout(20000) }); return (await r.json()).idToken; }
@@ -33,7 +35,13 @@ async function fixture(uid, channel, tag) {
   return { id, eventId, fulfill: () => fulfillNativePayment(intent, eventId) };
 }
 (async () => {
-  const email = `access-${suffix}@example.invalid`, user = await admin.auth().createUser({ email, password, emailVerified: true }), uid = user.uid, token = await login(email);
+  // Private account access is exercised as the configured owner in this demo
+  // project only. Ordinary customer authentication never grants this role.
+  const email = FUNDED_OWNER_EMAIL, user = await admin.auth().createUser({ email, password, emailVerified: true }), uid = user.uid;
+  fixtureOwnerUid = uid;
+  await admin.auth().setCustomUserClaims(uid, { fundedOwner: true });
+  await db.doc('funded_private_access/current').set({ enabled: true, ownerUID: uid });
+  const token = await login(email);
   const web = await fixture(uid, 'web', 'web'), native = await fixture(uid, 'ios', 'native');
   await check('Pending payment cannot create account access', async () => { assert.equal((await provisionTradeAccess(db, web.id)).created, false); assert.equal((await db.doc(`accounts/${tradeAccountId(web.id)}`).get()).exists, false); });
   await check('Verified web payment provisions one account and one email under concurrent retries', async () => {
@@ -42,7 +50,7 @@ async function fixture(uid, channel, tag) {
   });
   await check('Native payment uses the same account provisioning and email queue', async () => { await native.fulfill(); assert.equal((await provisionTradeAccess(db, native.id)).created, true); assert.equal((await db.doc(`trade_access_mail/ready_${tradeAccountId(native.id)}`).get()).data().status, 'pending'); });
   const accountId = tradeAccountId(web.id), jobId = `ready_${accountId}`, jobRef = db.doc(`trade_access_mail/${jobId}`);
-  await check('Existing verified FYNX login lists and activates its purchased account idempotently', async () => {
+  await check('Configured private owner lists and activates its purchased account idempotently', async () => {
     const list = await call(token, { action: 'list' }); assert.equal(list.status, 200); assert.equal(list.body.result.accounts.length, 2);
     const results = await Promise.all([call(token, { action: 'open', accountId }), call(token, { action: 'open', accountId })]); for (const r of results) { assert.equal(r.status, 200); assert.equal(r.body.result.activationStatus, 'active'); assert.equal(r.body.result.tradingEnabled, false); }
   });
@@ -58,7 +66,8 @@ async function fixture(uid, channel, tag) {
     assert.equal((await call('', { action: 'list' })).status, 401);
     const otherEmail = `other-access-${suffix}@example.invalid`; await admin.auth().createUser({ email: otherEmail, password, emailVerified: false }); const unverified = await login(otherEmail);
     assert.equal((await call(unverified, { action: 'list' })).status, 401); const other = await admin.auth().getUserByEmail(otherEmail); await admin.auth().updateUser(other.uid, { emailVerified: true });
-    assert.equal((await call(await login(otherEmail), { action: 'open', accountId })).status, 404);
+    const ordinary = await call(await login(otherEmail), { action: 'open', accountId });
+    assert.equal(ordinary.status, 403); assert.equal(ordinary.body.error.status, 'PERMISSION_DENIED');
   });
   await check('Trading commands and client account mutations are rejected', async () => {
     assert.equal((await call(token, { action: 'place', accountId, balance: 999999, tradingEnabled: true })).status, 400);
@@ -125,5 +134,16 @@ async function fixture(uid, channel, tag) {
     assert.equal((await db.doc(`trade_access_mail/activated_${racingAccount}`).get()).data().status, 'blocked');
   });
   fs.mkdirSync('docs/trade-engine-2026-10-20', { recursive: true }); fs.writeFileSync('docs/trade-engine-2026-10-20/access-acceptance.json', JSON.stringify({ checkedAt: new Date().toISOString(), environment: 'demo-fynx-trade', checks, count: checks.length, externalDelivery: false }, null, 2) + '\n');
-  await admin.app().delete();
-})().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => { setTimeout(() => process.exit(process.exitCode || 0), 200).unref(); });
+})().catch(e => { console.error(e); process.exitCode = 1; }).finally(async () => {
+  // The fixed owner email must be available on the next local run, including
+  // when an assertion fails. Only this run's demo identity/config are removed.
+  try {
+    if (fixtureOwnerUid) {
+      await admin.auth().deleteUser(fixtureOwnerUid);
+      const ref = db.doc('funded_private_access/current');
+      await db.runTransaction(async tx => { if ((await tx.get(ref)).data()?.ownerUID === fixtureOwnerUid) tx.delete(ref); });
+    }
+    await admin.app().delete();
+  } catch (error) { console.error(error); process.exitCode = 1; }
+  setTimeout(() => process.exit(process.exitCode || 0), 200).unref();
+});

@@ -1,4 +1,6 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+import fundedAppCheck from "@/config/funded-appcheck.json";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions, type Functions } from "firebase/functions";
@@ -33,6 +35,8 @@ let functions: Functions | null = null;
 
 if (isFirebaseConfigured) {
   app = initializeApp(firebaseConfig);
+  const appCheckKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY || (firebaseConfig.appId === fundedAppCheck.appId ? fundedAppCheck.siteKey : "");
+  if (appCheckKey && import.meta.env.PROD) initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(appCheckKey), isTokenAutoRefreshEnabled: true });
   auth = getAuth(app);
   db = getFirestore(app);
   functions = getFunctions(app);

@@ -30,8 +30,10 @@ import { recordLoginSession } from "@/services/session-tracker";
 import { mfaCall, mfaStatus, verifySignInTwoFactor } from "@/services/security";
 import type { User } from "./types";
 
+export type SignupResult = User & { verificationEmailSent?: boolean; verificationEmailError?: string };
+
 export interface AuthService {
-  signUp(email: string, password: string, fullName: string): Promise<User>;
+  signUp(email: string, password: string, fullName: string): Promise<SignupResult>;
   signIn(email: string, password: string, twoFactorCode?: string): Promise<User>;
   signInWithGoogle(): Promise<User>;
   signInWithApple(): Promise<User>;
@@ -143,6 +145,12 @@ async function requireVerifiedSession() {
   return status;
 }
 
+function assertSameUser(uid: string) {
+  if (firebaseAuth?.currentUser?.uid !== uid) {
+    throw Object.assign(new Error("Your account changed. Please sign in again."), { code: "auth/session-changed" });
+  }
+}
+
 const REDIRECT_FALLBACK_ERRORS = new Set([
   "auth/popup-blocked",
   "auth/operation-not-supported-in-this-environment",
@@ -196,7 +204,9 @@ class FirebaseAuthService implements AuthService {
     fbUser: import("firebase/auth").User,
     provider: string,
   ): Promise<User> {
+    if (!fbUser.emailVerified) throw Object.assign(new Error("Please verify your email before logging in."), { code: "auth/email-not-verified" });
     await requireVerifiedSession();
+    assertSameUser(fbUser.uid);
     await createOrUpdateFirestoreUser(fbUser.uid, {
       email: fbUser.email || "",
       displayName: fbUser.displayName || "Trader",
@@ -204,6 +214,7 @@ class FirebaseAuthService implements AuthService {
     });
 
     const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
+    assertSameUser(fbUser.uid);
     this.currentUser = user;
     recordLoginSession(user.userId).catch(console.error);
     return user;
@@ -227,31 +238,42 @@ class FirebaseAuthService implements AuthService {
     }
   }
 
-  async signUp(email: string, password: string, fullName: string): Promise<User> {
+  async signUp(email: string, password: string, fullName: string): Promise<SignupResult> {
     const auth = this.getAuth();
-    const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const normalizedEmail = email.trim().toLowerCase();
+    const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+    this.currentUser = null;
+    // Creating the identity has succeeded. Optional profile/mail failures must
+    // never send this person back through account creation or mask a retry.
+    try { await updateProfile(cred.user, { displayName: fullName.trim() }); } catch { /* Repair profile at the next verified sign-in. */ }
+    assertSameUser(cred.user.uid);
+    let verificationEmailSent = true;
     try {
-      await updateProfile(cred.user, { displayName: fullName.trim() });
       await firebaseSendEmailVerification(cred.user);
-      // Profile metadata can be repaired after verified sign-in. A transient
-      // Firestore failure must not tell an already-created user to register again.
-      try {
-        await createOrUpdateFirestoreUser(cred.user.uid, {
-          email: cred.user.email || email.trim(), displayName: fullName.trim(), provider: "email",
-        });
-      } catch { /* Repaired by verified sign-in. */ }
-      return firebaseUserToUser(cred.user);
     } catch {
-      throw Object.assign(new Error("Your account was created, but the verification email could not be sent. Log in to resend it."), { code: "auth/verification-email-failed" });
-    } finally {
-      if (auth.currentUser?.uid === cred.user.uid) await firebaseSignOut(auth);
-      this.currentUser = null;
+      verificationEmailSent = false;
     }
+    assertSameUser(cred.user.uid);
+    try {
+      await createOrUpdateFirestoreUser(cred.user.uid, {
+        email: cred.user.email || normalizedEmail, displayName: fullName.trim(), provider: "email",
+      });
+    } catch { /* Repaired by verified sign-in. */ }
+    assertSameUser(cred.user.uid);
+    // Retain only the unverified Firebase identity for explicit resend. The
+    // app's auth listener and protected routes never accept it as signed in.
+    return { ...firebaseUserToUser(cred.user), verificationEmailSent,
+      ...(!verificationEmailSent ? { verificationEmailError: "Your account was created, but the verification email could not be sent. Please try sending it again." } : {}) };
   }
 
   async signIn(email: string, password: string, twoFactorCode?: string): Promise<User> {
     let fbUser = this.getAuth().currentUser;
-    if (!twoFactorCode || !fbUser) fbUser = (await signInWithEmailAndPassword(this.getAuth(), email.trim(), password)).user;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (twoFactorCode && (!fbUser || fbUser.email?.toLowerCase() !== normalizedEmail)) {
+      throw Object.assign(new Error("Your sign-in session changed. Restart sign-in to continue."), { code: "auth/session-changed" });
+    }
+    if (!twoFactorCode) fbUser = (await signInWithEmailAndPassword(this.getAuth(), normalizedEmail, password)).user;
+    if (!fbUser) throw new Error("Sign in again to continue.");
     if (!fbUser.emailVerified) {
       // Keep only the first-factor Firebase session so the user can explicitly
       // resend verification. onAuthStateChange never publishes unverified users.
@@ -259,10 +281,13 @@ class FirebaseAuthService implements AuthService {
     }
     if (twoFactorCode) await verifySignInTwoFactor(fbUser.uid, twoFactorCode);
     await requireVerifiedSession();
+    assertSameUser(fbUser.uid);
     await createOrUpdateFirestoreUser(fbUser.uid, {
       email: fbUser.email || email.trim(), displayName: fbUser.displayName || "Trader", provider: getProviderType(fbUser),
     });
+    assertSameUser(fbUser.uid);
     const user = await this.hydrateFromFirestore(firebaseUserToUser(this.getAuth().currentUser!));
+    assertSameUser(fbUser.uid);
     this.currentUser = user;
     recordLoginSession(user.userId).catch(console.error);
     return user;
@@ -289,7 +314,6 @@ class FirebaseAuthService implements AuthService {
   }
 
   async handleRedirectResult(): Promise<User | null> {
-    try {
       const result = await getRedirectResult(this.getAuth());
       if (result?.user) {
         const providerId = result.providerId || "oauth";
@@ -298,9 +322,6 @@ class FirebaseAuthService implements AuthService {
         sessionStorage.removeItem("fynx_oauth_pending");
         return await this.finishOAuthSignIn(result.user, providerName);
       }
-    } catch (err) {
-      console.error("[AuthService] Redirect result error:", err);
-    }
     return null;
   }
 
@@ -315,8 +336,8 @@ class FirebaseAuthService implements AuthService {
   }
 
   async resetPassword(email: string): Promise<void> {
-    await sendPasswordResetEmail(this.getAuth(), email, {
-      url: window.location.origin + (import.meta.env.BASE_URL || "/") + "reset-password",
+    await sendPasswordResetEmail(this.getAuth(), email.trim().toLowerCase(), {
+      url: window.location.origin + (import.meta.env.BASE_URL || "/") + "login",
     });
   }
 
@@ -370,8 +391,12 @@ class FirebaseAuthService implements AuthService {
     const fbUser = this.getAuth().currentUser;
     if (!fbUser) return null;
     await fbUser.reload();
+    assertSameUser(fbUser.uid);
+    if (!fbUser.emailVerified) throw Object.assign(new Error("Please verify your email before logging in."), { code: "auth/email-not-verified" });
+    await fbUser.getIdToken(true);
     await requireVerifiedSession();
     const user = await this.hydrateFromFirestore(firebaseUserToUser(fbUser));
+    assertSameUser(fbUser.uid);
     this.currentUser = user;
     return user;
   }

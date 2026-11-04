@@ -13,12 +13,13 @@ const db = {
 };
 const firestore=()=>db;firestore.FieldValue={delete:()=>REMOVE,serverTimestamp:()=>Date.now()};firestore.Timestamp={fromMillis:n=>n};
 let disabled=false,revoked=false;
-const mock={firestore,auth:()=>({getUser:async()=>({disabled,tokensValidAfterTime:revoked ? new Date(Date.now()+60000).toISOString() : '1970-01-01T00:00:00Z'}),createCustomToken:async(uid,claims)=>{minted.push({uid,claims});return 'test-only-token'}})};
+const mock={firestore,auth:()=>({getUser:async uid=>({uid,email:uid==='owner'?'fynxteam5@gmail.com':'alice@example.invalid',emailVerified:true,disabled,providerData:[{providerId:'password'}],customClaims:uid==='owner'?{fundedOwner:true}:{},tokensValidAfterTime:revoked ? new Date(Date.now()+60000).toISOString() : '1970-01-01T00:00:00Z'}),createCustomToken:async(uid,claims)=>{minted.push({uid,claims});return 'test-only-token'}})};
 require.cache[adminPath]={id:adminPath,filename:adminPath,loaded:true,exports:mock};
 const {fundedMfa,requireFundedMfa,mfaRolloutEnabled}=require(root+'/lib/fundedMfa.js');
 const {totp,codeHash}=require(root+'/lib/mfaPolicy.js');
 const secret='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 const req=(action,extra={},token={})=>({auth:{uid:'alice',token:{email_verified:true,email:'alice@example.invalid',auth_time:Math.floor(Date.now()/1000),...token}},data:{action,...extra}});
+const ownerReq=(action,extra={},token={})=>({auth:{uid:'owner',token:{email_verified:true,email:'fynxteam5@gmail.com',fundedOwner:true,firebase:{sign_in_provider:'password'},auth_time:Math.floor(Date.now()/1000),...token}},data:{action,...extra}});
 const call=(action,extra,token)=>fundedMfa.run(req(action,extra,token));
 const rejects=async(fn,code)=>assert.rejects(fn,e=>e.code===code);
 let passed=0;async function test(name,fn){await fn();console.log('PASS',name);passed++}
@@ -33,7 +34,7 @@ let passed=0;async function test(name,fn){await fn();console.log('PASS',name);pa
  await test('Protected Admin SDK operation rejects first-factor session',()=>rejects(()=>requireFundedMfa(req('status')),'permission-denied'));
  await test('Wrong code increments persisted failures',async()=>{await rejects(()=>call('verify',{code:'invalid'}),'permission-denied');assert.equal(docs.get('funded_mfa_private/alice').failures,1)});
  let claim;
- await test('Authenticator issues session-local proof and unlocks server gate',async()=>{const s=await call('verify',{code:totp(secret,Math.floor(Date.now()/30000))});assert.equal(s.customToken,'test-only-token');claim=minted.at(-1).claims;assert.match(claim.funded_mfa,/^[a-f0-9]{64}$/);const status=await call('status',{},claim);assert.equal(status.verified,true);assert.ok(status.expiresAt>Date.now());await requireFundedMfa(req('status',{},claim))});
+ await test('Authenticator authenticates customer without granting private Funded access',async()=>{const s=await call('verify',{code:totp(secret,Math.floor(Date.now()/30000))});assert.equal(s.customToken,'test-only-token');claim=minted.at(-1).claims;assert.match(claim.funded_mfa,/^[a-f0-9]{64}$/);assert.deepEqual(Object.keys(claim),['funded_mfa']);const status=await call('status',{},claim);assert.equal(status.verified,true);assert.ok(status.expiresAt>Date.now());await rejects(()=>requireFundedMfa(req('status',{},claim)),'permission-denied')});
  await test('Authenticator replay denied',()=>rejects(()=>call('verify',{code:totp(secret,Math.floor(Date.now()/30000))}),'permission-denied'));
  await test('Concurrent recovery submissions succeed once',async()=>{const r=await Promise.allSettled([call('verify',{code:'AAAA-BBBB-CCCC-DDDD'}),call('verify',{code:'AAAA-BBBB-CCCC-DDDD'})]);assert.equal(r.filter(x=>x.status==='fulfilled').length,1)});
  await test('Old first-factor and revoked sessions denied',async()=>{await rejects(()=>call('verify',{code:'invalid'},{auth_time:1}),'unauthenticated');revoked=true;await rejects(()=>call('status'),'unauthenticated');revoked=false;disabled=true;await rejects(()=>call('status'),'unauthenticated');disabled=false});
@@ -42,5 +43,6 @@ let passed=0;async function test(name,fn){await fn();console.log('PASS',name);pa
  await test('Disable requires proof and invalidates version',async()=>{await rejects(()=>call('disable'),'permission-denied');const before=docs.get('funded_mfa_private/alice').version;await call('disable',{},claim);assert.equal(docs.get('funded_mfa_private/alice').enabled,false);assert.notEqual(docs.get('funded_mfa_private/alice').version,before)});
  await test('Enrollment checks server-held seed, mirrors only metadata',async()=>{const setup=await call('enrollStart');assert.ok(setup.secret);await rejects(()=>call('enrollConfirm',{code:'wrong'}),'permission-denied');await call('enrollConfirm',{code:totp(setup.secret,Math.floor(Date.now()/30000))});assert.equal(docs.get('funded_mfa_private/alice').enabled,true);assert.equal(docs.get('funded_mfa_private/alice').pendingSecret,undefined);assert.equal(docs.get('users/alice/security/settings').twoFactorEnabled,true);assert.equal((await call('status',{},claim)).verified,false)});
  await test('Logout revokes only the presented proof',async()=>{const latest=minted.at(-1).claims;assert.equal((await call('status',{},latest)).verified,true);await call('logout',{},latest);assert.equal((await call('status',{},latest)).verified,false)});
+ await test('Configured private owner still needs MFA before protected Funded operations',async()=>{docs.set('funded_private_access/current',{enabled:true,ownerUID:'owner'});docs.set('funded_mfa_private/owner',{enabled:true,version:'owner-factor',secret,recoveryHashes:[],lastCounter:-1});await rejects(()=>requireFundedMfa(ownerReq('status')),'permission-denied');await fundedMfa.run(ownerReq('verify',{code:totp(secret,Math.floor(Date.now()/30000))}));const ownerClaim=minted.at(-1).claims;await requireFundedMfa(ownerReq('status',{}, {...ownerClaim,firebase:{sign_in_provider:'custom'}}));await rejects(()=>requireFundedMfa(req('status',{},ownerClaim)),'permission-denied')});
  console.log(`${passed} callable integration checks passed (mocked database/auth).`);
 })().catch(e=>{console.error(e);process.exitCode=1});

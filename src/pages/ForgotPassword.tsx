@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { mapFirebaseError } from "@/lib/auth-error-map";
 
 export default function ForgotPassword() {
+  const submitting = useRef(false);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -13,14 +14,19 @@ export default function ForgotPassword() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setError("");
     setLoading(true);
     try {
-      await resetPassword(email);
+      const normalizedEmail = email.trim().toLowerCase();
+      await resetPassword(normalizedEmail);
+      setEmail(normalizedEmail);
       setSent(true);
     } catch (err: any) {
       setError(mapFirebaseError(err));
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
@@ -42,8 +48,8 @@ export default function ForgotPassword() {
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mx-auto">
               <CheckCircle2 size={32} className="text-foreground" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              We've sent a password reset link to <span className="text-foreground font-medium">{email}</span>. Please check your inbox.
+            <p role="status" className="text-sm text-muted-foreground">
+              If an account uses <span className="text-foreground font-medium">{email}</span>, a password reset link will arrive shortly. Check your inbox and spam folder.
             </p>
             <Link
               to="/login"
@@ -55,14 +61,20 @@ export default function ForgotPassword() {
         ) : (
           <>
             {error && (
-              <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+              <div role="alert" className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-destructive">
                 {error}
               </div>
             )}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form aria-busy={loading} onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
+                <label htmlFor="reset-email" className="text-xs font-medium text-muted-foreground block mb-1.5">Email</label>
                 <input
+                  id="reset-email"
+                  name="email"
+                  disabled={loading}
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

@@ -13,6 +13,7 @@ describe("authenticated session hydration", () => {
     let resolve: (value: unknown) => void = () => {};
     fake.profile.mockReturnValue(new Promise(done => { resolve = done; })); const callback = vi.fn(); const stop = authService.onAuthStateChange(callback);
     fake.auth.currentUser = user("a"); const pending = fake.listener(fake.auth.currentUser);
+    await vi.waitFor(() => expect(fake.profile).toHaveBeenCalledOnce());
     fake.auth.currentUser = null; await fake.listener(null); resolve({ exists: () => false }); await pending;
     expect(callback).toHaveBeenLastCalledWith(null); expect(callback.mock.calls.some(([value]) => value?.userId === "a")).toBe(false); stop();
   });
@@ -20,7 +21,7 @@ describe("authenticated session hydration", () => {
     const callback = vi.fn(); const stop = authService.onAuthStateChange(callback);
     fake.auth.currentUser = user("a", false); await fake.listener(fake.auth.currentUser); expect(callback).toHaveBeenLastCalledWith(null); expect(fake.profile).not.toHaveBeenCalled();
     let resolve: (value: unknown) => void = () => {}; fake.profile.mockReturnValue(new Promise(done => { resolve = done; }));
-    fake.auth.currentUser = user("b"); const pending = fake.listener(fake.auth.currentUser); stop(); resolve({ exists: () => false }); await pending;
+    fake.auth.currentUser = user("b"); const pending = fake.listener(fake.auth.currentUser); await vi.waitFor(() => expect(fake.profile).toHaveBeenCalledOnce()); stop(); resolve({ exists: () => false }); await pending;
     expect(callback.mock.calls.some(([value]) => value?.userId === "b")).toBe(false); expect(fake.unsubscribe).toHaveBeenCalled();
   });
 });

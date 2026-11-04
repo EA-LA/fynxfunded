@@ -10,6 +10,7 @@ const RulesPage = lazy(() => import("./pages/Rules"));
 const PayoutsPage = lazy(() => import("./pages/PayoutsPage"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const Login = lazy(() => import("./pages/Login"));
+const Account = lazy(() => import("./pages/Account"));
 const Signup = lazy(() => import("./pages/Signup"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -48,6 +49,7 @@ const TradeDev = import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === 
 
 export default function PlatformRoutes() {
   return <AuthProvider><Routes>
+    <Route path="/account" element={<ProtectedRoute accountOnly><Account /></ProtectedRoute>} />
     <Route path="/" element={<Index />} /><Route path="/how-it-works" element={<HowItWorks />} /><Route path="/challenges" element={<ChallengesPricing />} /><Route path="/rules" element={<RulesPage />} /><Route path="/payouts" element={<PayoutsPage />} /><Route path="/faq" element={<FAQ />} />
     <Route path="/login" element={<Login />} /><Route path="/signup" element={<Signup />} /><Route path="/forgot-password" element={<ForgotPassword />} /><Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/terms" element={<Terms />} /><Route path="/privacy" element={<Privacy />} /><Route path="/risk-disclosure" element={<RiskDisclosure />} /><Route path="/refund-policy" element={<RefundPolicy />} /><Route path="/aml-kyc" element={<AmlKyc />} />
