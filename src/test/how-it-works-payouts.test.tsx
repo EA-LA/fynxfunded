@@ -40,6 +40,23 @@ describe("program path", () => {
     expect(screen.getByText(/90% for this plan/)).toBeTruthy();
     expect(screen.getByText(/Each trading day resets at 22:00 UTC/)).toBeTruthy();
   });
+
+  it("opens on a shared program and size and links to the risk planner for it", () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/how-it-works?size=50000&program=1-phase"]}>
+          <HowItWorks />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("button", { name: "$50K" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "1 phase" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByText(/^Phase \d$/)).toHaveLength(1);
+    const planner = screen.getByRole("link", { name: /Plan your risk per trade for this account/ });
+    expect(planner).toHaveAttribute("href", "/rules?size=50000&program=1-phase#risk-planner");
+    fireEvent.click(screen.getByRole("button", { name: "$5K" }));
+    expect(planner).toHaveAttribute("href", "/rules?size=5000&program=1-phase#risk-planner");
+  });
 });
 
 describe("payout estimator", () => {

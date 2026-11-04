@@ -39,7 +39,7 @@ describe("home page", () => {
     renderHome();
     const tools = screen.getByRole("region", { name: "Know Your Numbers Before You Start" });
     const hrefs = within(tools).getAllByRole("link").map((l) => l.getAttribute("href"));
-    expect(hrefs).toEqual(expect.arrayContaining(["/rules#calculator", "/challenges#compare-programs", "/payouts#estimator", "/payouts#calendar"]));
+    expect(hrefs).toEqual(expect.arrayContaining(["/rules#calculator", "/rules#risk-planner", "/challenges#compare-programs", "/payouts#estimator", "/payouts#calendar"]));
   });
 
   it("links every previewed question to its answer on the FAQ page", () => {

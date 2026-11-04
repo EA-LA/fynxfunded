@@ -21,6 +21,12 @@ describe("dashboard data states",()=>{
     render(<MemoryRouter><Objectives/></MemoryRouter>);expect(screen.getByText("Evaluation not available")).toBeInTheDocument();
     expect(screen.queryByText("Daily Loss Limit")).not.toBeInTheDocument();expect(screen.queryByText("OK")).not.toBeInTheDocument();
   });
+  it("links the quick risk slider to the full planner for this account size",()=>{
+    mocks.data.accountSize=50000;render(<MemoryRouter><Objectives/></MemoryRouter>);
+    expect(screen.getByRole("link",{name:/See how many losses fit/})).toHaveAttribute("href","/rules?size=50000&risk=1#risk-planner");
+    cleanup();mocks.data.accountSize=12345;render(<MemoryRouter><Objectives/></MemoryRouter>);
+    expect(screen.getByRole("link",{name:/See how many losses fit/})).toHaveAttribute("href","/rules?size=10000&risk=1#risk-planner");
+  });
   it("changes displayed analytics when the user selects a date range",()=>{
     vi.useFakeTimers();vi.setSystemTime(new Date(2026,9,7,12));
     mocks.data.trades=[1,14,60].map((days,i)=>mapClosedTrade(String(i),{pnl:10,closeTime:new Date(Date.now()-days*86400000).toISOString()}));

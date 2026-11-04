@@ -27,15 +27,17 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 
 ## How it works (/how-it-works)
 - [x] Program/size picker showing every phase in dollars, plus "How a trading day works" (2026-11-03)
-- [ ] Make the chosen program/size shareable in the URL
+- [x] Chosen program/size is kept in the address (/how-it-works?size=50000&program=3-phase) so it can be shared (2026-11-04)
+- [x] "Plan your risk per trade for this account" link to the risk planner for the chosen program/size (2026-11-04)
 
 ## Trading rules (/rules)
 - [x] Rules calculator: targets/floors in dollars, today's loss floor, 40% consistency check (2026-11-03)
 - [x] Let the calculator pick which phase you're in (2026-11-03)
 - [x] Accept size/program/phase from the URL and keep the address shareable (2026-11-03)
 - [x] Risk and pace planner (/rules#risk-planner): risk per trade in % or $, losing trades that fit before the daily and maximum-loss floors, winners needed for the target, break-even win rate, steady daily pace and the biggest day that fits the 40% rule (2026-11-04)
-- [ ] Link the risk planner from the home "Know your numbers" section and the dashboard Objectives page
-- [ ] Let the planner share its risk/reward/days choice in the URL
+- [x] Risk planner linked from the home "Know your numbers" section, How it works and the dashboard Objectives page (opens on the trader's account size and slider risk) (2026-11-04)
+- [x] "Copy a link to this plan": the planner's size/program/phase, risk, reward and days are saved in a shareable address (2026-11-04)
+- [ ] Show the planner's daily pace against the trader's real progress on the dashboard (needs verified evaluation data)
 
 ## Payouts (/payouts)
 - [x] Payout split estimator from approved profit-split table, clearly labelled estimate (2026-11-03)
@@ -51,7 +53,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)
 - [x] Table of contents with anchor links and "last updated" date (already present; verified 2026-11-03)
-- [ ] Highlight the current section in the table of contents while scrolling
+- [ ] "Back to contents" links after each section (the table of contents is not sticky, so scroll-highlighting adds little)
 
 ## Dashboard (/dashboard/*)
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile

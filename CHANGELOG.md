@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-04 08:25 UTC — [autopilot] Shareable risk plans, and the risk planner linked from more pages
+
+- The Risk and pace planner now has a "Copy a link to this plan" button. The link remembers the account size, program, phase, risk per trade, reward and number of days, so a trader can save a plan or send it to someone: https://www.fynxfunded.com/rules#risk-planner
+- The home page "Know Your Numbers" section now has a fourth tool card for the risk planner: https://www.fynxfunded.com/#tools
+- How It Works remembers the program and account size you pick in the address, so the page can be shared exactly as you see it, and has a new "Plan your risk per trade for this account" link: https://www.fynxfunded.com/how-it-works
+- In the dashboard, the quick risk slider on the Objectives page now links to the full planner, opened on your account size and chosen risk: https://www.fynxfunded.com/dashboard/objectives
+
 ## 2026-11-04 04:20 UTC — [autopilot] Risk and pace planner on the Trading Rules page, plus a keyboard "skip" link
 
 - New **Risk and pace planner** on the Trading Rules page: pick your account size, program and phase, type how much you'd risk on one trade (as a % of the account or in dollars) and choose a reward size. It shows how many losing trades fit before the daily and maximum-loss floors, warns if one loss alone would break the daily limit, how many winning trades the target takes, the break-even win rate, a steady daily profit pace, and the biggest single day that still fits the 40% consistency rule. All figures come from the published rules; it is planning arithmetic, not advice. See it at https://www.fynxfunded.com/rules#risk-planner

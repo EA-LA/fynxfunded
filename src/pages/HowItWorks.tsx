@@ -1,10 +1,11 @@
 import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import MarketingLayout from "@/components/MarketingLayout";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useState } from "react";
-import { ArrowRight, Calculator, CheckCircle2, Clock } from "lucide-react";
+import { ArrowRight, Calculator, CheckCircle2, Clock, Gauge } from "lucide-react";
+import { riskPlannerLink } from "@/lib/riskPlanner";
 import { challengeConfigs } from "@/lib/challengeConfig";
-import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, PROGRAMS, calculatorLink, summarizeProgram, type ProgramId } from "@/lib/ruleCalculator";
+import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, PROGRAMS, calculatorLink, parseCalculatorPreset, summarizeProgram, type ProgramId } from "@/lib/ruleCalculator";
 
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -70,8 +71,26 @@ const dayRules = [
 ];
 
 export default function HowItWorks() {
-  const [program, setProgram] = useState<ProgramId>("2-phase");
-  const [accountSize, setAccountSize] = useState(25000);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // /how-it-works?size=50000&program=3-phase opens on that path, so it can be shared.
+  const [initial] = useState(() => parseCalculatorPreset(searchParams));
+  const [program, setProgramState] = useState<ProgramId>(initial.program);
+  const [accountSize, setAccountSizeState] = useState(initial.accountSize);
+  const remember = (size: number, prog: ProgramId) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("size", String(size));
+    params.set("program", prog);
+    params.delete("phase");
+    setSearchParams(params, { replace: true, preventScrollReset: true });
+  };
+  const setProgram = (p: ProgramId) => {
+    setProgramState(p);
+    remember(accountSize, p);
+  };
+  const setAccountSize = (size: number) => {
+    setAccountSizeState(size);
+    remember(size, program);
+  };
   const phases = buildPath(accountSize, program);
   const summary = summarizeProgram(accountSize, program);
 
@@ -111,6 +130,11 @@ export default function HowItWorks() {
 
         <p className="mb-8 text-sm text-muted-foreground" aria-live="polite" data-testid="path-summary">
           {summary.plan.phases.length} {summary.plan.phases.length === 1 ? "phase" : "phases"} · {usd(summary.price)} one-time fee · {usd(summary.combinedTargetProfit)} profit to make in total · at least {summary.minimumTotalDays} trading days
+        </p>
+        <p className="-mt-5 mb-8 text-sm">
+          <Link to={riskPlannerLink({ accountSize, program })} className="inline-flex items-center gap-1.5 font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+            <Gauge size={14} aria-hidden="true" /> Plan your risk per trade for this account <ArrowRight size={14} aria-hidden="true" />
+          </Link>
         </p>
 
         <div className="space-y-8">

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Calculator,
   Columns3,
+  Gauge,
   Wallet,
 } from "lucide-react";
 
@@ -48,6 +49,13 @@ const tools = [
     desc: "Enter a balance and see your profit target, today's loss floor and the 40% consistency check in dollars.",
     to: "/rules#calculator",
     cta: "Open the calculator",
+  },
+  {
+    icon: Gauge,
+    title: "Risk and pace planner",
+    desc: "Pick your risk per trade to see how many losses fit inside the limits, how many winners the target takes and a steady daily pace.",
+    to: "/rules#risk-planner",
+    cta: "Plan your risk",
   },
   {
     icon: Columns3,
@@ -234,7 +242,7 @@ export default function Index() {
             Free planning tools built from the published rule schedule. They illustrate the arithmetic only; official results come from your account review.
           </p>
         </div>
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {tools.map((tool) => (
             <Link
               key={tool.title}

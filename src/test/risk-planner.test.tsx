@@ -1,13 +1,16 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import RiskPlanner from "@/components/RiskPlanner";
 import RulesPage from "@/pages/Rules";
 import { I18nProvider } from "@/lib/i18n";
 import { getRulePlan } from "@/lib/ruleCalculator";
-import { consistencyMinimumDays, planRisk } from "@/lib/riskPlanner";
+import { consistencyMinimumDays, parseRiskPreset, planRisk, riskPlannerLink } from "@/lib/riskPlanner";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("risk planner maths", () => {
   it("fits a dollar risk into the loss allowances", () => {
@@ -80,5 +83,43 @@ describe("risk planner widget", () => {
     expect(screen.getByRole("link", { name: /Plan your risk per trade/ })).toHaveAttribute("href", "#risk-planner");
     expect(screen.getByRole("heading", { name: "Risk and pace planner" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute("href", "#main-content");
+  });
+});
+
+describe("shareable planner links", () => {
+  it("reads and writes the planner's own choices", () => {
+    expect(parseRiskPreset(new URLSearchParams("risk=250&unit=usd&rr=1.5&days=12"))).toEqual({ riskMode: "dollars", riskInput: "250", rewardRatio: 1.5, daysInput: "12" });
+    // Out-of-range or junk values fall back to the defaults.
+    expect(parseRiskPreset(new URLSearchParams("risk=500&rr=7&days=0"))).toEqual({ riskMode: "percent", riskInput: "0.5", rewardRatio: 2, daysInput: "10" });
+    expect(parseRiskPreset(new URLSearchParams("risk=abc&unit=usd&days=2.5"))).toMatchObject({ riskMode: "percent", riskInput: "0.5", daysInput: "10" });
+    expect(riskPlannerLink({ accountSize: 50000, program: "3-phase", phase: 2, riskMode: "dollars", riskValue: 250, rewardRatio: 3, plannedDays: 8 }))
+      .toBe("/rules?size=50000&program=3-phase&phase=2&risk=250&unit=usd&rr=3&days=8#risk-planner");
+    expect(riskPlannerLink({ accountSize: 10000, riskValue: 1.25 })).toBe("/rules?size=10000&risk=1.25#risk-planner");
+  });
+
+  it("opens a shared plan and copies a link to the current one", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    render(<MemoryRouter initialEntries={["/rules?size=100000&program=1-phase&risk=400&unit=usd&rr=3&days=6"]}><RiskPlanner /></MemoryRouter>);
+    expect(screen.getByLabelText("Risk per trade (USD)")).toHaveValue("400");
+    expect(screen.getByRole("button", { name: "3× risk" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Trading days you plan to use")).toHaveValue("6");
+
+    fireEvent.click(screen.getByRole("button", { name: "1.5× risk" }));
+    fireEvent.click(screen.getByRole("button", { name: /Copy a link to this plan/ }));
+    expect(await screen.findByRole("button", { name: /Link copied/ })).toBeInTheDocument();
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/rules?size=100000&program=1-phase&risk=400&unit=usd&rr=1.5&days=6#risk-planner`);
+
+    // Changing the plan makes the copied message stale.
+    fireEvent.click(screen.getByRole("button", { name: "2× risk" }));
+    expect(screen.getByRole("button", { name: /Copy a link to this plan/ })).toBeInTheDocument();
+  });
+
+  it("shows the address to copy by hand when the clipboard is unavailable", async () => {
+    vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+    render(<MemoryRouter initialEntries={["/rules"]}><RiskPlanner /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /Copy a link to this plan/ }));
+    const field = await screen.findByLabelText(/Select and copy this address/);
+    expect((field as HTMLInputElement).value).toBe(`${window.location.origin}/rules?size=25000&program=2-phase&risk=0.5&rr=2&days=10#risk-planner`);
   });
 });

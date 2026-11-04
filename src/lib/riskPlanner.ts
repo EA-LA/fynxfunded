@@ -97,3 +97,63 @@ export function planRisk(input: RiskPlanInput): RiskPlan {
     bestDayCap: round2((targetProfit * CONSISTENCY_LIMIT_PERCENT) / 100),
   };
 }
+
+/** Reward multiples offered by the planner. */
+export const REWARD_RATIOS = [1, 1.5, 2, 3] as const;
+
+export interface RiskPreset {
+  riskMode: RiskMode;
+  /** Kept as text so the input shows exactly what was shared. */
+  riskInput: string;
+  rewardRatio: number;
+  daysInput: string;
+}
+
+export const DEFAULT_RISK_PRESET: RiskPreset = { riskMode: "percent", riskInput: "0.5", rewardRatio: 2, daysInput: "10" };
+
+/**
+ * Reads the planner's own choices from a shared address, e.g.
+ * /rules?size=50000&program=2-phase&risk=250&unit=usd&rr=1.5&days=12#risk-planner.
+ * Anything missing or out of range falls back to the default.
+ */
+export function parseRiskPreset(params: URLSearchParams): RiskPreset {
+  const riskMode: RiskMode = params.get("unit") === "usd" ? "dollars" : "percent";
+  const rawRisk = params.get("risk");
+  const risk = Number(rawRisk);
+  const riskOk = rawRisk !== null && rawRisk.trim() !== "" && Number.isFinite(risk) && risk > 0 && (riskMode === "dollars" ? risk <= 10_000_000 : risk <= 100);
+  const rr = Number(params.get("rr"));
+  const rawDays = params.get("days");
+  const days = Number(rawDays);
+  const daysOk = rawDays !== null && Number.isInteger(days) && days >= 1 && days <= 250;
+  return {
+    riskMode: riskOk ? riskMode : DEFAULT_RISK_PRESET.riskMode,
+    riskInput: riskOk ? String(round2(risk)) : DEFAULT_RISK_PRESET.riskInput,
+    rewardRatio: (REWARD_RATIOS as readonly number[]).includes(rr) ? rr : DEFAULT_RISK_PRESET.rewardRatio,
+    daysInput: daysOk ? String(days) : DEFAULT_RISK_PRESET.daysInput,
+  };
+}
+
+export interface RiskLinkInput {
+  accountSize: number;
+  /** Omitted when the program isn't known; the planner then uses its default. */
+  program?: string;
+  phase?: number;
+  riskMode?: RiskMode;
+  riskValue?: number;
+  rewardRatio?: number;
+  plannedDays?: number;
+}
+
+/** Path to the Rules page planner preloaded with a plan (relative, so it works on any host). */
+export function riskPlannerLink(input: RiskLinkInput): string {
+  const params = new URLSearchParams({ size: String(input.accountSize) });
+  if (input.program) params.set("program", input.program);
+  if (input.phase && input.phase > 1) params.set("phase", String(input.phase));
+  if (input.riskValue !== undefined && Number.isFinite(input.riskValue) && input.riskValue > 0) {
+    params.set("risk", String(round2(input.riskValue)));
+    if (input.riskMode === "dollars") params.set("unit", "usd");
+  }
+  if (input.rewardRatio !== undefined) params.set("rr", String(input.rewardRatio));
+  if (input.plannedDays !== undefined) params.set("days", String(input.plannedDays));
+  return `/rules?${params.toString()}#risk-planner`;
+}
