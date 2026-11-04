@@ -1,4 +1,3 @@
-import EcosystemFooter from "./EcosystemFooter";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
@@ -157,7 +156,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </div>
           <div className="glow-line mb-8" />
 
-          <EcosystemFooter />
 
           {/* Compliance area */}
           <div className="mb-6 p-4 border border-border rounded-md bg-card/50">
