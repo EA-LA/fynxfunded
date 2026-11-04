@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useTradingData } from "@/hooks/use-trading-data";
 import { Search, Download, ListX, Radio, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
+import { formatTradeTime, readTimeZoneMode, saveTimeZoneMode, timeZoneLabel, type TimeZoneMode } from "@/lib/tradeTiming";
+import TimeZoneToggle from "@/components/analytics/TimeZoneToggle";
 import { DEFAULT_SORT, EMPTY_FILTERS, filterTrades, hasActiveFilters, nextSort, sortTrades, summarizeTrades, type JournalFilters, type JournalSort, type SortKey } from "@/lib/tradeJournal";
 
 const signedUsd = (n: number) => `${n >= 0 ? "+" : "-"}$${Math.abs(n).toFixed(2)}`;
@@ -10,12 +12,14 @@ export default function Trades() {
   const data = useTradingData(); const { hasTrades, trades } = data;
   const [filters, setFilters] = useState<JournalFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<JournalSort>(DEFAULT_SORT);
+  const [zone, setZoneState] = useState<TimeZoneMode>(readTimeZoneMode);
+  const setZone = (m: TimeZoneMode) => { setZoneState(m); saveTimeZoneMode(m); };
   const setFilter = <K extends keyof JournalFilters>(key: K, value: JournalFilters[K]) => setFilters(f => ({ ...f, [key]: value }));
 
   const filtering = hasActiveFilters(filters);
   const filtered = useMemo(() => sortTrades(filterTrades(trades, filters), sort), [trades, filters, sort]);
   const summary = useMemo(() => summarizeTrades(filtered), [filtered]);
-  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open","Close","Lots","P/L","Pips","Risk %","R:R","Session","Result"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session,t.result])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filtering?"fynx-trades-filtered.csv":"fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
+  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open (UTC)","Close (UTC)","Lots","P/L","Pips","Risk %","R:R","Session","Result"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session,t.result])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filtering?"fynx-trades-filtered.csv":"fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
 
   const sortHeader = (k: SortKey, label: string, align: "left" | "right" = "left") => {
     const active = sort.key === k;
@@ -33,9 +37,13 @@ export default function Trades() {
   if (data.loading || data.error) return <div className="space-y-4"><h1 className="text-2xl font-bold">Trades</h1><p role={data.error ? "alert" : "status"}>{data.error || "Loading account records…"}</p></div>;
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Trades</h1>
-        <p className="text-sm text-muted-foreground mt-1">Recorded closed trades · {data.accountName}</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Trades</h1>
+          <p className="text-sm text-muted-foreground mt-1">Recorded closed trades · {data.accountName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Open and close times shown in {timeZoneLabel(zone)}{zone === "local" ? " (your device's time zone)" : ""}. The daily loss limit resets at 22:00 UTC.</p>
+        </div>
+        <TimeZoneToggle mode={zone} onChange={setZone} />
       </div>
 
       {data.loading && <p role="status">Loading trading records…</p>}{data.error && <p role="alert">{data.error}</p>}
@@ -87,8 +95,8 @@ export default function Trades() {
                   {th("Trade ID")}
                   {sortHeader("symbol", "Symbol")}
                   {th("Type")}
-                  {th("Open")}
-                  {sortHeader("closeTime", "Close")}
+                  {th(`Open (${timeZoneLabel(zone)})`)}
+                  {sortHeader("closeTime", `Close (${timeZoneLabel(zone)})`)}
                   {sortHeader("lots", "Lots", "right")}
                   {sortHeader("pips", "Pips", "right")}
                   {sortHeader("pnl", "P/L", "right")}
@@ -109,8 +117,8 @@ export default function Trades() {
                         {t.type}
                       </span>
                     </td>
-                    <td className="py-3 px-2 text-muted-foreground text-xs">{t.openTime}</td>
-                    <td className="py-3 px-2 text-muted-foreground text-xs">{t.closeTime}</td>
+                    <td className="py-3 px-2 text-muted-foreground text-xs whitespace-nowrap"><time dateTime={t.openTime || undefined}>{formatTradeTime(t.openTime, zone)}</time></td>
+                    <td className="py-3 px-2 text-muted-foreground text-xs whitespace-nowrap"><time dateTime={t.closeTime || undefined}>{formatTradeTime(t.closeTime, zone)}</time></td>
                     <td className="py-3 px-2 text-right">{t.lots}</td>
                     <td className={`py-3 px-2 text-right ${t.pips >= 0 ? "" : "text-muted-foreground"}`}>{t.pips >= 0 ? "+" : ""}{t.pips}</td>
                     <td className={`py-3 px-2 text-right font-medium ${t.pnl >= 0 ? "" : "text-muted-foreground"}`}>

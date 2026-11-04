@@ -5,7 +5,7 @@ const mocks=vi.hoisted(()=>({data:{} as any}));
 vi.mock("@/hooks/use-trading-data",async()=>{
   const actual=await import("@/lib/tradingData");return {useTradingData:()=>mocks.data,computeAnalytics:actual.computeAnalytics};
 });
-vi.mock("recharts",()=>({ResponsiveContainer:()=>null,Area:()=>null,AreaChart:()=>null,CartesianGrid:()=>null,Tooltip:()=>null,XAxis:()=>null,YAxis:()=>null}));
+vi.mock("recharts",()=>({ResponsiveContainer:()=>null,Area:()=>null,AreaChart:()=>null,CartesianGrid:()=>null,Tooltip:()=>null,XAxis:()=>null,YAxis:()=>null,Bar:()=>null,BarChart:()=>null,Cell:()=>null}));
 import Analytics from "@/pages/dashboard/Analytics";
 import Objectives from "@/pages/dashboard/Objectives";
 import Trades from "@/pages/dashboard/Trades";

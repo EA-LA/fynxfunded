@@ -67,7 +67,12 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 ## Dashboard (/dashboard/*)
 - [x] Trades: Breakeven filter (was missing), Buy/Sell and session filters, "Clear filters", sortable columns with screen-reader order, totals that follow the filters, wins/losses/average/largest row, filtered CSV export (2026-11-04)
 - [x] Trades: losing P/L showed as "$-80.00"; now "-$80.00" (2026-11-04)
-- [ ] Trades: show trade times in the trader's local time (currently raw timestamps)
-- [ ] Analytics: P/L by weekday and by hour of day from recorded trades
+- [x] Trades: open/close times were raw computer timestamps ("2026-11-02T09:00:00.000Z"); now readable ("Nov 2, 10:00") in the trader's local time with a Local/UTC switch that is remembered; CSV export headers say the times are UTC (2026-11-04)
+- [x] Analytics: "When you trade best": closed P/L by weekday or by hour, local time or UTC, strongest/weakest time (only with 3+ trades), small-sample warning and a numbers table (2026-11-04)
+- [x] Analytics: "P/L by trading day" (22:00–22:00 UTC, same window as the daily loss limit): up/down/flat days, average, best and worst day, bar chart of the last 30 trading days, best-day share vs the 40% rule (labelled estimate, links to Objectives), full day list (2026-11-04)
+- [x] Analytics: trade-quality row (average win/loss, payoff ratio, longest win/losing streak, distance below peak); these were calculated but never shown (2026-11-04)
+- [x] Analytics "Data status": trading-day count used calendar dates; now uses the 22:00 UTC trading day like the rules engine (2026-11-04)
+- [ ] Analytics: P/L by instrument × session matrix; R-multiple distribution once risk data is reliable
+- [ ] Account workspace (/dashboard/accounts/:id) Analysis tab: reuse the timing and trading-day cards
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile
 - [ ] Add tests covering public marketing pages render (Index, Challenges, Rules, Payouts)

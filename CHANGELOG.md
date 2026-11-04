@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-04 20:30 UTC — [autopilot] See when you trade best, day-by-day results, and readable trade times
+- Analytics has a new "When you trade best" panel: your closed profit and loss by day of the week or by hour, in your own time or UTC, with your strongest and weakest times called out (only once there are at least 3 trades, with a reminder that small samples can mislead). https://www.fynxfunded.com/dashboard/analytics
+- New "P/L by trading day" panel: each trading day runs 22:00–22:00 UTC like the daily loss limit. Shows up/down days, average day, best and worst day, a day-by-day chart, and how big your best day is compared with the 40% consistency rule (an estimate; the official status stays on Objectives).
+- New row of trade-quality numbers: average win, average loss, payoff ratio, longest winning and losing streaks, and how far you are below your best point.
+- The trading-day count in "Data status" now uses the same 22:00 UTC day as the rules.
+- Trades: open and close times are now easy to read (for example "Nov 2, 10:00") in your own time zone instead of long computer timestamps, with a Local/UTC switch that the site remembers. https://www.fynxfunded.com/dashboard/trades
+
 ## 2026-11-04 16:30 UTC — [autopilot] A trading-day clock, and a much more useful Trades journal
 
 - New "Trading-day clock" on the Rules page: shows the time now in UTC and in your own time zone, a live countdown to the 22:00 UTC daily reset (and what time that is where you live), and a 24-hour bar showing where today is. https://www.fynxfunded.com/rules#trading-day
