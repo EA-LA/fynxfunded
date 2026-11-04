@@ -11,7 +11,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] New pages open at the top and #section links jump to the section (was: footer links left you at the bottom of the next page) (2026-11-03)
 - [x] Removed the long "FYNX Ecosystem" link list from the bottom of every page at the owner's request; the same destinations stay in the header ecosystem menu (and the dashboard Resources page) (2026-11-04)
 - [ ] Performance: main bundle chunk is >500 kB; split heavy routes/libs further
-- [ ] Accessibility pass (skip-to-content link, focus outlines, heading order)
+- [x] "Skip to main content" link for keyboard and screen-reader users on every public page (2026-11-04)
+- [ ] Accessibility pass (focus outlines, heading order)
 - [ ] Translate 404, FAQ and calculator into the languages offered by the language selector
 
 ## Home (/)
@@ -32,6 +33,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Rules calculator: targets/floors in dollars, today's loss floor, 40% consistency check (2026-11-03)
 - [x] Let the calculator pick which phase you're in (2026-11-03)
 - [x] Accept size/program/phase from the URL and keep the address shareable (2026-11-03)
+- [x] Risk and pace planner (/rules#risk-planner): risk per trade in % or $, losing trades that fit before the daily and maximum-loss floors, winners needed for the target, break-even win rate, steady daily pace and the biggest day that fits the 40% rule (2026-11-04)
+- [ ] Link the risk planner from the home "Know your numbers" section and the dashboard Objectives page
+- [ ] Let the planner share its risk/reward/days choice in the URL
 
 ## Payouts (/payouts)
 - [x] Payout split estimator from approved profit-split table, clearly labelled estimate (2026-11-03)

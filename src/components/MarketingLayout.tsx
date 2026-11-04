@@ -22,6 +22,12 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to main content
+      </a>
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -108,7 +114,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       </nav>
 
       {/* Content */}
-      <main className="flex-1 pt-16">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1 pt-16 focus:outline-none">{children}</main>
 
       {/* Footer */}
       <footer className="border-t border-border">

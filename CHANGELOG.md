@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-04 04:20 UTC — [autopilot] Risk and pace planner on the Trading Rules page, plus a keyboard "skip" link
+
+- New **Risk and pace planner** on the Trading Rules page: pick your account size, program and phase, type how much you'd risk on one trade (as a % of the account or in dollars) and choose a reward size. It shows how many losing trades fit before the daily and maximum-loss floors, warns if one loss alone would break the daily limit, how many winning trades the target takes, the break-even win rate, a steady daily profit pace, and the biggest single day that still fits the 40% consistency rule. All figures come from the published rules; it is planning arithmetic, not advice. See it at https://www.fynxfunded.com/rules#risk-planner
+- The top of the Trading Rules page now links to both the rules calculator and the new planner.
+- Every public page now has a "Skip to main content" link that appears when you press Tab, so keyboard and screen-reader visitors can jump past the menu.
+
 ## 2026-11-04 01:30 UTC — Removed the "FYNX Ecosystem" list from the page footer
 - At your request, the long "FYNX Ecosystem" list of links no longer appears at the bottom of every page (including the dashboard). The FYNX sites are still one tap away in the grid menu next to the logo at the top. https://www.fynxfunded.com/
 
