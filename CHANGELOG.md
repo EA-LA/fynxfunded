@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-05 08:30 UTC — [autopilot] Challenge pass simulator on the Rules page
+
+- New "Challenge pass simulator" on the Rules page: enter your risk per trade, reward, win rate, trades per day and charges, and it plays that plan forward 2,000 times against the real rules (daily loss, maximum loss, minimum days, 40% consistency). You see how often it passes, how the other runs ended, how many trading days a pass usually takes, and the average result per trade. Works for one phase or all phases in a row. https://www.fynxfunded.com/rules#simulator
+- Switch between a careful trader (stops before a loss could break a limit) and one who takes every planned trade, to see how a bad streak turns into a breach.
+- "Run again" and "Copy a link to this simulation" buttons; the risk planner now has a "Test this plan in the pass simulator" button that carries your numbers over.
+- New FAQ answer, "How likely is my trading plan to pass?": https://www.fynxfunded.com/faq#pass-odds
+- Clearly labelled as a simplified illustration, not a prediction or advice; nothing is saved or sent.
+
 ## 2026-11-05 04:30 UTC — [autopilot] Position size calculator, and date ranges on each account's Analysis tab
 - New "Position size calculator" on the Trading Rules page: choose your account, your risk per trade, the instrument (EUR/USD-style pairs, USD/CAD-style pairs, USD/JPY, gold, or any other instrument) and how far away your stop loss is, and it tells you how many lots to trade so a stopped-out trade stays inside your risk. https://www.fynxfunded.com/rules#position-size
 - It also shows the loss at the stop including trading charges, how much of today's loss allowance that is, the target distance and profit at 1×–3× your stop, and warns you if your risk is smaller than the smallest possible position. Where a price is needed, you type the price from your own platform; the site never invents prices.

@@ -3,6 +3,7 @@ import { RULE_POLICY_VERSION as VERSION } from "@/lib/challengeConfig";
 import MarketingLayout from "@/components/MarketingLayout";
 import RuleCalculator from "@/components/RuleCalculator";
 import RiskPlanner from "@/components/RiskPlanner";
+import ChallengeSimulator from "@/components/ChallengeSimulator";
 import PositionSizeCalculator from "@/components/PositionSizeCalculator";
 import TradingDayClock from "@/components/TradingDayClock";
 import {
@@ -80,6 +81,7 @@ export default function RulesPage() {
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
             <a href="#calculator" className="underline underline-offset-4">Work out your limits in dollars with the rules calculator</a>
             <a href="#risk-planner" className="underline underline-offset-4">Plan your risk per trade and daily pace</a>
+            <a href="#simulator" className="underline underline-offset-4">Simulate how often a plan passes</a>
             <a href="#position-size" className="underline underline-offset-4">Turn your risk into a lot size</a>
             <a href="#trading-day" className="underline underline-offset-4">See when the daily reset happens in your time</a>
           </div>
@@ -101,6 +103,8 @@ export default function RulesPage() {
         <RuleCalculator />
 
         <RiskPlanner />
+
+        <ChallengeSimulator />
 
         <PositionSizeCalculator />
 

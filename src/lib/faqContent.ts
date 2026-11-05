@@ -130,6 +130,13 @@ export const faqItems: FaqItem[] = [
     link: { to: "/rules#position-size", label: "Open the position size calculator" },
   },
   {
+    id: "pass-odds",
+    topic: "rules",
+    q: "How likely is my trading plan to pass?",
+    a: "Nobody can tell you in advance, but you can test how the rules treat a plan. The pass simulator on the Rules page plays your risk per trade, reward, win rate and trades per day forward thousands of times against the daily loss, maximum loss, minimum days and 40% consistency rules, and shows how often it passes, how it fails and how many trading days it usually takes. It is a simplified illustration, not a prediction: real trades don't win or lose exactly the planned amount.",
+    link: { to: "/rules#simulator", label: "Open the pass simulator" },
+  },
+  {
     id: "consistency-rule",
     topic: "rules",
     q: "How does the 40% consistency rule work?",

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Check, Gauge, Link2, Scale } from "lucide-react";
+import { AlertTriangle, Check, Dices, Gauge, Link2, Scale } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { CONSISTENCY_LIMIT_PERCENT, getRulePlan, parseCalculatorPreset, PROGRAMS as programs, type ProgramId } from "@/lib/ruleCalculator";
 import { positionSizeLink } from "@/lib/positionSize";
+import { simulatorLink } from "@/lib/challengeSimulator";
 import { parseRiskPreset, planRisk, REWARD_RATIOS, riskPlannerLink, type RiskMode } from "@/lib/riskPlanner";
 
 const usd = (n: number) =>
@@ -250,6 +251,15 @@ export default function RiskPlanner() {
           >
             <Scale size={16} aria-hidden="true" />
             Turn this risk into a lot size
+          </Link>
+        )}
+        {riskValid && (
+          <Link
+            to={simulatorLink({ accountSize, program, phase: currentPhase, riskMode, riskValue, rewardRatio })}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Dices size={16} aria-hidden="true" />
+            Test this plan in the pass simulator
           </Link>
         )}
         <span className="text-xs text-muted-foreground" role="status">
