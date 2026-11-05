@@ -53,7 +53,7 @@ const tools = [
   {
     icon: Gauge,
     title: "Risk and pace planner",
-    desc: "Pick your risk per trade to see how many losses fit inside the limits, how many winners the target takes and a steady daily pace.",
+    desc: "Pick your risk per trade to see how many losses fit inside the limits, how many winners the target takes and a steady daily pace, then turn it into a lot size.",
     to: "/rules#risk-planner",
     cta: "Plan your risk",
   },

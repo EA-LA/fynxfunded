@@ -123,6 +123,13 @@ export const faqItems: FaqItem[] = [
     a: `The maximum loss is static: ${one.maxLossPercent}% for 1-phase, ${two.maxLossPercent}% for 2-phase and ${three.maxLossPercent}% for 3-phase, measured from the starting balance of the phase. Profits do not raise this floor. Example: a $25,000 2-phase account has a fixed floor of ${usd(two.maxLossFloor)}.`,
   },
   {
+    id: "lot-size",
+    topic: "rules",
+    q: "How do I work out my lot size?",
+    a: "Decide how much you are willing to lose on the trade, then divide it by what one lot loses if your stop is hit. Example: risking $125 with a 25-pip stop on EUR/USD, where one standard lot (100,000 units) moves $10 per pip, gives $125 ÷ $250 = 0.50 lots. Contract sizes and charges for FYNX Funded accounts are pending broker verification, so check your platform's contract details before trading.",
+    link: { to: "/rules#position-size", label: "Open the position size calculator" },
+  },
+  {
     id: "consistency-rule",
     topic: "rules",
     q: "How does the 40% consistency rule work?",

@@ -38,4 +38,18 @@ describe("account workspace analysis tab", () => {
     expect(screen.getByRole("heading", { name: /When you trade best/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /P\/L by trading day/ })).toBeInTheDocument();
   });
+
+  it("narrows the analysis to the last 7 or 30 days", async () => {
+    const day = 86_400_000, now = Date.now();
+    const at = (t: Trade, daysAgo: number): Trade => ({ ...t, openTime: new Date(now - daysAgo * day - 3_600_000).toISOString(), closeTime: new Date(now - daysAgo * day).toISOString() });
+    mocks.trades = [at(trade("1", "EURUSD", 100), 1), at(trade("2", "EURUSD", 40), 12), at(trade("3", "XAUUSD", -20), 60)];
+    render(<MemoryRouter initialEntries={["/dashboard/accounts/ch-1"]}><Routes><Route path="/dashboard/accounts/:challengeId" element={<AccountWorkspace />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /Analysis/ }));
+    expect(screen.getByTestId("analysis-range-status")).toHaveTextContent("showing 3 of 3 closed trades");
+    fireEvent.click(screen.getByRole("button", { name: "30D" }));
+    expect(screen.getByTestId("analysis-range-status")).toHaveTextContent("Last 30 calendar days · showing 2 of 3 closed trades");
+    fireEvent.click(screen.getByRole("button", { name: "7D" }));
+    expect(screen.getByTestId("analysis-range-status")).toHaveTextContent("showing 1 of 3 closed trades");
+    expect(screen.getByText(/In this period this account has 1 closed trade with a/)).toBeInTheDocument();
+  });
 });

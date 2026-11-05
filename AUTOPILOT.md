@@ -39,6 +39,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] "Copy a link to this plan": the planner's size/program/phase, risk, reward and days are saved in a shareable address (2026-11-04)
 - [x] Trading-day clock (/rules#trading-day): UTC and local time, live countdown to the 22:00 UTC reset, 24-hour bar, journal session labels in local time, and "Check a time" to see which daily-loss period a moment counts against; linked from the hero and the FAQ reset answer (2026-11-04)
 - [x] Trading-day clock: "Add the daily reset to my calendar" (.ics, one event repeating daily at 22:00 UTC, optional 15/30/60-minute reminder) (2026-11-05)
+- [x] Position size calculator (/rules#position-size): lots from risk and stop distance for USD-quoted forex, USD-based forex (trader types the price), USD/JPY, gold and any other instrument (trader types the point value), with round-turn charges, rounded down to 0.01 lots, loss at the stop vs today's allowance, target distance and profit, minimum-lot warning and a shareable link; opened from the risk planner ("Turn this risk into a lot size"), the Rules intro and a new FAQ answer (/faq#lot-size) (2026-11-05)
+- [ ] Position size calculator: add cross pairs (e.g. EUR/GBP) with a typed conversion rate once there's demand; use verified broker contract specs when published
 - [ ] Show the planner's daily pace against the trader's real progress on the dashboard (needs verified evaluation data)
 
 ## Payouts (/payouts)
@@ -75,6 +77,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Analytics: "Instruments by session" table: net P/L, trades, win rate, average, best/worst and buy/sell count per instrument, split into Asia/London/New York, with totals, sorting, "show all" and strongest/weakest combination (only with 3+ trades) (2026-11-05)
 - [ ] Analytics: R-multiple distribution once risk data is reliable
 - [x] Account workspace (/dashboard/accounts/:id) Analysis tab: now has the instruments-by-session table, "When you trade best" and "P/L by trading day" for that one account (2026-11-05)
-- [ ] Account workspace: date-range filter (7D/30D/All) like Analytics
+- [x] Account workspace: date-range filter (7D/30D/All) on the Analysis tab, with "showing X of Y closed trades" and a clear empty-period message (2026-11-05)
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile
+- [x] Fixed: account analysis said "1 closed trades" (2026-11-05)
 - [ ] Add tests covering public marketing pages render (Index, Challenges, Rules, Payouts)

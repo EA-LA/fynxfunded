@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-05 04:30 UTC — [autopilot] Position size calculator, and date ranges on each account's Analysis tab
+- New "Position size calculator" on the Trading Rules page: choose your account, your risk per trade, the instrument (EUR/USD-style pairs, USD/CAD-style pairs, USD/JPY, gold, or any other instrument) and how far away your stop loss is, and it tells you how many lots to trade so a stopped-out trade stays inside your risk. https://www.fynxfunded.com/rules#position-size
+- It also shows the loss at the stop including trading charges, how much of today's loss allowance that is, the target distance and profit at 1×–3× your stop, and warns you if your risk is smaller than the smallest possible position. Where a price is needed, you type the price from your own platform; the site never invents prices.
+- "Copy a link to this calculation" saves the whole setup in a shareable address.
+- The Risk and pace planner has a new "Turn this risk into a lot size" button that opens the calculator with the same account and risk. The FAQ has a new answer, "How do I work out my lot size?" https://www.fynxfunded.com/faq#lot-size
+- Each account's Analysis tab (open an account from the dashboard, then Analysis) now has 7D / 30D / All buttons, like the main Analytics page, and says how many trades are included.
+- Fixed: the account analysis said "1 closed trades".
+
 ## 2026-11-05 00:20 UTC — [autopilot] See which instruments and sessions work for you, per account too, and put the daily reset in your calendar
 - Analytics has a new "Instruments by session" table: for every instrument you trade, your net result, number of trades, win rate, average per trade, best and worst trade and buy/sell count, split into the Asia, London and New York sessions, with totals at the bottom. Sort it by result, most traded, win rate or A–Z. https://www.fynxfunded.com/dashboard/analytics
 - It calls out your strongest and weakest instrument + session combination, but only once a combination has at least 3 trades, so one lucky trade is never presented as a pattern.

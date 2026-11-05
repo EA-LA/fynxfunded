@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, Check, Gauge, Link2 } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { AlertTriangle, Check, Gauge, Link2, Scale } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { CONSISTENCY_LIMIT_PERCENT, getRulePlan, parseCalculatorPreset, PROGRAMS as programs, type ProgramId } from "@/lib/ruleCalculator";
+import { positionSizeLink } from "@/lib/positionSize";
 import { parseRiskPreset, planRisk, REWARD_RATIOS, riskPlannerLink, type RiskMode } from "@/lib/riskPlanner";
 
 const usd = (n: number) =>
@@ -242,6 +243,15 @@ export default function RiskPlanner() {
           {shareState === "copied" ? <Check size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />}
           {shareState === "copied" ? "Link copied" : "Copy a link to this plan"}
         </button>
+        {riskValid && (
+          <Link
+            to={positionSizeLink({ accountSize, program, riskMode, riskValue, rewardRatio })}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Scale size={16} aria-hidden="true" />
+            Turn this risk into a lot size
+          </Link>
+        )}
         <span className="text-xs text-muted-foreground" role="status">
           {shareState === "copied" ? "Anyone opening it sees the same account, risk, reward and days." : ""}
         </span>
@@ -254,7 +264,7 @@ export default function RiskPlanner() {
       )}
 
       <p className="mt-6 text-xs text-muted-foreground">
-        Planning arithmetic only, based on the published {plan.program} schedule for a {usd(accountSize)} account. It is not trading advice, does not size positions for any instrument and does not predict results. Nothing here is saved or sent anywhere.
+        Planning arithmetic only, based on the published {plan.program} schedule for a {usd(accountSize)} account. It is not trading advice and does not predict results; for a lot size, use the position size calculator below. Nothing here is saved or sent anywhere.
       </p>
     </section>
   );
