@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-05 12:30 UTC — [autopilot] Test your own trading record in the pass simulator
+
+- Dashboard Analytics has a new "Your record in the pass simulator" panel. It takes your own closed trades (your win rate, your average loss as the risk per trade, your average win as the reward, and how many trades you usually take a day) and plays that forward 2,000 times against the real challenge rules. You see how often it passes, how the other runs ended and how many trading days a pass usually takes. https://www.fynxfunded.com/dashboard/analytics
+- Pick the account size, the program (1, 2 or 3 phases) and whether to test phase 1 or all phases. It follows the 7D / 30D / All buttons at the top of the page.
+- It explains the result in plain words: if most runs ran out of time, or most hit the maximum-loss floor. It warns instead if one average loss would be bigger than the whole daily allowance at that size.
+- "Open this in the pass simulator" carries your numbers to the full simulator on the Rules page, where you can change anything. https://www.fynxfunded.com/rules#simulator
+- The same panel is on each account's Analysis tab (open an account from the dashboard, then Analysis), starting on that account's size and program.
+- It only appears once there are at least 10 winning or losing trades, never rounds your reward up, and is clearly labelled as past results and an illustration, not a prediction. The FAQ answer "How likely is my trading plan to pass?" now mentions it. https://www.fynxfunded.com/faq#pass-odds
+
 ## 2026-11-05 08:30 UTC — [autopilot] Challenge pass simulator on the Rules page
 
 - New "Challenge pass simulator" on the Rules page: enter your risk per trade, reward, win rate, trades per day and charges, and it plays that plan forward 2,000 times against the real rules (daily loss, maximum loss, minimum days, 40% consistency). You see how often it passes, how the other runs ended, how many trading days a pass usually takes, and the average result per trade. Works for one phase or all phases in a row. https://www.fynxfunded.com/rules#simulator
