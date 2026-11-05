@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-05 00:20 UTC — [autopilot] See which instruments and sessions work for you, per account too, and put the daily reset in your calendar
+- Analytics has a new "Instruments by session" table: for every instrument you trade, your net result, number of trades, win rate, average per trade, best and worst trade and buy/sell count, split into the Asia, London and New York sessions, with totals at the bottom. Sort it by result, most traded, win rate or A–Z. https://www.fynxfunded.com/dashboard/analytics
+- It calls out your strongest and weakest instrument + session combination, but only once a combination has at least 3 trades, so one lucky trade is never presented as a pattern.
+- Each account's own page now has a much fuller Analysis tab: the same instruments-by-session table, "When you trade best" and "P/L by trading day", for that one account only (open an account from the dashboard, then choose Analysis).
+- Trading-day clock: new "Add the daily reset to my calendar" button with a reminder choice (none, 15, 30 or 60 minutes before). It adds one event that repeats every day at 22:00 UTC and shows in your own time in Google, Apple or Outlook calendars. https://www.fynxfunded.com/rules#trading-day
+
 ## 2026-11-04 20:30 UTC — [autopilot] See when you trade best, day-by-day results, and readable trade times
 - Analytics has a new "When you trade best" panel: your closed profit and loss by day of the week or by hour, in your own time or UTC, with your strongest and weakest times called out (only once there are at least 3 trades, with a reminder that small samples can mislead). https://www.fynxfunded.com/dashboard/analytics
 - New "P/L by trading day" panel: each trading day runs 22:00–22:00 UTC like the daily loss limit. Shows up/down days, average day, best and worst day, a day-by-day chart, and how big your best day is compared with the 40% consistency rule (an estimate; the official status stays on Objectives).

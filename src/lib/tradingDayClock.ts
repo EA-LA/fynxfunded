@@ -1,4 +1,5 @@
 import { DAILY_RESET_UTC_HOUR } from "@/lib/ruleCalculator";
+import { fold, icsText } from "@/lib/payoutCalendar";
 
 /**
  * Trading-day clock helpers. Everything is derived from the published rule
@@ -104,4 +105,38 @@ export function parseLocalDateTime(value: string): Date | null {
 export function toLocalInputValue(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** Reminder choices for the daily-reset calendar event, in minutes before the reset. */
+export const RESET_REMINDER_OPTIONS = [0, 15, 30, 60] as const;
+export type ResetReminder = (typeof RESET_REMINDER_OPTIONS)[number];
+
+const icsUtc = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+/**
+ * iCalendar (.ics) file with one event that repeats every day at the 22:00 UTC
+ * daily reset. Times are written in UTC, so calendar apps show the reset in
+ * the viewer's own time and it never shifts with daylight saving.
+ * `reminderMinutes` adds an alert that many minutes before (0 = no alert).
+ */
+export function dailyResetIcs(stamp: Date, reminderMinutes: ResetReminder = 0): string {
+  const start = nextReset(stamp);
+  const end = new Date(start.getTime() + 15 * 60_000);
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//FYNX Funded//Daily reset//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    "UID:fynx-daily-reset@fynxfunded.com",
+    `DTSTAMP:${icsUtc(stamp)}`,
+    `DTSTART:${icsUtc(start)}`,
+    `DTEND:${icsUtc(end)}`,
+    "RRULE:FREQ=DAILY",
+    `SUMMARY:${icsText(`FYNX Funded daily reset (${DAILY_RESET_UTC_HOUR}:00 UTC)`)}`,
+    `DESCRIPTION:${icsText(`The daily loss floor resets at ${DAILY_RESET_UTC_HOUR}:00 UTC. A new trading day starts and trades closed after this time count toward the next day. https://www.fynxfunded.com/rules#trading-day`)}`,
+    "TRANSP:TRANSPARENT",
+  ];
+  if (reminderMinutes > 0) {
+    lines.push("BEGIN:VALARM", "ACTION:DISPLAY", `TRIGGER:-PT${reminderMinutes}M`, `DESCRIPTION:${icsText(`FYNX Funded daily reset in ${reminderMinutes} minutes`)}`, "END:VALARM");
+  }
+  lines.push("END:VEVENT", "END:VCALENDAR");
+  return lines.map(fold).join("\r\n") + "\r\n";
 }

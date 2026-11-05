@@ -91,6 +91,7 @@ describe("analytics and trades pages", () => {
     expect(within(quality).getByText("Longest losing streak")).toBeInTheDocument();
     expect(within(quality).getByText("-$30.00")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /When you trade best/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Instruments by session/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "UTC" }));
     expect(screen.getByTestId("timing-highlights")).toHaveTextContent("Mon: +$120.00 over 3 trades (67% won)");
     expect(screen.getByTestId("timing-highlights")).toHaveTextContent("Tue: -$25.00 over 4 trades");

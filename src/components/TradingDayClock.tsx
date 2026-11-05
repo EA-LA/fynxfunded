@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Clock3, Search } from "lucide-react";
+import { CalendarPlus, Clock3, Search } from "lucide-react";
 import { DAILY_RESET_UTC_HOUR } from "@/lib/ruleCalculator";
 import {
   JOURNAL_SESSION_BANDS,
+  RESET_REMINDER_OPTIONS,
+  dailyResetIcs,
   formatCountdown,
   journalSessionForUtcHour,
   parseLocalDateTime,
@@ -11,7 +13,20 @@ import {
   tradingDayStatus,
   utcHourOfDay,
   utcOffsetLabel,
+  type ResetReminder,
 } from "@/lib/tradingDayClock";
+
+function downloadResetIcs(reminder: ResetReminder) {
+  const blob = new Blob([dailyResetIcs(new Date(), reminder)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "fynx-daily-reset.ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 const BAND_TONE: Record<string, string> = { Asia: "bg-foreground/10", London: "bg-foreground/20", "New York": "bg-foreground/30" };
 
@@ -34,6 +49,7 @@ const zoneName = () => {
 export default function TradingDayClock({ now: fixedNow }: { now?: Date }) {
   const [now, setNow] = useState<Date | null>(fixedNow ?? null);
   const [checkValue, setCheckValue] = useState(() => (fixedNow ? toLocalInputValue(fixedNow) : ""));
+  const [reminder, setReminder] = useState<ResetReminder>(15);
 
   useEffect(() => {
     if (fixedNow) return;
@@ -86,6 +102,21 @@ export default function TradingDayClock({ now: fixedNow }: { now?: Date }) {
           <p className="mt-1 text-2xl font-bold tabular-nums" aria-live="off" data-testid="clock-countdown">{formatCountdown(status.msUntilReset)}</p>
           <p className="mt-1 text-xs text-muted-foreground">{dayTime(status.periodEnd)} your time</p>
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-border p-3" data-testid="reset-calendar">
+        <button type="button" onClick={() => downloadResetIcs(reminder)}
+          className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <CalendarPlus size={16} aria-hidden="true" /> Add the daily reset to my calendar
+        </button>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          Reminder
+          <select value={reminder} onChange={e => setReminder(Number(e.target.value) as ResetReminder)}
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground">
+            {RESET_REMINDER_OPTIONS.map(m => <option key={m} value={m}>{m === 0 ? "No reminder" : m === 60 ? "1 hour before" : `${m} minutes before`}</option>)}
+          </select>
+        </label>
+        <p className="w-full text-xs text-muted-foreground">One event that repeats every day at {DAILY_RESET_UTC_HOUR}:00 UTC ({timeOf(status.periodEnd)} your time). Works with Google, Apple and Outlook calendars and stays correct when clocks change.</p>
       </div>
 
       <div className="mt-6">

@@ -38,7 +38,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Risk planner linked from the home "Know your numbers" section, How it works and the dashboard Objectives page (opens on the trader's account size and slider risk) (2026-11-04)
 - [x] "Copy a link to this plan": the planner's size/program/phase, risk, reward and days are saved in a shareable address (2026-11-04)
 - [x] Trading-day clock (/rules#trading-day): UTC and local time, live countdown to the 22:00 UTC reset, 24-hour bar, journal session labels in local time, and "Check a time" to see which daily-loss period a moment counts against; linked from the hero and the FAQ reset answer (2026-11-04)
-- [ ] Trading-day clock: optional "Add the daily reset to my calendar" (.ics, recurring daily)
+- [x] Trading-day clock: "Add the daily reset to my calendar" (.ics, one event repeating daily at 22:00 UTC, optional 15/30/60-minute reminder) (2026-11-05)
 - [ ] Show the planner's daily pace against the trader's real progress on the dashboard (needs verified evaluation data)
 
 ## Payouts (/payouts)
@@ -72,7 +72,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Analytics: "P/L by trading day" (22:00–22:00 UTC, same window as the daily loss limit): up/down/flat days, average, best and worst day, bar chart of the last 30 trading days, best-day share vs the 40% rule (labelled estimate, links to Objectives), full day list (2026-11-04)
 - [x] Analytics: trade-quality row (average win/loss, payoff ratio, longest win/losing streak, distance below peak); these were calculated but never shown (2026-11-04)
 - [x] Analytics "Data status": trading-day count used calendar dates; now uses the 22:00 UTC trading day like the rules engine (2026-11-04)
-- [ ] Analytics: P/L by instrument × session matrix; R-multiple distribution once risk data is reliable
-- [ ] Account workspace (/dashboard/accounts/:id) Analysis tab: reuse the timing and trading-day cards
+- [x] Analytics: "Instruments by session" table: net P/L, trades, win rate, average, best/worst and buy/sell count per instrument, split into Asia/London/New York, with totals, sorting, "show all" and strongest/weakest combination (only with 3+ trades) (2026-11-05)
+- [ ] Analytics: R-multiple distribution once risk data is reliable
+- [x] Account workspace (/dashboard/accounts/:id) Analysis tab: now has the instruments-by-session table, "When you trade best" and "P/L by trading day" for that one account (2026-11-05)
+- [ ] Account workspace: date-range filter (7D/30D/All) like Analytics
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile
 - [ ] Add tests covering public marketing pages render (Index, Challenges, Rules, Payouts)

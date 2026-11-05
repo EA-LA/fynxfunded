@@ -84,13 +84,13 @@ const icsDate = (date: Date) =>
 const nextDay = (date: Date) => new Date(date.getTime() + DAY_MS);
 
 /** Escapes iCalendar TEXT values (RFC 5545 §3.3.11). */
-const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+export const icsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 
 /**
  * Folds long content lines (RFC 5545 §3.1 allows 75 octets). Folding at 60
  * characters keeps lines under the limit even with multi-byte dashes.
  */
-function fold(line: string): string {
+export function fold(line: string): string {
   if (line.length <= 60) return line;
   const parts = [line.slice(0, 60)];
   for (let i = 60; i < line.length; i += 59) parts.push(` ${line.slice(i, i + 59)}`);
