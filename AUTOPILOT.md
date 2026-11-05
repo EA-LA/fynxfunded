@@ -42,7 +42,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Position size calculator (/rules#position-size): lots from risk and stop distance for USD-quoted forex, USD-based forex (trader types the price), USD/JPY, gold and any other instrument (trader types the point value), with round-turn charges, rounded down to 0.01 lots, loss at the stop vs today's allowance, target distance and profit, minimum-lot warning and a shareable link; opened from the risk planner ("Turn this risk into a lot size"), the Rules intro and a new FAQ answer (/faq#lot-size) (2026-11-05)
 - [x] Challenge pass simulator (/rules#simulator): plays a plan (risk, reward, win rate, trades per day, charges, day limit) forward 2,000 times against the daily loss, maximum loss, minimum days and 40% rules for one phase or all phases; pass rate, how runs ended, typical trading days to pass with a spread chart, average result per trade, "stop before a breach" switch, re-run and shareable link; opened from the risk planner ("Test this plan in the pass simulator"), the Rules intro and a new FAQ answer (/faq#pass-odds) (2026-11-05)
 - [x] Simulator from the trader's own record: "Your record in the pass simulator" on dashboard Analytics and each account's Analysis tab turns closed trades (win rate, average win/loss, trades per trading day) into a plan, runs 2,000 simulations for a chosen size/program/phase, flags slow or floor-heavy results and opens the full simulator preloaded; needs 10+ wins/losses with at least one of each, reward is rounded down (never flatters), labelled as past results; FAQ pass-odds answer mentions it (2026-11-05)
-- [ ] Journal simulator: use each trade's own size (bootstrap from the record) instead of average win/loss, once enough history exists
+- [x] Journal simulator: "One of your real trades" switch replays the trader's own wins and losses picked at random (resized to the chosen account), shows biggest win/loss, warns when the biggest loss alone breaks the daily limit, and compares the pass rate with the average method (2026-11-05)
+- [ ] Pass simulator on /rules: let traders paste or upload a list of trade results to replay (same engine as the dashboard replay)
 - [ ] Position size calculator: add cross pairs (e.g. EUR/GBP) with a typed conversion rate once there's demand; use verified broker contract specs when published
 - [ ] Show the planner's daily pace against the trader's real progress on the dashboard (needs verified evaluation data)
 
@@ -57,6 +58,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Questions grouped by topic with filter chips; 13 new answers (reset time, loss floors, consistency, targets, days, split, payout windows, verification) with figures pulled from the published schedule (2026-11-03)
 - [x] Each question has its own shareable link (/faq#question-id) and a next-step link (2026-11-03)
 - [x] Home FAQ preview: curated questions from the real FAQ, each linking to its answer (/faq#id) (2026-11-04)
+- [x] Glossary (/faq#glossary): 36 trading and evaluation terms with search (names, other names and definitions), area filters, A–Z jump links, a shareable link per term (/faq#term-pip, highlighted when opened) and links to the matching calculator or answer; FYNX figures come from the published schedule (2026-11-05)
+- [ ] Link glossary terms from the Rules page and calculators (e.g. "equity", "pip" tooltips)
+- [ ] Translate the glossary with the rest of the FAQ
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)
 - [x] Table of contents with anchor links and "last updated" date (already present; verified 2026-11-03)

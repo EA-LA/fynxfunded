@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import MarketingLayout from "@/components/MarketingLayout";
+import TradingGlossary from "@/components/TradingGlossary";
 import { faqItems } from "@/lib/mockData";
 import { faqTopics, type FaqTopicId } from "@/lib/faqContent";
 import { filterFaq } from "@/lib/faqSearch";
@@ -72,7 +73,8 @@ export default function FAQ() {
       <section className="max-w-3xl mx-auto px-6 py-24 md:py-32">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 animate-fade-up">FAQ</h1>
         <p className="text-lg text-muted-foreground mb-10 animate-fade-up delay-200">
-          Everything you need to know about FYNX Funded.
+          Everything you need to know about FYNX Funded. New to a word?{" "}
+          <a href="#glossary" className="font-medium text-foreground underline underline-offset-4">See the glossary</a>.
         </p>
 
         <div role="search" className="relative mb-3">
@@ -185,6 +187,8 @@ export default function FAQ() {
             </div>
           )}
         </div>
+
+        <TradingGlossary />
 
         <nav aria-label="Related pages" className="mt-16">
           <h2 className="text-sm font-semibold mb-4">Keep exploring</h2>

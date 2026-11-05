@@ -110,3 +110,14 @@ export function journalRiskAmount(plan: JournalPlan, accountSize: number): numbe
   if (plan.riskPercent !== null) return round2((accountSize * plan.riskPercent) / 100);
   return plan.avgLoss;
 }
+
+/**
+ * The record's own winning and losing trade results, rescaled to the chosen
+ * account size (same share of the account as when they were made; unscaled
+ * when the recorded size is unknown). Breakeven trades are left out, matching
+ * how the win rate and trades per day are counted. Used by the replay method.
+ */
+export function journalTradeOutcomes(trades: Trade[], recordedSize: number, chosenSize: number): number[] {
+  const scale = recordedSize > 0 && chosenSize > 0 ? chosenSize / recordedSize : 1;
+  return trades.filter((t) => t.pnl !== 0 && Number.isFinite(t.pnl)).map((t) => round2(t.pnl * scale));
+}

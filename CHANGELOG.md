@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-05 15:20 UTC — [autopilot] Trading glossary on the FAQ page, and "replay my real trades" in the dashboard simulator
+- New glossary at the bottom of the FAQ page: 36 trading and evaluation words (pip, lot, equity, daily loss limit, static vs trailing drawdown, consistency rule, profit split and more) explained in plain words, with search, filters by area, A–Z letters and a "go to the calculator" link on most terms. Every FYNX number comes from the published rules. See https://www.fynxfunded.com/faq#glossary
+- Each word has its own link to share, e.g. https://www.fynxfunded.com/faq#term-pip opens the page on that word and highlights it.
+- In the dashboard (Analytics, and each account's Analysis tab), "Your record in the pass simulator" can now replay the trader's real wins and losses instead of only the average ones. It shows their biggest win and loss, warns if the biggest loss alone would break the daily limit, and compares both pass rates side by side, so traders whose trade sizes vary a lot see a more honest picture.
+
 ## 2026-11-05 12:30 UTC — [autopilot] Test your own trading record in the pass simulator
 
 - Dashboard Analytics has a new "Your record in the pass simulator" panel. It takes your own closed trades (your win rate, your average loss as the risk per trade, your average win as the reward, and how many trades you usually take a day) and plays that forward 2,000 times against the real challenge rules. You see how often it passes, how the other runs ended and how many trading days a pass usually takes. https://www.fynxfunded.com/dashboard/analytics

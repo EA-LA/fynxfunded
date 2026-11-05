@@ -37,6 +37,13 @@ export interface SimulationInput {
   stopBeforeBreach: boolean;
   runs: number;
   seed: number;
+  /**
+   * Optional replay mode: when given, every simulated trade is one of these
+   * dollar results picked at random (with replacement), instead of a fixed win
+   * or loss. riskAmount, rewardRatio and winRatePercent are then ignored, and
+   * "stop before a breach" assumes the next trade could be the largest loss.
+   */
+  tradeOutcomes?: number[];
 }
 
 export interface SimulationResult {
@@ -76,9 +83,14 @@ interface PhaseRun {
 
 function runPhase(input: SimulationInput, targetProfit: number, daysAvailable: number, random: () => number): PhaseRun {
   const { plan, riskAmount, rewardRatio, costPerTrade, tradesPerDay, stopBeforeBreach } = input;
+  const outcomes = input.tradeOutcomes && input.tradeOutcomes.length ? input.tradeOutcomes.map((o) => round2(o - costPerTrade)) : null;
   const win = round2(riskAmount * rewardRatio - costPerTrade);
-  const loss = round2(riskAmount + costPerTrade);
+  // In replay mode the planned "loss" is the worst result the record contains.
+  const loss = outcomes ? Math.max(0, -Math.min(...outcomes)) : round2(riskAmount + costPerTrade);
   const p = input.winRatePercent / 100;
+  const nextTrade = outcomes
+    ? () => outcomes[Math.min(outcomes.length - 1, Math.floor(random() * outcomes.length))]
+    : () => (random() < p ? win : -loss);
   const start = plan.accountSize;
   const maxFloor = plan.maxLossFloor;
 
@@ -103,7 +115,7 @@ function runPhase(input: SimulationInput, targetProfit: number, daysAvailable: n
     for (let t = 0; t < tradesPerDay; t++) {
       if (stopBeforeBreach && balance - loss < floor - EPS) break;
       traded = true;
-      const delta = random() < p ? win : -loss;
+      const delta = nextTrade();
       balance = round2(balance + delta);
       dayResult = round2(dayResult + delta);
       if (balance < floor - EPS) {
@@ -131,9 +143,14 @@ const OUTCOMES: Outcome[] = ["passed", "dailyBreach", "maxBreach", "outOfRoom", 
 
 export function simulateChallenge(input: SimulationInput): SimulationResult {
   const { plan } = input;
-  if (!(input.riskAmount > 0) || !Number.isFinite(input.riskAmount)) throw new Error("Risk must be a positive number");
-  if (!(input.rewardRatio > 0)) throw new Error("Reward must be positive");
-  if (!(input.winRatePercent > 0 && input.winRatePercent < 100)) throw new Error("Win rate must be between 0 and 100");
+  const replay = Boolean(input.tradeOutcomes && input.tradeOutcomes.length);
+  if (replay) {
+    if (!input.tradeOutcomes!.every((o) => Number.isFinite(o))) throw new Error("Trade results must be numbers");
+  } else {
+    if (!(input.riskAmount > 0) || !Number.isFinite(input.riskAmount)) throw new Error("Risk must be a positive number");
+    if (!(input.rewardRatio > 0)) throw new Error("Reward must be positive");
+    if (!(input.winRatePercent > 0 && input.winRatePercent < 100)) throw new Error("Win rate must be between 0 and 100");
+  }
   if (!(input.costPerTrade >= 0)) throw new Error("Charges cannot be negative");
   const runs = Math.max(1, Math.trunc(input.runs));
   const tradesPerDay = Math.max(1, Math.trunc(input.tradesPerDay));

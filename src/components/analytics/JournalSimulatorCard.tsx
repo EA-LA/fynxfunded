@@ -4,7 +4,9 @@ import { AlertTriangle, ArrowRight, Dices } from "lucide-react";
 import type { Trade } from "@/lib/tradingData";
 import { getRulePlan, PROGRAMS, type ProgramId } from "@/lib/ruleCalculator";
 import { DEFAULT_SIMULATOR_PRESET, SIMULATION_RUNS, simulateChallenge, simulatorLink, type Outcome, type PhaseChoice } from "@/lib/challengeSimulator";
-import { journalPlan, journalRiskAmount, SUPPORTED_ACCOUNT_SIZES } from "@/lib/journalSimulator";
+import { journalPlan, journalRiskAmount, journalTradeOutcomes, SUPPORTED_ACCOUNT_SIZES } from "@/lib/journalSimulator";
+
+type Method = "average" | "replay";
 
 const SEED = 20261105;
 const DAY_LIMIT = Number(DEFAULT_SIMULATOR_PRESET.dayLimitInput);
@@ -34,6 +36,7 @@ export default function JournalSimulatorCard({ trades, accountSize, periodLabel,
   const [size, setSize] = useState<number>(recordSizeSupported ? accountSize : 25000);
   const [program, setProgram] = useState<ProgramId>(() => ((PROGRAMS as string[]).includes(initialProgram ?? "") ? (initialProgram as ProgramId) : "2-phase"));
   const [phase, setPhase] = useState<PhaseChoice>(1);
+  const [method, setMethod] = useState<Method>("average");
 
   const rules = useMemo(() => getRulePlan(size, program), [size, program]);
   const phaseChoice: PhaseChoice = rules.phases.length === 1 ? 1 : phase;
@@ -42,7 +45,37 @@ export default function JournalSimulatorCard({ trades, accountSize, periodLabel,
   const dailyAllowance = Math.round(size * rules.dailyLossPercent) / 100;
   const tooBig = plan.ready && riskAmount > dailyAllowance;
 
-  const result = useMemo(
+  // Replay method: the record's own wins and losses, resized to the chosen account.
+  const outcomes = useMemo(
+    () => (plan.ready ? journalTradeOutcomes(trades, plan.riskPercent !== null ? accountSize : 0, size) : []),
+    [plan, trades, accountSize, size],
+  );
+  const biggestLoss = outcomes.length ? Math.max(0, -Math.min(...outcomes)) : 0;
+  const biggestWin = outcomes.length ? Math.max(0, ...outcomes) : 0;
+  const replayTooBig = plan.ready && biggestLoss > dailyAllowance;
+
+  const replayResult = useMemo(
+    () =>
+      plan.ready && !replayTooBig && outcomes.length
+        ? simulateChallenge({
+            plan: rules,
+            phase: phaseChoice,
+            riskAmount: 0,
+            rewardRatio: 0,
+            winRatePercent: 0,
+            tradesPerDay: plan.tradesPerDay,
+            dayLimit: DAY_LIMIT,
+            costPerTrade: 0,
+            stopBeforeBreach: true,
+            runs: SIMULATION_RUNS,
+            seed: SEED,
+            tradeOutcomes: outcomes,
+          })
+        : null,
+    [plan, replayTooBig, outcomes, rules, phaseChoice],
+  );
+
+  const averageResult = useMemo(
     () =>
       plan.ready && !tooBig && riskAmount > 0
         ? simulateChallenge({
@@ -61,6 +94,10 @@ export default function JournalSimulatorCard({ trades, accountSize, periodLabel,
         : null,
     [plan, tooBig, riskAmount, rules, phaseChoice, winRate],
   );
+
+  const result = method === "replay" ? replayResult : averageResult;
+  const otherResult = method === "replay" ? averageResult : replayResult;
+  const blocked = method === "replay" ? replayTooBig : tooBig;
 
   const link = simulatorLink({
     accountSize: size,
@@ -147,9 +184,28 @@ export default function JournalSimulatorCard({ trades, accountSize, periodLabel,
                 </div>
               </div>
             )}
+            <div>
+              <p className="text-xs font-medium" id="journal-sim-method">Each simulated trade is</p>
+              <div className="mt-1 flex flex-wrap gap-2" role="group" aria-labelledby="journal-sim-method">
+                <button type="button" aria-pressed={method === "average"} className={chip(method === "average")} onClick={() => setMethod("average")}>Your average win or loss</button>
+                <button type="button" aria-pressed={method === "replay"} className={chip(method === "replay")} onClick={() => setMethod("replay")}>One of your real trades</button>
+              </div>
+            </div>
           </div>
 
-          {tooBig ? (
+          {method === "replay" && (
+            <p className="mt-3 max-w-2xl text-xs text-muted-foreground" data-testid="journal-sim-replay-note">
+              Each simulated trade is one of your {outcomes.length} real winning or losing trades, picked at random, so big wins and big losses show up as often as they did for you
+              {plan.riskPercent !== null && size !== accountSize ? `, resized to the ${sizeLabel(size)} account` : ""}. Your biggest loss here is {usd(biggestLoss)} and your biggest win {usd(biggestWin)}. To stay safe, the simulated trader skips a trade whenever your biggest loss could break today's limit.
+            </p>
+          )}
+
+          {blocked && method === "replay" ? (
+            <p className="mt-5 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm" role="alert">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+              At this size your biggest recorded loss ({usd(biggestLoss)}) is bigger than the whole daily loss allowance ({usd(dailyAllowance)}), so that trade alone would break the daily limit. Try a larger account size, or switch to your average win or loss.
+            </p>
+          ) : blocked ? (
             <p className="mt-5 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm" role="alert">
               <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
               At this size your average loss ({usd(riskAmount)}) is bigger than the whole daily loss allowance ({usd(dailyAllowance)}), so a single average loss would break the daily limit. Try a larger account size, or plan a smaller risk per trade.
@@ -174,6 +230,13 @@ export default function JournalSimulatorCard({ trades, accountSize, periodLabel,
                     Most runs reached the maximum-loss floor before the target. Open the full simulator to see how a smaller risk per trade changes that.
                   </p>
                 )}
+                {otherResult && (
+                  <p className="mt-3 border-t pt-3 text-xs text-muted-foreground" data-testid="journal-sim-compare">
+                    {method === "replay" ? "Using your average win or loss instead" : "Replaying your real trades instead"}: <b className="tabular-nums text-foreground">{otherResult.percents.passed}%</b> passed.
+                    {Math.abs(otherResult.percents.passed - result.percents.passed) >= 10 &&
+                      " A big gap means the size of your trades varies a lot, so the average alone hides part of the picture."}
+                  </p>
+                )}
               </div>
               <ul className="space-y-2.5" aria-label="How the simulated runs ended">
                 {ROWS.map((row) => (
@@ -188,7 +251,7 @@ export default function JournalSimulatorCard({ trades, accountSize, periodLabel,
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
             <p className="max-w-2xl text-[11px] text-muted-foreground">
-              Based on past closed trades only, with every win and loss assumed to be your average size and the simulated trader skipping any trade that could break today's limit. Small records can mislead. This is an illustration, not a prediction or advice, and it never affects your account.
+              Based on past closed trades only{method === "replay" ? ", picked at random from your record" : ", with every win and loss assumed to be your average size"} and the simulated trader skipping any trade that could break today's limit. The full simulator uses the average method. Small records can mislead. This is an illustration, not a prediction or advice, and it never affects your account.
             </p>
             <Link to={link} className="inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
               Open this in the pass simulator <ArrowRight size={14} aria-hidden="true" />
