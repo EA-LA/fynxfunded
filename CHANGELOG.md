@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-05 16:35 UTC — [autopilot] Replay your own trade results in the pass simulator
+
+- The pass simulator on the Rules page has a new choice: "One of my own trade results". Paste your past profits and losses (one per line), or open a CSV export from your broker; the Profit / P/L column is found automatically.
+- It shows what it read (wins, losses, win rate, average and biggest win and loss, net result) and then plays those real results forward 2,000 times against the challenge rules: how often you'd pass, how runs end and how many trading days it usually takes.
+- Optional "account size these results were made on" resizes them to the account you're testing, and a warning appears if your biggest loss alone is bigger than the daily allowance.
+- Your results stay on your device: nothing is uploaded, saved or included in the share link. A "Try made-up example results" button lets anyone try it.
+- See it: https://www.fynxfunded.com/rules?smethod=own#simulator (also linked from the top of the Rules page and the FAQ answer https://www.fynxfunded.com/faq#pass-odds)
+
 ## 2026-11-05 15:20 UTC — [autopilot] Trading glossary on the FAQ page, and "replay my real trades" in the dashboard simulator
 - New glossary at the bottom of the FAQ page: 36 trading and evaluation words (pip, lot, equity, daily loss limit, static vs trailing drawdown, consistency rule, profit split and more) explained in plain words, with search, filters by area, A–Z letters and a "go to the calculator" link on most terms. Every FYNX number comes from the published rules. See https://www.fynxfunded.com/faq#glossary
 - Each word has its own link to share, e.g. https://www.fynxfunded.com/faq#term-pip opens the page on that word and highlights it.

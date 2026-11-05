@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import RuleAvailabilityNotice from "@/components/RuleAvailabilityNotice";
 import { RULE_POLICY_VERSION as VERSION } from "@/lib/challengeConfig";
 import MarketingLayout from "@/components/MarketingLayout";
@@ -82,6 +83,7 @@ export default function RulesPage() {
             <a href="#calculator" className="underline underline-offset-4">Work out your limits in dollars with the rules calculator</a>
             <a href="#risk-planner" className="underline underline-offset-4">Plan your risk per trade and daily pace</a>
             <a href="#simulator" className="underline underline-offset-4">Simulate how often a plan passes</a>
+            <Link to="/rules?smethod=own#simulator" className="underline underline-offset-4">Replay your own trade results</Link>
             <a href="#position-size" className="underline underline-offset-4">Turn your risk into a lot size</a>
             <a href="#trading-day" className="underline underline-offset-4">See when the daily reset happens in your time</a>
           </div>
