@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 import pages from "@/lib/search-pages.json";
 import { searchIdentity } from '@/lib/search-identity';
+import { privatePageTitle } from '@/lib/pageTitles';
 const publicPages: Record<string, string[]> = pages;
 
 export default function SearchMetadata({ platform }: { platform: boolean }) {
@@ -11,7 +12,7 @@ export default function SearchMetadata({ platform }: { platform: boolean }) {
     const publicPlatform = true;
     const page = platform && publicPlatform ? publicPages[pathname] : publicPages['/'];
     const indexable = platform ? publicPlatform && Boolean(publicPages[pathname]) : pathname === '/';
-    const [label, description] = page || ['Account', 'Manage your FYNX Funded account.'];
+    const [label, description] = page || [privatePageTitle(pathname), 'Manage your FYNX Funded account.'];
     const title = `${label} | FYNX Funded`;
     const url = `https://www.fynxfunded.com${platform && publicPlatform ? pathname : '/'}`;
     document.title = title;

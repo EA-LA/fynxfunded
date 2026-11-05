@@ -15,6 +15,7 @@ import {
   utcOffsetLabel,
   type ResetReminder,
 } from "@/lib/tradingDayClock";
+import GlossaryTip from "@/components/GlossaryTip";
 
 function downloadResetIcs(reminder: ResetReminder) {
   const blob = new Blob([dailyResetIcs(new Date(), reminder)], { type: "text/calendar;charset=utf-8" });
@@ -98,7 +99,7 @@ export default function TradingDayClock({ now: fixedNow }: { now?: Date }) {
           <p className="mt-1 truncate text-xs text-muted-foreground" title={zone}>{zone}</p>
         </div>
         <div className="rounded-lg bg-secondary/50 p-4">
-          <p className="text-xs text-muted-foreground">Next daily reset in</p>
+          <p className="text-xs text-muted-foreground">Next daily reset in <GlossaryTip term="daily-reset" /></p>
           <p className="mt-1 text-2xl font-bold tabular-nums" aria-live="off" data-testid="clock-countdown">{formatCountdown(status.msUntilReset)}</p>
           <p className="mt-1 text-xs text-muted-foreground">{dayTime(status.periodEnd)} your time</p>
         </div>

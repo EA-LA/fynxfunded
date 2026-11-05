@@ -10,6 +10,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Opening a shared link like /payouts#calendar or /faq#daily-loss directly now jumps to that section (was: stayed at the top of the page) (2026-11-04)
 - [x] New pages open at the top and #section links jump to the section (was: footer links left you at the bottom of the next page) (2026-11-03)
 - [x] Removed the long "FYNX Ecosystem" link list from the bottom of every page at the owner's request; the same destinations stay in the header ecosystem menu (and the dashboard Resources page) (2026-11-04)
+- [x] Browser tabs on login, sign-up, certificate lookup, checkout and every dashboard page all said "Account"; each now has its own name (e.g. "Log in", "Analytics · Dashboard"), still hidden from search engines (2026-11-05)
 - [ ] Performance: main bundle chunk is >500 kB; split heavy routes/libs further
 - [x] "Skip to main content" link for keyboard and screen-reader users on every public page (2026-11-04)
 - [ ] Accessibility pass (focus outlines, heading order)
@@ -60,7 +61,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Each question has its own shareable link (/faq#question-id) and a next-step link (2026-11-03)
 - [x] Home FAQ preview: curated questions from the real FAQ, each linking to its answer (/faq#id) (2026-11-04)
 - [x] Glossary (/faq#glossary): 36 trading and evaluation terms with search (names, other names and definitions), area filters, A–Z jump links, a shareable link per term (/faq#term-pip, highlighted when opened) and links to the matching calculator or answer; FYNX figures come from the published schedule (2026-11-05)
-- [ ] Link glossary terms from the Rules page and calculators (e.g. "equity", "pip" tooltips)
+- [x] Glossary help on /rules: dotted words in the schedule table, a "Words used here" line on every rule card, and "?" buttons beside the labels of the rules calculator, risk planner, pass simulator, position size calculator and trading-day clock; tap/click/keyboard opens the plain definition with "Open in the glossary" and the term's next step (2026-11-05)
+- [ ] Add the same glossary help to How it works, Challenges, Payouts and the dashboard Objectives/Analytics labels
 - [ ] Translate the glossary with the rest of the FAQ
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)

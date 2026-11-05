@@ -14,6 +14,7 @@ import {
   type InstrumentKind,
   type PositionPreset,
 } from "@/lib/positionSize";
+import GlossaryTip from "@/components/GlossaryTip";
 
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -145,7 +146,7 @@ export default function PositionSizeCalculator() {
           </div>
         </fieldset>
         <div>
-          <span className="text-sm font-medium" id="ps-risk-unit-label">Risk per trade</span>
+          <span className="text-sm font-medium" id="ps-risk-unit-label">Risk per trade</span> <GlossaryTip term="risk-per-trade" />
           <div className="mt-1 flex gap-2" role="group" aria-labelledby="ps-risk-unit-label">
             <button type="button" aria-pressed={riskMode === "percent"} className={chip(riskMode === "percent")} onClick={() => switchMode("percent")}>% of account</button>
             <button type="button" aria-pressed={riskMode === "dollars"} className={chip(riskMode === "dollars")} onClick={() => switchMode("dollars")}>Dollars</button>
@@ -187,7 +188,7 @@ export default function PositionSizeCalculator() {
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <div>
-          <label htmlFor="ps-stop" className="text-sm font-medium">Stop-loss distance ({unitPlural})</label>
+          <label htmlFor="ps-stop" className="text-sm font-medium">Stop-loss distance ({unitPlural})</label> <GlossaryTip term="stop-loss" />
           <input id="ps-stop" inputMode="decimal" className={`${inputClass} mt-1`} value={stopInput} onChange={(e) => set("stopInput", e.target.value)} aria-invalid={stop === undefined} aria-describedby="ps-stop-help" />
           <p id="ps-stop-help" className={`mt-1 text-xs ${stop !== undefined ? "text-muted-foreground" : "text-destructive"}`}>
             {stop !== undefined ? "Distance from your entry to your stop." : `Enter the distance in ${unitPlural}, above 0.`}
@@ -204,7 +205,7 @@ export default function PositionSizeCalculator() {
         )}
         {convention.needsUnitValue && (
           <div>
-            <label htmlFor="ps-value" className="text-sm font-medium">Value of 1 point on 1.00 lot (USD)</label>
+            <label htmlFor="ps-value" className="text-sm font-medium">Value of 1 point on 1.00 lot (USD)</label> <GlossaryTip term="pip-value" />
             <input id="ps-value" inputMode="decimal" className={`${inputClass} mt-1`} value={valueInput} onChange={(e) => set("valueInput", e.target.value)} aria-invalid={!valueValid} aria-describedby="ps-value-help" />
             <p id="ps-value-help" className={`mt-1 text-xs ${valueValid ? "text-muted-foreground" : "text-destructive"}`}>
               From your platform's contract details (often called tick value or point value). For an instrument whose 1.00 lot is 1 unit priced in dollars, this is 1.
@@ -212,14 +213,14 @@ export default function PositionSizeCalculator() {
           </div>
         )}
         <div>
-          <label htmlFor="ps-commission" className="text-sm font-medium">Trading charge per 1.00 lot, round turn (USD)</label>
+          <label htmlFor="ps-commission" className="text-sm font-medium">Trading charge per 1.00 lot, round turn (USD)</label> <GlossaryTip term="commission" />
           <input id="ps-commission" inputMode="decimal" className={`${inputClass} mt-1`} value={commissionInput} onChange={(e) => set("commissionInput", e.target.value)} aria-invalid={!commissionValid} aria-describedby="ps-commission-help" />
           <p id="ps-commission-help" className={`mt-1 text-xs ${commissionValid ? "text-muted-foreground" : "text-destructive"}`}>
             {commissionValid ? "Opening plus closing charge. Leave 0 if you don't know it yet; the size then excludes charges." : "Enter 0 or a dollar amount up to 1,000."}
           </p>
         </div>
         <fieldset>
-          <legend className="text-sm font-medium">Take profit at</legend>
+          <legend className="text-sm font-medium">Take profit at <GlossaryTip term="take-profit" /></legend>
           <div className="mt-1 flex flex-wrap gap-2">
             {REWARD_RATIOS.map((r) => (
               <button key={r} type="button" aria-pressed={rewardRatio === r} className={chip(rewardRatio === r)} onClick={() => set("rewardRatio", r)}>
@@ -252,11 +253,11 @@ export default function PositionSizeCalculator() {
             )}
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">One 1.00 lot</dt>
+                <dt className="text-xs text-muted-foreground">One 1.00 lot <GlossaryTip term="lot" /></dt>
                 <dd className="font-semibold tabular-nums">{usd(result.unitValuePerLot)} per {convention.unit[0]}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Loss per 1.00 lot at this stop</dt>
+                <dt className="text-xs text-muted-foreground">Loss per 1.00 lot at this stop <GlossaryTip term="pip-value" /></dt>
                 <dd className="font-semibold tabular-nums">{usd(result.lossPerLot)}</dd>
               </div>
             </dl>

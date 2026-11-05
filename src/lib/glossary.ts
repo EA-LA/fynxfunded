@@ -313,3 +313,13 @@ export function searchGlossary(query: string, list: GlossaryTerm[] = glossaryTer
     .filter((x): x is { t: GlossaryTerm; score: number } => x !== null);
   return scored.sort((a, b) => b.score - a.score).map((x) => x.t);
 }
+
+const byId = new Map(terms.map((t) => [t.id, t]));
+
+/** The glossary entry with this id, if there is one. */
+export function getGlossaryTerm(id: string): GlossaryTerm | undefined {
+  return byId.get(id);
+}
+
+/** Address of a term in the FAQ glossary, e.g. /faq#term-pip. */
+export const glossaryTermLink = (id: string) => `/faq#term-${id}`;

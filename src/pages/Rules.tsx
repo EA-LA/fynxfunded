@@ -7,6 +7,7 @@ import RiskPlanner from "@/components/RiskPlanner";
 import ChallengeSimulator from "@/components/ChallengeSimulator";
 import PositionSizeCalculator from "@/components/PositionSizeCalculator";
 import TradingDayClock from "@/components/TradingDayClock";
+import GlossaryTip from "@/components/GlossaryTip";
 import {
   AlertTriangle,
   Clock,
@@ -16,54 +17,66 @@ import {
   ShieldAlert,
   Newspaper,
   Monitor,
+  HelpCircle,
 } from "lucide-react";
+import { getGlossaryTerm } from "@/lib/glossary";
+
+const termName = (id: string) => getGlossaryTerm(id)?.term ?? id;
 
 const rules = [
   {
     icon: TrendingDown,
     title: "Daily Loss Limit",
+    terms: ["daily-loss-limit", "daily-reset", "equity", "breach"],
     desc: "For new accounts under the versioned schedule: daily loss is 4% for 1-phase and 5% for 2-phase or 3-phase programs, measured from the balance at the daily reset.",
     tip: "Reset is 22:00 UTC year-round. Equity includes floating P/L. Touching the floor is allowed; falling below it records a breach.",
   },
   {
     icon: AlertTriangle,
     title: "Maximum Loss Limit",
+    terms: ["maximum-loss", "static-vs-trailing", "drawdown"],
     desc: "The static maximum loss is 8% for 1-phase, 10% for 2-phase and 12% for 3-phase programs, measured from the initial phase balance.",
     tip: "Profits do not raise this floor. A recorded breach remains after recovery and requires review.",
   },
   {
     icon: Newspaper,
     title: "News Trading",
+    terms: ["slippage", "spread"],
     desc: "News-trading permissions and restricted release windows require confirmation in your purchased agreement and approved broker specifications.",
     tip: "Check the economic calendar before placing trades near major events.",
   },
   {
     icon: Clock,
     title: "Weekend Holding",
+    terms: ["sessions", "simulated-account"],
     desc: "Overnight and weekend permissions depend on the purchased agreement and verified broker instrument schedule. New-account balances use USD. Forex pairs and trading sessions are pending broker verification.",
     tip: "No crypto or universal weekend permission is promised by this schedule. Broker specifications must be verified before trading.",
   },
   {
     icon: Copy,
     title: "Copy Trading",
+    terms: ["evaluation"],
     desc: "Copy-trading and signal-use restrictions must be stated in the approved agreement before purchases open.",
     tip: "Do not assume an EA or copying service is permitted before the approved rules are published.",
   },
   {
     icon: ShieldAlert,
     title: "Consistency Rule",
+    terms: ["consistency-rule", "trading-day", "profit-target"],
     desc: "The best positive trading day must represent no more than 40% of total net phase profit. A nonpositive total or a larger share delays eligibility; it is not a loss breach.",
     tip: "Aim for steady, repeatable results across multiple sessions.",
   },
   {
     icon: Globe,
     title: "Martingale / Grid / HFT",
+    terms: ["risk-per-trade", "lot"],
     desc: "The final agreement will define prohibited strategies, automation limits and execution restrictions after broker review.",
     tip: "Strategy permission is not established by the numerical loss schedule.",
   },
   {
     icon: Monitor,
     title: "IP & Device Policy",
+    terms: ["kyc"],
     desc: "Device, location and account-access requirements must follow the approved security and trading agreement.",
     tip: "Confirm VPN and location requirements with Support before trading.",
   },
@@ -87,12 +100,16 @@ export default function RulesPage() {
             <a href="#position-size" className="underline underline-offset-4">Turn your risk into a lot size</a>
             <a href="#trading-day" className="underline underline-offset-4">See when the daily reset happens in your time</a>
           </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Not sure what a word means? Tap any <span className="underline decoration-dotted underline-offset-4">dotted word</span> or <HelpCircle size={13} className="inline align-[-2px]" aria-label="question mark" /> icon for a plain-language explanation, or{" "}
+            <Link to="/faq#glossary" className="font-medium text-foreground underline underline-offset-4">browse the full glossary</Link>.
+          </p>
         </div>
 
         <div className="premium-card mb-8 overflow-x-auto">
           <h2 className="text-lg font-semibold mb-3">New-account schedule · {VERSION}</h2>
           <table className="w-full text-sm text-left">
-            <thead><tr><th className="p-2">Program</th><th className="p-2">Phase targets</th><th className="p-2">Daily / maximum loss</th><th className="p-2">Minimum days per phase</th></tr></thead>
+            <thead><tr><th className="p-2">Program</th><th className="p-2"><GlossaryTip term="phase">Phase</GlossaryTip> <GlossaryTip term="profit-target">targets</GlossaryTip></th><th className="p-2"><GlossaryTip term="daily-loss-limit">Daily</GlossaryTip> / <GlossaryTip term="maximum-loss">maximum loss</GlossaryTip></th><th className="p-2"><GlossaryTip term="minimum-trading-days">Minimum days</GlossaryTip> per phase</th></tr></thead>
             <tbody>
               <tr><td className="p-2">1-phase</td><td className="p-2">10%</td><td className="p-2">4% / 8%</td><td className="p-2">3</td></tr>
               <tr><td className="p-2">2-phase</td><td className="p-2">8% → 5%</td><td className="p-2">5% / 10%</td><td className="p-2">5</td></tr>
@@ -125,6 +142,12 @@ export default function RulesPage() {
                   <div className="mt-3 px-3 py-2 bg-secondary/50 rounded text-xs text-muted-foreground">
                     💡 {rule.tip}
                   </div>
+                  <p className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>Words used here:</span>
+                    {rule.terms.map((id) => (
+                      <GlossaryTip key={id} term={id} className="text-foreground/90">{termName(id)}</GlossaryTip>
+                    ))}
+                  </p>
                 </div>
               </div>
             </div>

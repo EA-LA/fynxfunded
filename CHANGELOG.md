@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-05 20:25 UTC — [autopilot] Tap any rules word on the Rules page for a plain explanation
+
+- On https://www.fynxfunded.com/rules, words such as "Daily loss limit", "Equity", "Consistency rule" and "Minimum days" are now dotted: tap or click one to see what it means in plain words, with a link to the full glossary entry and the right calculator.
+- Every rule card ends with a "Words used here" line, and the calculators on the page (rules calculator, risk planner, pass simulator, position size calculator and daily-reset clock) have small "?" buttons beside their labels (risk per trade, stop loss, lot, take profit, win rate, break-even win rate, charges and more).
+- A short note under the page intro explains the dotted words and links to the full glossary at https://www.fynxfunded.com/faq#glossary.
+- Fixed: the browser tab said "Account" on the login, sign-up, certificate check, checkout and all dashboard pages. Each page now has its own tab name, for example "Log in", "Verify a certificate" or "Analytics · Dashboard".
+
 ## 2026-11-05 16:35 UTC — [autopilot] Replay your own trade results in the pass simulator
 
 - The pass simulator on the Rules page has a new choice: "One of my own trade results". Paste your past profits and losses (one per line), or open a CSV export from your broker; the Profit / P/L column is found automatically.

@@ -12,6 +12,7 @@ import {
   PROGRAMS as programs,
   type ProgramId,
 } from "@/lib/ruleCalculator";
+import GlossaryTip from "@/components/GlossaryTip";
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
@@ -128,18 +129,18 @@ export default function RuleCalculator() {
         <dl className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {plan.phases.map((ph) => (
             <div key={ph.phase} className={`rounded-md bg-secondary/50 p-3 ${plan.phases.length > 1 && ph.phase === currentPhase ? "ring-2 ring-primary" : ""}`}>
-              <dt className="text-xs text-muted-foreground">Phase {ph.phase} target ({ph.targetPercent}%)</dt>
+              <dt className="text-xs text-muted-foreground">Phase {ph.phase} target ({ph.targetPercent}%) <GlossaryTip term="profit-target" /></dt>
               <dd className="mt-1 text-base font-semibold tabular-nums">+{usd(ph.targetProfit)}</dd>
               <dd className="text-xs text-muted-foreground tabular-nums">Balance {usd(ph.targetBalance)}</dd>
             </div>
           ))}
           <div className="rounded-md bg-secondary/50 p-3">
-            <dt className="text-xs text-muted-foreground">Maximum loss ({plan.maxLossPercent}%, static)</dt>
+            <dt className="text-xs text-muted-foreground">Maximum loss ({plan.maxLossPercent}%, static) <GlossaryTip term="static-vs-trailing" /></dt>
             <dd className="mt-1 text-base font-semibold tabular-nums">−{usd(plan.maxLossAmount)}</dd>
             <dd className="text-xs text-muted-foreground tabular-nums">Equity floor {usd(plan.maxLossFloor)}</dd>
           </div>
           <div className="rounded-md bg-secondary/50 p-3">
-            <dt className="text-xs text-muted-foreground">Minimum trading days</dt>
+            <dt className="text-xs text-muted-foreground">Minimum trading days <GlossaryTip term="minimum-trading-days" /></dt>
             <dd className="mt-1 text-base font-semibold tabular-nums">{plan.minDays} per phase</dd>
             <dd className="text-xs text-muted-foreground">Days with a closed trade</dd>
           </div>
@@ -149,11 +150,11 @@ export default function RuleCalculator() {
       {/* Today's floor */}
       <div className="mt-8 grid gap-6 md:grid-cols-2">
         <div>
-          <h3 className="text-sm font-semibold mb-1">Today's loss floor</h3>
+          <h3 className="text-sm font-semibold mb-1">Today's loss floor <GlossaryTip term="daily-loss-limit" /></h3>
           <p className="text-xs text-muted-foreground mb-3">
             Enter your balance at the last {DAILY_RESET_UTC_HOUR}:00 UTC reset. Leave blank to use the starting balance.
           </p>
-          <label htmlFor="reset-balance" className="text-sm font-medium">Balance at daily reset (USD)</label>
+          <label htmlFor="reset-balance" className="text-sm font-medium">Balance at daily reset (USD)</label> <GlossaryTip term="daily-reset" />
           <input
             id="reset-balance"
             inputMode="decimal"
@@ -233,7 +234,7 @@ export default function RuleCalculator() {
                 <dl className="grid grid-cols-2 gap-3">
                   <div><dt className="text-xs text-muted-foreground">Total net profit</dt><dd className="font-semibold tabular-nums">{usd(consistency.totalProfit)}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Best day</dt><dd className="font-semibold tabular-nums">{usd(consistency.bestDay)}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Best day share</dt><dd className="font-semibold tabular-nums">{consistency.sharePercent === null ? "—" : `${consistency.sharePercent}%`}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Best day share <GlossaryTip term="consistency-rule" /></dt><dd className="font-semibold tabular-nums">{consistency.sharePercent === null ? "—" : `${consistency.sharePercent}%`}</dd></div>
                   <div><dt className="text-xs text-muted-foreground">Trading days entered</dt><dd className="font-semibold tabular-nums">{consistency.tradingDays} of {plan.minDays} min.</dd></div>
                 </dl>
                 <p className={`mt-4 flex items-start gap-2 ${consistency.passes ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>

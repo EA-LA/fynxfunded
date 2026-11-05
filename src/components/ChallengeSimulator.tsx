@@ -23,6 +23,7 @@ import {
   resizeTradeResults,
   summarizeTradeResults,
 } from "@/lib/tradeResultsImport";
+import GlossaryTip from "@/components/GlossaryTip";
 
 type Method = "fixed" | "own";
 const readMethod = (params: URLSearchParams): Method => (params.get("smethod") === "own" ? "own" : "fixed");
@@ -379,7 +380,7 @@ export default function ChallengeSimulator() {
       <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {!own && (<>
         <div>
-          <span className="text-sm font-medium" id="sim-risk-unit-label">Risk per trade</span>
+          <span className="text-sm font-medium" id="sim-risk-unit-label">Risk per trade</span> <GlossaryTip term="risk-per-trade" />
           <div className="mt-1 flex gap-2" role="group" aria-labelledby="sim-risk-unit-label">
             <button type="button" aria-pressed={riskMode === "percent"} className={chip(riskMode === "percent")} onClick={() => switchMode("percent")}>% of account</button>
             <button type="button" aria-pressed={riskMode === "dollars"} className={chip(riskMode === "dollars")} onClick={() => switchMode("dollars")}>Dollars</button>
@@ -407,7 +408,7 @@ export default function ChallengeSimulator() {
           </div>
         </fieldset>
         <div>
-          <label htmlFor="sim-win-rate" className="text-sm font-medium">Win rate (%)</label>
+          <label htmlFor="sim-win-rate" className="text-sm font-medium">Win rate (%)</label> <GlossaryTip term="win-rate" />
           <input id="sim-win-rate" inputMode="decimal" className={`${inputClass} mt-1`} value={winRateInput} onChange={(e) => set("winRateInput", e.target.value)} aria-invalid={!winRateValid} aria-describedby="sim-win-rate-help" />
           <p id="sim-win-rate-help" className={`mt-1 text-xs ${winRateValid ? "text-muted-foreground" : "text-destructive"}`}>
             {winRateValid ? `Break-even before charges is ${Math.round((100 / (1 + rewardRatio)) * 100) / 100}% at ${rewardRatio}× reward.` : "Enter a win rate from 1 to 99."}
@@ -432,7 +433,7 @@ export default function ChallengeSimulator() {
           </p>
         </div>
         <div>
-          <label htmlFor="sim-cost" className="text-sm font-medium">Charges per trade (USD)</label>
+          <label htmlFor="sim-cost" className="text-sm font-medium">Charges per trade (USD)</label> <GlossaryTip term="commission" />
           <input id="sim-cost" inputMode="decimal" className={`${inputClass} mt-1`} value={costInput} onChange={(e) => set("costInput", e.target.value)} aria-invalid={!costValid} aria-describedby="sim-cost-help" />
           <p id="sim-cost-help" className={`mt-1 text-xs ${costValid ? "text-muted-foreground" : "text-destructive"}`}>
             {costValid ? "Commission and spread for one full trade. Net profit includes charges." : "Enter 0 or a positive amount."}
@@ -470,7 +471,7 @@ export default function ChallengeSimulator() {
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Typical trading days to pass</dt>
+                  <dt className="text-xs text-muted-foreground">Typical trading days to pass <GlossaryTip term="trading-day" /></dt>
                   <dd className="text-xl font-bold tabular-nums">{result.medianDaysToPass ?? "—"}</dd>
                   {result.fastestPass !== null && <dd className="text-xs text-muted-foreground tabular-nums">{result.fastestPass}–{result.slowestPass} across passing runs</dd>}
                 </div>
