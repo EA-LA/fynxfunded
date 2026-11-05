@@ -1,11 +1,5 @@
 # Changelog
 
-## 2026-11-04 22:45 UTC — FYNX Trade: account numbers in dollars, more markets, clearer access message, rules in the purchase email
-- FYNX Trade (https://www.fynxfunded.com/trade/access) now shows each account's numbers in dollars: progress to the profit target with a bar, target balance, daily loss allowance, maximum loss floor and how much room is left above it. These come from the rules recorded with the purchase; the official status stays on the challenge page.
-- A live countdown to the 22:00 UTC daily reset, in your own time, plus links to the trading-day clock and to the risk planner opened on your account size.
-- Market watch now covers 20 markets in groups (forex majors and crosses, gold, silver, oil, US 500, US Tech 100, US 30, Germany 40, Bitcoin, Ether, Solana) with 5m / 15m / 1h / 4h / 1D buttons. Your last market and timeframe are remembered.
-- When access is limited to private testing, the page now explains that in plain words (and that testers must sign in with email and password) instead of showing a red error with a code.
-- The "Your FYNX Trade account access is ready" email sent after a purchase now lists the profit target, daily loss limit, maximum loss floor and minimum trading days in dollars. If any rule value looks wrong, the list is left out rather than shown incorrectly.
 ## 2026-11-05 04:30 UTC — [autopilot] Position size calculator, and date ranges on each account's Analysis tab
 - New "Position size calculator" on the Trading Rules page: choose your account, your risk per trade, the instrument (EUR/USD-style pairs, USD/CAD-style pairs, USD/JPY, gold, or any other instrument) and how far away your stop loss is, and it tells you how many lots to trade so a stopped-out trade stays inside your risk. https://www.fynxfunded.com/rules#position-size
 - It also shows the loss at the stop including trading charges, how much of today's loss allowance that is, the target distance and profit at 1×–3× your stop, and warns you if your risk is smaller than the smallest possible position. Where a price is needed, you type the price from your own platform; the site never invents prices.
@@ -13,6 +7,13 @@
 - The Risk and pace planner has a new "Turn this risk into a lot size" button that opens the calculator with the same account and risk. The FAQ has a new answer, "How do I work out my lot size?" https://www.fynxfunded.com/faq#lot-size
 - Each account's Analysis tab (open an account from the dashboard, then Analysis) now has 7D / 30D / All buttons, like the main Analytics page, and says how many trades are included.
 - Fixed: the account analysis said "1 closed trades".
+
+## 2026-11-04 22:45 UTC — FYNX Trade: account numbers in dollars, more markets, clearer access message, rules in the purchase email
+- FYNX Trade (https://www.fynxfunded.com/trade/access) now shows each account's numbers in dollars: progress to the profit target with a bar, target balance, daily loss allowance, maximum loss floor and how much room is left above it. These come from the rules recorded with the purchase; the official status stays on the challenge page.
+- A live countdown to the 22:00 UTC daily reset, in your own time, plus links to the trading-day clock and to the risk planner opened on your account size.
+- Market watch now covers 20 markets in groups (forex majors and crosses, gold, silver, oil, US 500, US Tech 100, US 30, Germany 40, Bitcoin, Ether, Solana) with 5m / 15m / 1h / 4h / 1D buttons. Your last market and timeframe are remembered.
+- When access is limited to private testing, the page now explains that in plain words (and that testers must sign in with email and password) instead of showing a red error with a code.
+- The "Your FYNX Trade account access is ready" email sent after a purchase now lists the profit target, daily loss limit, maximum loss floor and minimum trading days in dollars. If any rule value looks wrong, the list is left out rather than shown incorrectly.
 
 ## 2026-11-05 00:20 UTC — [autopilot] See which instruments and sessions work for you, per account too, and put the daily reset in your calendar
 - Analytics has a new "Instruments by session" table: for every instrument you trade, your net result, number of trades, win rate, average per trade, best and worst trade and buy/sell count, split into the Asia, London and New York sessions, with totals at the bottom. Sort it by result, most traded, win rate or A–Z. https://www.fynxfunded.com/dashboard/analytics
