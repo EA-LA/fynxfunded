@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { verifiedDeliveryEvent, shouldApplyDelivery } from '../src/tradeAccess/deliveryPolicy';
-import { accessEmail } from '../src/tradeAccess/mail';
+import { accessEmail, ruleSummary } from '../src/tradeAccess/mail';
 const now = Date.UTC(2026, 9, 20, 12);
 const key = 'local-test-webhook-signing-key';
 function payload(event = 'delivered', severity?: string) {
@@ -58,5 +58,16 @@ describe('delivery confirmation and account activation mail', () => {
     expect(message.text).toContain('does not place an order');
     expect(message.text).toContain('/trade/access?account=ft_local_account_p1');
     expect(message.html).not.toContain('Your purchase is confirmed');
+  });
+  it('account-ready mail lists the purchased rules in dollars, and skips them if any value is malformed', () => {
+    const rules = { profit_target_percent: '8', daily_loss_percent: '5', max_loss_percent: '10', min_trading_days: 4 };
+    const message = accessEmail('ft_local_account_p1', 50000, false, rules);
+    expect(message.text).toContain('Profit target: $4,000 (8%)');
+    expect(message.text).toContain('Daily loss limit: $2,500 (5%), reset at 22:00 UTC');
+    expect(message.text).toContain('Maximum loss floor: $45,000');
+    expect(message.html).toContain('Your rules, in dollars');
+    expect(ruleSummary(50000, { ...rules, max_loss_percent: '<b>' })).toEqual([]);
+    expect(ruleSummary(50000, undefined)).toEqual([]);
+    expect(accessEmail('ft_local_account_p1', 50000, true, rules).text).not.toContain('Your rules');
   });
 });

@@ -66,6 +66,13 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [ ] Add /certificates/verify to the search-engine page list (needs a static render route; check the Vercel rewrite first)
 - [ ] Learning certificates: hide rows that don't apply (passed/funded date, profit split) instead of showing "—"
 
+## FYNX Trade (/trade/access)
+- [x] Account limits in dollars, progress bar, daily reset countdown, risk planner link (2026-11-04)
+- [x] 20 grouped markets with timeframe buttons, remembered per browser (2026-11-04)
+- [x] Private-testing gate explained in plain words instead of a raw permission error (2026-11-04)
+- [x] Account-ready email lists the purchased rules in dollars (2026-11-04)
+- [ ] Order ticket and positions panel once execution terms are approved (needs owner decision; touches trade fills)
+
 ## Dashboard (/dashboard/*)
 - [x] Trades: Breakeven filter (was missing), Buy/Sell and session filters, "Clear filters", sortable columns with screen-reader order, totals that follow the filters, wins/losses/average/largest row, filtered CSV export (2026-11-04)
 - [x] Trades: losing P/L showed as "$-80.00"; now "-$80.00" (2026-11-04)
