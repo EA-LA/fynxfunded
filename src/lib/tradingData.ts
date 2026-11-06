@@ -123,3 +123,12 @@ export function computeAnalytics(trades: Trade[]) {
     bestPair: sorted[0]?.[0] ?? "—", worstPair: sorted[sorted.length - 1]?.[0] ?? "—",
   };
 }
+
+/**
+ * Profit factor for display. With no losing trades the ratio is unbounded
+ * (Infinity), which used to show as the word "Infinity"; say what it means.
+ */
+export function formatProfitFactor(profitFactor: number | undefined | null): string {
+  if (profitFactor === undefined || profitFactor === null || Number.isNaN(profitFactor)) return "0.00";
+  return Number.isFinite(profitFactor) ? profitFactor.toFixed(2) : "No losses yet";
+}

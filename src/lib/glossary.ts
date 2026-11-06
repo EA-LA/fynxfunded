@@ -222,6 +222,20 @@ const terms: GlossaryTerm[] = [
     definition: "Your average winning trade divided by your average losing trade. It is the real-world version of the risk-reward ratio, shown in your dashboard Analytics.",
   },
   {
+    id: "profit-factor",
+    term: "Profit factor",
+    group: "trading",
+    aliases: ["gross profit", "gross loss", "PF"],
+    definition: "Everything your winning trades made divided by everything your losing trades lost. Above 1 the record made money, below 1 it lost money. $1,500 won and $1,000 lost is a profit factor of 1.5. With no losing trades yet it cannot be worked out.",
+  },
+  {
+    id: "expectancy",
+    term: "Expectancy",
+    group: "trading",
+    aliases: ["average trade", "average result per trade", "edge"],
+    definition: "The average result of one closed trade: net profit or loss divided by the number of trades. $300 net over 20 trades is +$15 a trade. It describes the past record, not a promise about the next trade.",
+  },
+  {
     id: "spread",
     term: "Spread",
     group: "trading",

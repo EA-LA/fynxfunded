@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-06 16:25 UTC — [autopilot] "How long will it take?" in Find your challenge, word help on Trades and account stats
+
+- Find your challenge (https://www.fynxfunded.com/challenges#finder) now asks, optionally, how many days a week you can trade. Each suggested plan then shows the earliest it could take to get through its minimum trading days at that pace (for example "5 weeks+" for a 3-phase plan at 3 days a week), with the same figure in the reasons and in the full list. It is clearly a minimum: there is no time limit, and reaching the profit target often takes longer. The choice is kept in the share link.
+- Dashboard Trades page: a small "?" beside Lots, Pips, Risk %, R:R and Session in the table header (sorting still works by tapping the column name), and beside Win rate and Volume, opens a plain explanation with a link to the glossary.
+- Each account's "Account MetriX" tab: the same "?" help on Win rate, Profit factor, Avg. R:R, Closed-trade drawdown and on the "General statistics" list (average profit/loss, expectancy, best session).
+- Two new glossary entries, "Profit factor" and "Expectancy" (https://www.fynxfunded.com/faq#term-profit-factor and https://www.fynxfunded.com/faq#term-expectancy), also explained on dashboard Analytics.
+- Fixed: Profit factor showed the word "Infinity" for an account with no losing trades; it now says "No losses yet".
+- Fixed: the account "Account MetriX" tab showed the drawdown as if it were a gain ("+$120.00"); it now shows "$120.00", matching Analytics. Average profit, average loss and best session now show "—" instead of "+$0.00" when there are no such trades.
+- See it (after logging in): https://www.fynxfunded.com/dashboard/trades and any account under https://www.fynxfunded.com/dashboard/accounts
+
 ## 2026-11-06 12:30 UTC — [autopilot] "Find your challenge" on the Challenges page
 
 - New "Find your challenge" tool on the Challenges page. Type the most you want to pay, your usual risk per trade in dollars, and pick what matters most (lowest fee, best value, most room, fewest days, largest account or best profit split).

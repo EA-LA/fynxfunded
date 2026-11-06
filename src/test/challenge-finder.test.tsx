@@ -12,6 +12,7 @@ import {
   explainOption,
   findChallenges,
   finderLink,
+  earliestWeeks,
   maxRiskFor,
   parseFinderParams,
   type FinderInput,
@@ -80,6 +81,21 @@ describe("challenge finder logic", () => {
     expect(cautionsFor(r.matches[0]).join(" ")).toMatch(/Tighter limits/);
   });
 
+  it("works out the earliest calendar time for the minimum days at the trader's pace", () => {
+    expect(earliestWeeks(15, 5)).toBe(3);
+    expect(earliestWeeks(10, 3)).toBe(4); // 3 + 3 + 3 + 1
+    expect(earliestWeeks(3, 1)).toBe(3);
+    expect(earliestWeeks(5, 9)).toBe(1); // capped at 5 days a week
+    const options = buildOptions(input({ daysPerWeek: 2 }));
+    expect(options.find((o) => o.id === "25000-1-phase")!.earliestWeeks).toBe(2); // 3 days
+    expect(options.find((o) => o.id === "25000-2-phase")!.earliestWeeks).toBe(5); // 10 days
+    expect(options.find((o) => o.id === "25000-3-phase")!.earliestWeeks).toBe(8); // 15 days
+    expect(buildOptions(input()).every((o) => o.earliestWeeks === null)).toBe(true);
+    const i = input({ daysPerWeek: 3, programs: ["3-phase"] });
+    const r = findChallenges(i);
+    expect(explainOption(r.matches[0], i, r.matches).join(" ")).toContain("Trading 3 days a week, the 15 minimum trading days take at least 5 weeks.");
+  });
+
   it("round-trips the choices through a shareable link", () => {
     const i = input({ budget: 300, priority: "most-room", riskPerTrade: 80, losingTrades: 4, programs: ["2-phase", "3-phase"] });
     const link = finderLink(i);
@@ -87,7 +103,10 @@ describe("challenge finder logic", () => {
     const params = new URL(link, "https://example.test").searchParams;
     expect(parseFinderParams(params)).toEqual(i);
     expect(finderLink(DEFAULT_FINDER_INPUT)).toBe("/challenges#finder");
-    expect(parseFinderParams(new URLSearchParams("fbudget=-5&fpri=nope&frisk=abc&flosses=7&fprog=9-phase"))).toEqual(DEFAULT_FINDER_INPUT);
+    expect(parseFinderParams(new URLSearchParams("fbudget=-5&fpri=nope&frisk=abc&flosses=7&fprog=9-phase&fdays=7"))).toEqual(DEFAULT_FINDER_INPUT);
+    const paced = input({ daysPerWeek: 4 });
+    expect(finderLink(paced)).toBe("/challenges?fdays=4#finder");
+    expect(parseFinderParams(new URL(finderLink(paced), "https://example.test").searchParams)).toEqual(paced);
   });
 });
 
@@ -139,6 +158,18 @@ describe("challenge finder widget", () => {
     fireEvent.click(one);
     fireEvent.click(two);
     expect(screen.getByText("18 of 18 plans fit. Top 3 shown.")).toBeTruthy();
+  });
+
+  it("shows the earliest finish for the days a week you can trade", () => {
+    renderFinder("/challenges?fprog=3-phase");
+    fireEvent.change(screen.getByLabelText(/Days a week you can trade/), { target: { value: "3" } });
+    const first = screen.getAllByRole("listitem").find((li) => li.getAttribute("aria-label")?.startsWith("Option 1"))!;
+    expect(within(first).getByText("Earliest finish at your pace")).toBeTruthy();
+    expect(within(first).getByText("5 weeks+")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Show all 6 plans that fit/ }));
+    expect(within(screen.getByRole("table")).getByRole("columnheader", { name: "Earliest finish" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    expect((screen.getByLabelText(/Days a week you can trade/) as HTMLSelectElement).value).toBe("");
   });
 
   it("rejects text that isn't an amount", () => {

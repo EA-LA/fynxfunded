@@ -52,4 +52,19 @@ describe("account workspace analysis tab", () => {
     expect(screen.getByTestId("analysis-range-status")).toHaveTextContent("showing 1 of 3 closed trades");
     expect(screen.getByText(/In this period this account has 1 closed trade with a/)).toBeInTheDocument();
   });
+
+  it("explains the MetriX labels and shows a profit factor without losses in plain words", async () => {
+    mocks.trades = [trade("1", "EURUSD", 100), trade("2", "XAUUSD", 40)];
+    render(<MemoryRouter initialEntries={["/dashboard/accounts/ch-1"]}><Routes><Route path="/dashboard/accounts/:challengeId" element={<AccountWorkspace />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /Account MetriX/ }));
+    expect(screen.getByText("No losses yet")).toBeInTheDocument();
+    expect(screen.queryByText("Infinity")).not.toBeInTheDocument();
+    expect(screen.getByText("$0.00")).toBeInTheDocument(); // drawdown, never shown as "+$"
+    expect(screen.getByText("Average loss").parentElement).toHaveTextContent("—");
+    for (const term of ["win rate", "profit factor", "risk-reward ratio", "expectancy", "trading sessions"]) {
+      expect(screen.getAllByRole("button", { name: `What does "${term}" mean?` }).length).toBeGreaterThan(0);
+    }
+    fireEvent.click(screen.getAllByRole("button", { name: 'What does "profit factor" mean?' })[0]);
+    expect(await screen.findByText(/Everything your winning trades made divided by everything your losing trades lost/)).toBeInTheDocument();
+  });
 });

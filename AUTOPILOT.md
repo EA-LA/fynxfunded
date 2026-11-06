@@ -27,7 +27,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Comparison switches (Quick/Full, 1/2/3-phase) announce the selected option to screen readers; table row labels are proper row headers (2026-11-06)
 - [x] "Find your challenge" (/challenges#finder): fee budget, dollar risk per trade, losing trades per day the daily allowance should absorb, priority (lowest fee, best value, most room, fewest days, largest account, best split) and program filter; top 3 plans with reasons and cautions, full list, closest options and what to change when nothing fits, shareable link; linked from the Challenges intro, home plan cards and the FAQ which-program answer (2026-11-06)
 - [ ] Let "Start challenge" preselect size/program in the builder (needs care: builder feeds checkout)
-- [ ] Finder: optional "how many days a week can you trade" to estimate calendar time to the minimum days
+- [x] Finder: optional "Days a week you can trade" (1–5) shows the earliest calendar time the minimum trading days take ("5 weeks+") on each plan card, in the reasons and as an "Earliest finish" column in the full list; kept in the share link (fdays=3); clearly a floor, not a deadline (no time limit) (2026-11-06)
 
 ## How it works (/how-it-works)
 - [x] Program/size picker showing every phase in dollars, plus "How a trading day works" (2026-11-03)
@@ -72,7 +72,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Glossary help on /rules: dotted words in the schedule table, a "Words used here" line on every rule card, and "?" buttons beside the labels of the rules calculator, risk planner, pass simulator, position size calculator and trading-day clock; tap/click/keyboard opens the plain definition with "Open in the glossary" and the term's next step (2026-11-05)
 - [x] Glossary help on How it works ("Words used here" on every step and the trading-day box), Challenges (plan card labels and comparison rows) and Payouts (split, eligibility list, calendar) (2026-11-06)
 - [x] Glossary help on dashboard Objectives (each objective title, consistency rule, planned-risk slider, "Words used here") and Analytics labels (win rate, drawdown, payoff ratio, below peak); Objectives links to the journal replay (2026-11-06)
-- [ ] Glossary help on the account workspace Analysis tab labels and the Trades page column headers
+- [x] Glossary help on the Trades page (Lots, Pips, Risk %, R:R, Session headers beside the sort buttons; Win rate and Volume tiles) and the account workspace (Account MetriX tiles and "General statistics": win rate, profit factor, average R:R, drawdown, average profit/loss, expectancy, best session); new glossary terms "Profit factor" and "Expectancy", also explained on dashboard Analytics (2026-11-06)
 - [ ] Translate the glossary with the rest of the FAQ
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)
@@ -100,4 +100,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Account workspace: date-range filter (7D/30D/All) on the Analysis tab, with "showing X of Y closed trades" and a clear empty-period message (2026-11-05)
 - [ ] Walk signed-in pages with emulator data; check empty states on mobile
 - [x] Fixed: account analysis said "1 closed trades" (2026-11-05)
+- [x] Fixed: Profit factor showed the word "Infinity" when an account had no losing trades (Analytics and Account MetriX); now "No losses yet" (2026-11-06)
+- [x] Fixed: Account MetriX showed the closed-trade drawdown as a gain ("+$120.00"); now "$120.00" like Analytics. "General statistics" showed "+$0.00" for average profit/loss and a best session when there were no such trades; now "—" (2026-11-06)
+- [ ] Account workspace Analysis: long/short tiles could get "?" help and win rate per side
 - [ ] Add tests covering public marketing pages render (Index, Challenges, Rules, Payouts)

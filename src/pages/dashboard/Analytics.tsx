@@ -11,9 +11,10 @@ import InstrumentSessionCard from "@/components/analytics/InstrumentSessionCard"
 import JournalSimulatorCard from "@/components/analytics/JournalSimulatorCard";
 import JournalReplayCard from "@/components/analytics/JournalReplayCard";
 import GlossaryTip from "@/components/GlossaryTip";
+import { formatProfitFactor } from "@/lib/tradingData";
 
 /** Glossary entries for the headline and trade-quality labels. */
-const LABEL_TERMS:Record<string,string>={"Win rate":"win-rate","Closed-trade drawdown":"drawdown","Payoff ratio":"payoff-ratio","Below peak now":"drawdown"};
+const LABEL_TERMS:Record<string,string>={"Win rate":"win-rate","Profit factor":"profit-factor","Expectancy":"expectancy","Closed-trade drawdown":"drawdown","Payoff ratio":"payoff-ratio","Below peak now":"drawdown"};
 
 const money=(v:number)=>`${v>=0?"+":"-"}$${Math.abs(v).toFixed(2)}`;
 export default function Analytics(){
@@ -23,7 +24,7 @@ export default function Analytics(){
   const trades=useMemo(()=>filterByDateRange(data.trades,range,t=>t.closeTime),[data.trades,range]);
   const analytics=computeAnalytics(trades);
   const curve=useMemo(()=>{let total=0;return trades.slice().reverse().map((t,i)=>({name:t.closeTime?new Date(t.closeTime).toLocaleDateString(undefined,{month:"short",day:"numeric"}):`Trade ${i+1}`,pnl:Number((total+=t.pnl).toFixed(2))}))},[trades]);
-  const stats=["Total trades",analytics?.totalTrades||0,"Net P/L",money(analytics?.totalPnl||0),"Win rate",`${(analytics?.winRate||0).toFixed(1)}%`,"Profit factor",(analytics?.profitFactor||0).toFixed(2),"Expectancy",money(analytics?.expectancy||0),"Closed-trade drawdown",`$${(analytics?.maxDrawdown||0).toFixed(2)}`];
+  const stats=["Total trades",analytics?.totalTrades||0,"Net P/L",money(analytics?.totalPnl||0),"Win rate",`${(analytics?.winRate||0).toFixed(1)}%`,"Profit factor",formatProfitFactor(analytics?.profitFactor),"Expectancy",money(analytics?.expectancy||0),"Closed-trade drawdown",`$${(analytics?.maxDrawdown||0).toFixed(2)}`];
   const tradingDays=useMemo(()=>pnlByTradingDay(trades).length,[trades]);
   const payoff=analytics&&analytics.avgLoss>0&&analytics.avgWin>0?(analytics.avgWin/analytics.avgLoss).toFixed(2):"—";
   const quality:Array<[string,string,string]>=[["Average win",analytics?.avgWin?money(analytics.avgWin):"—","Mean of winning trades"],["Average loss",analytics?.avgLoss?money(-analytics.avgLoss):"—","Mean of losing trades"],["Payoff ratio",payoff,"Average win ÷ average loss"],["Longest win streak",String(analytics?.maxConsWins||0),"Winning trades in a row"],["Longest losing streak",String(analytics?.maxConsLosses||0),"Losing trades in a row"],["Below peak now",`$${(analytics?.currentDrawdown||0).toFixed(2)}`,"Closed P/L under its highest point"]];

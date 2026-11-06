@@ -27,6 +27,20 @@ export const FINDER_PRIORITIES: { id: FinderPriority; label: string; hint: strin
 /** Losing trades in one trading day the trader wants the daily allowance to absorb. */
 export const LOSING_STREAK_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10] as const;
 
+/** Days a week the trader can trade (forex runs Monday to Friday). */
+export const DAYS_PER_WEEK_OPTIONS = [1, 2, 3, 4, 5] as const;
+
+/**
+ * Earliest number of calendar weeks the minimum trading days take at this pace.
+ * There is no maximum time limit, so this is a floor, not a deadline: hitting
+ * the profit target usually takes longer, and it leaves out the time to open
+ * each next phase account.
+ */
+export function earliestWeeks(minimumDays: number, daysPerWeek: number): number {
+  const pace = Math.min(5, Math.max(1, Math.trunc(daysPerWeek) || 1));
+  return Math.ceil(Math.max(0, minimumDays) / pace);
+}
+
 export interface FinderInput {
   /** Highest fee the trader wants to pay, or null for any. */
   budget: number | null;
@@ -37,6 +51,8 @@ export interface FinderInput {
   losingTrades: number;
   /** Restrict to these programs (empty = all). */
   programs: ProgramId[];
+  /** Days a week the trader can trade, or null when not given. */
+  daysPerWeek?: number | null;
 }
 
 export interface FinderOption {
@@ -51,6 +67,8 @@ export interface FinderOption {
   lossesToMaxFloor: number | null;
   /** Risk per trade as a % of this account (null without a risk). */
   riskPercent: number | null;
+  /** Earliest calendar weeks for the minimum trading days at the trader's pace (null without a pace). */
+  earliestWeeks: number | null;
   withinBudget: boolean;
   supportsRisk: boolean;
   fits: boolean;
@@ -77,10 +95,11 @@ const usd = (n: number) =>
 export const programLabel = (program: ProgramId) => program.replace("-", " ");
 
 /** Builds every published size × program option with the trader's risk applied. */
-export function buildOptions(input: Pick<FinderInput, "budget" | "riskPerTrade" | "losingTrades" | "programs">): FinderOption[] {
+export function buildOptions(input: Pick<FinderInput, "budget" | "riskPerTrade" | "losingTrades" | "programs" | "daysPerWeek">): FinderOption[] {
   const programs = input.programs.length > 0 ? PROGRAMS.filter((p) => input.programs.includes(p)) : PROGRAMS;
   const risk = input.riskPerTrade !== null && Number.isFinite(input.riskPerTrade) && input.riskPerTrade > 0 ? round2(input.riskPerTrade) : null;
   const wanted = Math.max(1, Math.trunc(input.losingTrades) || 1);
+  const pace = validPace(input.daysPerWeek);
   const options: FinderOption[] = [];
   for (const config of challengeConfigs) {
     for (const program of programs) {
@@ -98,6 +117,7 @@ export function buildOptions(input: Pick<FinderInput, "budget" | "riskPerTrade" 
         lossesToDailyFloor,
         lossesToMaxFloor,
         riskPercent: risk === null ? null : round2((risk / config.accountSize) * 100),
+        earliestWeeks: pace === null ? null : earliestWeeks(summary.minimumTotalDays, pace),
         withinBudget,
         supportsRisk,
         fits: withinBudget && supportsRisk,
@@ -106,6 +126,12 @@ export function buildOptions(input: Pick<FinderInput, "budget" | "riskPerTrade" 
   }
   return options;
 }
+
+function validPace(days: number | null | undefined): number | null {
+  return typeof days === "number" && (DAYS_PER_WEEK_OPTIONS as readonly number[]).includes(days) ? days : null;
+}
+
+const weeksText = (w: number) => `${w} ${w === 1 ? "week" : "weeks"}`;
 
 type Comparator = (a: FinderOption, b: FinderOption) => number;
 const byPrice: Comparator = (a, b) => a.summary.price - b.summary.price;
@@ -199,6 +225,12 @@ export function explainOption(option: FinderOption, input: FinderInput, matches:
       `At ${usd(input.riskPerTrade)} a trade (${option.riskPercent}% of the account), ${option.lossesToDailyFloor} full ${option.lossesToDailyFloor === 1 ? "loss fits" : "losses fit"} in one day and ${option.lossesToMaxFloor} before the maximum loss.`,
     );
   }
+  const pace = validPace(input.daysPerWeek);
+  if (pace !== null && option.earliestWeeks !== null) {
+    reasons.push(
+      `Trading ${pace} ${pace === 1 ? "day" : "days"} a week, the ${s.minimumTotalDays} minimum trading days take at least ${weeksText(option.earliestWeeks)}.`,
+    );
+  }
   return reasons;
 }
 
@@ -213,11 +245,11 @@ export function cautionsFor(option: FinderOption): string[] {
   return notes;
 }
 
-export const DEFAULT_FINDER_INPUT: FinderInput = { budget: null, priority: "lowest-fee", riskPerTrade: null, losingTrades: 3, programs: [] };
+export const DEFAULT_FINDER_INPUT: FinderInput = { budget: null, priority: "lowest-fee", riskPerTrade: null, losingTrades: 3, programs: [], daysPerWeek: null };
 
 /**
  * Reads the finder's choices from the address, e.g.
- * /challenges?fbudget=250&fpri=most-room&frisk=100&flosses=3&fprog=2-phase#finder.
+ * /challenges?fbudget=250&fpri=most-room&frisk=100&flosses=3&fprog=2-phase&fdays=3#finder.
  * Anything missing or out of range falls back to the default.
  */
 export function parseFinderParams(params: URLSearchParams): FinderInput {
@@ -235,6 +267,7 @@ export function parseFinderParams(params: URLSearchParams): FinderInput {
     riskPerTrade: params.get("frisk") && Number.isFinite(risk) && risk > 0 && risk <= 1_000_000 ? round2(risk) : null,
     losingTrades: (LOSING_STREAK_OPTIONS as readonly number[]).includes(losses) ? losses : DEFAULT_FINDER_INPUT.losingTrades,
     programs: [...new Set(programs)],
+    daysPerWeek: validPace(Number(params.get("fdays"))),
   };
 }
 
@@ -245,6 +278,8 @@ export function finderParams(input: FinderInput): Record<string, string> {
   if (input.priority !== DEFAULT_FINDER_INPUT.priority) out.fpri = input.priority;
   if (input.riskPerTrade !== null) out.frisk = String(input.riskPerTrade);
   if (input.losingTrades !== DEFAULT_FINDER_INPUT.losingTrades) out.flosses = String(input.losingTrades);
+  const pace = validPace(input.daysPerWeek);
+  if (pace !== null) out.fdays = String(pace);
   if (input.programs.length > 0 && input.programs.length < PROGRAMS.length) out.fprog = PROGRAMS.filter((p) => input.programs.includes(p)).join(",");
   return out;
 }

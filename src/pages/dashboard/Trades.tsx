@@ -3,9 +3,12 @@ import { useTradingData } from "@/hooks/use-trading-data";
 import { Search, Download, ListX, Radio, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import { formatTradeTime, readTimeZoneMode, saveTimeZoneMode, timeZoneLabel, type TimeZoneMode } from "@/lib/tradeTiming";
 import TimeZoneToggle from "@/components/analytics/TimeZoneToggle";
+import GlossaryTip from "@/components/GlossaryTip";
 import { DEFAULT_SORT, EMPTY_FILTERS, filterTrades, hasActiveFilters, nextSort, sortTrades, summarizeTrades, type JournalFilters, type JournalSort, type SortKey } from "@/lib/tradeJournal";
 
 const signedUsd = (n: number) => `${n >= 0 ? "+" : "-"}$${Math.abs(n).toFixed(2)}`;
+/** Glossary entry behind column headers and summary labels ("?" button beside them). */
+const COLUMN_TERMS: Record<string, string> = { Lots: "lot", Pips: "pip", "Risk %": "risk-per-trade", "R:R": "risk-reward", Session: "sessions", "Win rate": "win-rate", Volume: "lot" };
 const selectClass = "bg-card border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-foreground/30";
 
 export default function Trades() {
@@ -29,10 +32,11 @@ export default function Trades() {
         <button type="button" onClick={() => setSort(s => nextSort(s, k))} className={`inline-flex items-center gap-1 rounded hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}>
           {label}<Icon size={12} aria-hidden="true" />
         </button>
+        {COLUMN_TERMS[label] && <GlossaryTip term={COLUMN_TERMS[label]} className="ml-0.5" />}
       </th>
     );
   };
-  const th = (label: string, align: "left" | "right" | "center" = "left") => <th scope="col" className={`py-3 px-2 font-medium text-muted-foreground text-xs text-${align}`}>{label}</th>;
+  const th = (label: string, align: "left" | "right" | "center" = "left") => <th scope="col" className={`py-3 px-2 font-medium text-muted-foreground text-xs text-${align}`}>{label}{COLUMN_TERMS[label] && <GlossaryTip term={COLUMN_TERMS[label]} className="ml-0.5" />}</th>;
 
   if (data.loading || data.error) return <div className="space-y-4"><h1 className="text-2xl font-bold">Trades</h1><p role={data.error ? "alert" : "status"}>{data.error || "Loading account records…"}</p></div>;
   return (
@@ -47,7 +51,7 @@ export default function Trades() {
       </div>
 
       {data.loading && <p role="status">Loading trading records…</p>}{data.error && <p role="alert">{data.error}</p>}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Trades",filtering?`${summary.count} of ${trades.length}`:summary.count],["Net P/L",signedUsd(summary.netPnl)],["Win rate",`${summary.winRate.toFixed(1)}%`],["Volume",`${summary.volume.toFixed(2)} lots`]].map(([k,v])=><div className="premium-card" key={k}><p className="text-xs text-muted-foreground">{k}{filtering&&<span className="ml-1">· filtered</span>}</p><p className="mt-2 text-2xl font-bold">{v}</p></div>)}</div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Trades",filtering?`${summary.count} of ${trades.length}`:summary.count],["Net P/L",signedUsd(summary.netPnl)],["Win rate",`${summary.winRate.toFixed(1)}%`],["Volume",`${summary.volume.toFixed(2)} lots`]].map(([k,v])=><div className="premium-card" key={k}><p className="flex items-center gap-1 text-xs text-muted-foreground">{k}{COLUMN_TERMS[String(k)]&&<GlossaryTip term={COLUMN_TERMS[String(k)]}/>}{filtering&&<span>· filtered</span>}</p><p className="mt-2 text-2xl font-bold">{v}</p></div>)}</div>
       {summary.count>0&&<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="journal-breakdown">{[["Wins / losses / breakeven",`${summary.wins} / ${summary.losses} / ${summary.breakeven}`],["Average win",summary.wins?signedUsd(summary.averageWin):"—"],["Average loss",summary.losses?signedUsd(summary.averageLoss):"—"],["Largest win / loss",`${summary.wins?signedUsd(summary.largestWin):"—"} / ${summary.losses?signedUsd(summary.largestLoss):"—"}`]].map(([k,v])=><div className="rounded-lg bg-secondary/50 px-4 py-3" key={k}><p className="text-xs text-muted-foreground">{k}</p><p className="mt-1 text-sm font-semibold tabular-nums">{v}</p></div>)}</div>}
       <div className="premium-card flex flex-wrap items-center gap-3"><Radio size={17}/><div className="mr-auto"><p className="text-sm font-semibold">{data.brokerConnected?"Broker feed connected":"Live broker feed unverified"}</p><p className="text-xs text-muted-foreground">Closed trades appear here automatically after the broker writes verified records.</p></div><span className="rounded-full bg-secondary px-3 py-1 text-xs">{data.brokerConnected?"Listening live":"Recorded data"}</span></div>
           {/* Filters */}

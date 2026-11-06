@@ -6,6 +6,7 @@ import { challengeConfigs } from "@/lib/challengeConfig";
 import { PROGRAMS, calculatorLink, type ProgramId } from "@/lib/ruleCalculator";
 import { riskPlannerLink } from "@/lib/riskPlanner";
 import {
+  DAYS_PER_WEEK_OPTIONS,
   FINDER_PRIORITIES,
   LOSING_STREAK_OPTIONS,
   cautionsFor,
@@ -21,6 +22,8 @@ import {
 
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+const weeks = (w: number) => `${w} ${w === 1 ? "week" : "weeks"}+`;
 
 const chip = (active: boolean) =>
   `px-3 py-2 rounded-md border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
@@ -51,6 +54,7 @@ export default function ChallengeFinder() {
   const [priority, setPriority] = useState<FinderPriority>(initial.priority);
   const [losingTrades, setLosingTrades] = useState(initial.losingTrades);
   const [programs, setPrograms] = useState<ProgramId[]>(initial.programs);
+  const [daysPerWeek, setDaysPerWeek] = useState<number | null>(initial.daysPerWeek ?? null);
   const [showAll, setShowAll] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "copied" | "manual">("idle");
 
@@ -62,11 +66,12 @@ export default function ChallengeFinder() {
     priority,
     losingTrades,
     programs,
+    daysPerWeek,
   };
   const result = useMemo(
     () => findChallenges(input),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [input.budget, input.riskPerTrade, priority, losingTrades, programs.join(",")],
+    [input.budget, input.riskPerTrade, priority, losingTrades, programs.join(","), daysPerWeek],
   );
   const top = result.matches.slice(0, TOP);
   const sharePath = finderLink(input);
@@ -105,6 +110,7 @@ export default function ChallengeFinder() {
     setPriority("lowest-fee");
     setLosingTrades(3);
     setPrograms([]);
+    setDaysPerWeek(null);
   };
 
   const priorityHint = FINDER_PRIORITIES.find((p) => p.id === priority)?.hint;
@@ -182,6 +188,25 @@ export default function ChallengeFinder() {
               <option key={n} value={n}>{n} {n === 1 ? "losing trade" : "losing trades"}</option>
             ))}
           </select>
+          <div className="mt-4 flex items-center gap-1">
+            <label htmlFor="finder-days" className="text-sm font-medium">
+              Days a week you can trade <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <GlossaryTip term="minimum-trading-days" />
+          </div>
+          <select
+            id="finder-days"
+            value={daysPerWeek ?? ""}
+            onChange={(e) => setDaysPerWeek(e.target.value === "" ? null : Number(e.target.value))}
+            aria-describedby="finder-days-help"
+            className={`${inputClass} mt-2`}
+          >
+            <option value="">Not set</option>
+            {DAYS_PER_WEEK_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n} {n === 1 ? "day" : "days"} a week</option>
+            ))}
+          </select>
+          <p id="finder-days-help" className="mt-1 text-xs text-muted-foreground">Shows the earliest calendar time the minimum trading days take. There is no time limit to pass.</p>
         </div>
 
         <fieldset>
@@ -278,6 +303,7 @@ export default function ChallengeFinder() {
                       <th scope="col" className="py-2 pr-4 font-medium text-right">Min days</th>
                       <th scope="col" className="py-2 pr-4 font-medium text-right">Split</th>
                       {input.riskPerTrade !== null && <th scope="col" className="py-2 pr-4 font-medium text-right">Losses / day</th>}
+                      {daysPerWeek !== null && <th scope="col" className="py-2 pr-4 font-medium text-right">Earliest finish</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -295,6 +321,7 @@ export default function ChallengeFinder() {
                         <td className="py-2 pr-4 text-right tabular-nums">{o.summary.minimumTotalDays}</td>
                         <td className="py-2 pr-4 text-right tabular-nums">{o.summary.plan.profitSplitPercent}%</td>
                         {input.riskPerTrade !== null && <td className="py-2 pr-4 text-right tabular-nums">{o.lossesToDailyFloor}</td>}
+                        {daysPerWeek !== null && o.earliestWeeks !== null && <td className="py-2 pr-4 text-right tabular-nums whitespace-nowrap">{weeks(o.earliestWeeks)}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -325,7 +352,7 @@ export default function ChallengeFinder() {
       )}
 
       <p className="mt-6 text-xs text-muted-foreground">
-        Based on the published schedule for new accounts; the daily allowance is shown on the starting balance and is recalculated at each 22:00 UTC reset. This is a comparison aid, not trading advice, and it does not predict whether you will pass. The terms recorded with your purchase always apply. Nothing you type here is saved or sent anywhere.
+        Based on the published schedule for new accounts; "earliest finish" counts only the minimum trading days at your pace (reaching the profit target often takes longer, and opening each next phase is not included); the daily allowance is shown on the starting balance and is recalculated at each 22:00 UTC reset. This is a comparison aid, not trading advice, and it does not predict whether you will pass. The terms recorded with your purchase always apply. Nothing you type here is saved or sent anywhere.
       </p>
     </section>
   );
@@ -350,6 +377,7 @@ function OptionCard({ option, rank, reasons, cautions, risk }: { option: FinderO
         <Row label={<GlossaryTip term="daily-loss-limit">Daily loss allowance</GlossaryTip>} value={`−${usd(s.startingDailyLossAmount)}`} />
         <Row label={<GlossaryTip term="maximum-loss">Maximum loss</GlossaryTip>} value={`−${usd(s.plan.maxLossAmount)}`} />
         <Row label={<GlossaryTip term="minimum-trading-days">Minimum trading days</GlossaryTip>} value={String(s.minimumTotalDays)} />
+        {option.earliestWeeks !== null && <Row label="Earliest finish at your pace" value={weeks(option.earliestWeeks)} />}
         <Row label={<GlossaryTip term="profit-split">Profit split</GlossaryTip>} value={`${s.plan.profitSplitPercent}%`} />
       </dl>
       {reasons.length > 0 && (
