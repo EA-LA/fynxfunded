@@ -92,8 +92,8 @@ export const faqItems: FaqItem[] = [
     id: "which-program",
     topic: "getting-started",
     q: "What is the difference between the 1-, 2- and 3-phase programs?",
-    a: `They trade off speed against room for loss. 1-phase has a single ${one.phases[0].targetPercent}% target with ${one.dailyLossPercent}% daily and ${one.maxLossPercent}% maximum loss. 2-phase asks for ${targets(two)} with ${two.dailyLossPercent}% daily and ${two.maxLossPercent}% maximum loss. 3-phase asks for ${targets(three)} with ${three.dailyLossPercent}% daily and ${three.maxLossPercent}% maximum loss. Prices and the funded profit split also differ by account size.`,
-    link: { to: "/challenges#compare-programs", label: "Compare programs" },
+    a: `They trade off speed against room for loss. 1-phase has a single ${one.phases[0].targetPercent}% target with ${one.dailyLossPercent}% daily and ${one.maxLossPercent}% maximum loss. 2-phase asks for ${targets(two)} with ${two.dailyLossPercent}% daily and ${two.maxLossPercent}% maximum loss. 3-phase asks for ${targets(three)} with ${three.dailyLossPercent}% daily and ${three.maxLossPercent}% maximum loss. Prices and the funded profit split also differ by account size. To narrow it down, the challenge finder checks every published plan against your fee budget and your usual risk per trade (how many losing trades fit inside one day's loss allowance) and ranks the ones that fit by what matters most to you.`,
+    link: { to: "/challenges#finder", label: "Find your challenge" },
   },
   {
     id: "profit-targets",

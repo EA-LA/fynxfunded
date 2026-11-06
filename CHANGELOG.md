@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-06 12:30 UTC — [autopilot] "Find your challenge" on the Challenges page
+
+- New "Find your challenge" tool on the Challenges page. Type the most you want to pay, your usual risk per trade in dollars, and pick what matters most (lowest fee, best value, most room, fewest days, largest account or best profit split).
+- It checks all 18 published plans and shows the best three that fit, each with its fee, profit to make, daily and maximum loss in dollars, minimum days, profit split, plain reasons ("5 full losses fit in one day at $100 a trade") and honest warnings (tighter limits on 1-phase, more days on 3-phase). "Show all" lists every plan that fits.
+- If nothing fits, it shows the closest options and what would need to change (for example "risk $83.33 or less per trade", or how far above your budget the nearest plan is).
+- Each plan links to its rules in dollars and to the risk planner preloaded with your risk. "Copy a link to these choices" shares the exact search.
+- Also linked from the Challenges intro, the home page plan cards and the FAQ answer about the 1-, 2- and 3-phase programs.
+- See it: https://www.fynxfunded.com/challenges#finder
+
 ## 2026-11-06 08:25 UTC — [autopilot] Replay your own dashboard trades day by day against the challenge rules
 
 - New "Your journal, replayed day by day" box on the dashboard Analytics page and on each account's Analysis tab. It plays your real closed trades back in the order they closed, day by day, against the published rules, and tells you the exact day you would have passed a phase, broken a loss limit, or what was still missing (profit, days, the 40% best-day rule).

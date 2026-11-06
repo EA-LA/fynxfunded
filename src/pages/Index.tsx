@@ -227,6 +227,8 @@ export default function Index() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Figures shown for the 2-phase program. Daily loss is measured from the balance at each 22:00 UTC reset.{" "}
           <Link to="/challenges#compare-programs" className="underline underline-offset-4 hover:text-foreground">Compare 1-, 2- and 3-phase</Link>
+          {" · "}
+          <Link to="/challenges#finder" className="underline underline-offset-4 hover:text-foreground">Find the plan that fits your budget and risk</Link>
         </p>
       </section>
 

@@ -25,7 +25,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Side-by-side comparison of 1/2/3-phase programs for a chosen size, in dollars (2026-11-03)
 - [x] Link each plan to the rules calculator preset for that size/program (2026-11-03)
 - [x] Comparison switches (Quick/Full, 1/2/3-phase) announce the selected option to screen readers; table row labels are proper row headers (2026-11-06)
+- [x] "Find your challenge" (/challenges#finder): fee budget, dollar risk per trade, losing trades per day the daily allowance should absorb, priority (lowest fee, best value, most room, fewest days, largest account, best split) and program filter; top 3 plans with reasons and cautions, full list, closest options and what to change when nothing fits, shareable link; linked from the Challenges intro, home plan cards and the FAQ which-program answer (2026-11-06)
 - [ ] Let "Start challenge" preselect size/program in the builder (needs care: builder feeds checkout)
+- [ ] Finder: optional "how many days a week can you trade" to estimate calendar time to the minimum days
 
 ## How it works (/how-it-works)
 - [x] Program/size picker showing every phase in dollars, plus "How a trading day works" (2026-11-03)

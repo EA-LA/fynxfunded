@@ -5,6 +5,7 @@ import { challengeConfigs, marketingPlans } from "@/lib/challengeConfig";
 import { Link } from "react-router-dom";
 import { ArrowRight, Calculator, Check, Globe2 } from "lucide-react";
 import ProgramComparison from "@/components/ProgramComparison";
+import ChallengeFinder from "@/components/ChallengeFinder";
 import { calculatorLink } from "@/lib/ruleCalculator";
 import GlossaryTip from "@/components/GlossaryTip";
 
@@ -26,6 +27,10 @@ export default function ChallengesPricing() {
           <p className="mt-4 text-lg text-muted-foreground animate-fade-up delay-200">
             Featured two-phase evaluations.{" "}
             <a href="#compare-programs" className="underline underline-offset-4 hover:text-foreground">Compare 1, 2 and 3-phase programs</a> for any account size below.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground animate-fade-up delay-200">
+            Not sure which one?{" "}
+            <a href="#finder" className="underline underline-offset-4 hover:text-foreground">Find your challenge</a> from your budget and risk per trade.
           </p>
 
         </div>
@@ -73,6 +78,8 @@ export default function ChallengesPricing() {
             </div>
           ))}
         </div>
+
+        <ChallengeFinder />
 
         <ProgramComparison />
 
