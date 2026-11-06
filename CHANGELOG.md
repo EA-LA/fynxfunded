@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-06 20:30 UTC — [autopilot] "What could getting funded cost?" in the pass simulator, fee check in the payout estimator, better long/short stats
+
+- New under the pass simulator results on https://www.fynxfunded.com/rules#simulator (choose "All phases", or any 1-phase program): the challenge fee per attempt, how many attempts your plan would take on average, the fees that adds up to, the funded profit your share would need to earn them back, and your chance of being funded within 1, 2, 3 or 5 attempts (with the most it could cost in fees). It warns plainly when the plan never passes. Example link: https://www.fynxfunded.com/rules?size=25000&program=2-phase&sphase=all#simulator
+- If you simulate only one phase, a "Simulate all phases" button switches to the full picture in one tap.
+- The payout estimator on https://www.fynxfunded.com/payouts#estimator now compares your estimated share with the challenge fee: "Your share would cover the $199 fee for this challenge 4 times", or how far short it is and the profit that would cover it.
+- New FAQ answer "How much could getting funded cost me in fees?" at https://www.fynxfunded.com/faq#funding-cost, and two new glossary words: "Challenge fee" and "Long and short".
+- Dashboard, each account's Analysis tab: the long/short comparison now shows, for buys and sells separately, the result, number of trades and share, win rate, wins/losses and average per trade, a plain sentence saying which side is doing better (once each side has 3+ trades), and tap-to-explain help.
+- All figures use the published fees and profit splits; they are illustrations that assume the same odds every attempt and no refund or discount.
+
 ## 2026-11-06 16:25 UTC — [autopilot] "How long will it take?" in Find your challenge, word help on Trades and account stats
 
 - Find your challenge (https://www.fynxfunded.com/challenges#finder) now asks, optionally, how many days a week you can trade. Each suggested plan then shows the earliest it could take to get through its minimum trading days at that pace (for example "5 weeks+" for a 3-phase plan at 3 days a week), with the same figure in the reasons and in the full list. It is clearly a minimum: there is no time limit, and reaching the profit target often takes longer. The choice is kept in the share link.

@@ -4,6 +4,8 @@ import { CheckCircle2, AlertCircle } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { PROGRAMS, type ProgramId } from "@/lib/ruleCalculator";
 import { estimatePayout, MINIMUM_PAYOUT_USD, splitTable } from "@/lib/payoutEstimator";
+import { feePayback } from "@/lib/fundingCost";
+import { simulatorLink } from "@/lib/challengeSimulator";
 
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -57,6 +59,7 @@ export default function PayoutEstimator() {
   }, [location.hash]);
   const profit = Number.parseFloat(profitText.replace(/[$,\s]/g, ""));
   const e = estimatePayout(accountSize, program, profit);
+  const fee = feePayback(accountSize, program, e.traderShare);
 
   return (
     <section ref={sectionRef} id="estimator" aria-labelledby="estimator-title" className="premium-card mb-16 scroll-mt-24 animate-fade-up">
@@ -130,6 +133,20 @@ export default function PayoutEstimator() {
               </>
             )}
           </p>
+          <div className="mt-4 border-t border-border pt-4 text-sm" data-testid="fee-payback">
+            <p className="font-medium">Compared with the challenge fee</p>
+            <p className="mt-1 text-muted-foreground">
+              {e.traderShare <= 0
+                ? `This challenge costs ${usd(fee.fee)}. Your share would cover it from about ${usd(fee.profitToCoverFee)} net profit (${fee.profitToCoverFeePercent}% of the account).`
+                : fee.covered
+                  ? `Your share would cover the ${usd(fee.fee)} fee for this challenge ${fee.timesFee >= 2 ? `${fee.timesFee.toLocaleString("en-US")} times` : "once"}${fee.timesFee >= 2 ? "" : ` (from about ${usd(fee.profitToCoverFee)} net profit)`}.`
+                  : `Your share would be ${usd(fee.shortBy)} short of the ${usd(fee.fee)} fee for this challenge. It covers the fee from about ${usd(fee.profitToCoverFee)} net profit (${fee.profitToCoverFeePercent}% of the account).`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              One attempt at today's published price. To include retakes, see{" "}
+              <Link to={simulatorLink({ accountSize, program, phase: "all" })} className="underline">what getting funded could cost</Link> in the pass simulator.
+            </p>
+          </div>
           <p className="mt-4 text-xs text-muted-foreground">
             The other checklist items below still apply.{" "}
             <Link to="/rules#calculator" className="underline">Check targets and loss limits</Link>

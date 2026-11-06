@@ -24,6 +24,7 @@ import {
   summarizeTradeResults,
 } from "@/lib/tradeResultsImport";
 import GlossaryTip from "@/components/GlossaryTip";
+import FundingCostCard from "@/components/FundingCostCard";
 
 type Method = "fixed" | "own";
 const readMethod = (params: URLSearchParams): Method => (params.get("smethod") === "own" ? "own" : "fixed");
@@ -536,6 +537,23 @@ export default function ChallengeSimulator() {
               )}
             </div>
           </div>
+          {phaseChoice === "all" || plan.phases.length === 1 ? (
+            <FundingCostCard
+              accountSize={accountSize}
+              program={program}
+              passed={result.counts.passed}
+              ended={result.counts.dailyBreach + result.counts.maxBreach + result.counts.outOfRoom}
+              unfinished={result.counts.unfinished}
+            />
+          ) : (
+            <p className="mt-6 text-xs text-muted-foreground" data-testid="funding-cost-hint">
+              Getting funded means passing every phase.{" "}
+              <button type="button" onClick={() => set("phase", "all")} className="underline font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+                Simulate all phases
+              </button>{" "}
+              to see what getting funded could cost in fees at these odds.
+            </p>
+          )}
         </div>
       )}
 

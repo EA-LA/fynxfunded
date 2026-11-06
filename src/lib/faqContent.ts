@@ -1,5 +1,6 @@
 import { MINIMUM_PAYOUT_USD, splitRange } from "@/lib/payoutEstimator";
-import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, getRulePlan } from "@/lib/ruleCalculator";
+import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, getRulePlan, summarizeProgram } from "@/lib/ruleCalculator";
+import { feePayback } from "@/lib/fundingCost";
 
 /**
  * Public FAQ content. Every number is derived from the published new-account
@@ -25,6 +26,11 @@ export interface FaqItem {
 }
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+
+// Worked fee example: 25K two-phase at a made-up 1-in-4 pass chance (arithmetic only).
+const feeExample = summarizeProgram(25000, "2-phase");
+const feeExampleFees = feeExample.price * 4;
+const feeExampleProfit = feePayback(25000, "2-phase", 0).profitToCoverFee * 4;
 
 const one = getRulePlan(25000, "1-phase");
 const two = getRulePlan(25000, "2-phase");
@@ -62,6 +68,13 @@ export const faqItems: FaqItem[] = [
     q: "How quickly can I get paid?",
     a: "Eligible users can submit a payout request from the dashboard. Available methods and estimated processing times are shown during the request and may depend on verification and the payment provider.",
     link: { to: "/payouts#calendar", label: "See the payout calendar" },
+  },
+  {
+    id: "funding-cost",
+    topic: "account",
+    q: "How much could getting funded cost me in fees?",
+    a: `It depends on how often your plan would pass, because a breached attempt needs a new fee. Run the pass simulator on the Rules page with "All phases" chosen: under the results, "What getting funded could cost" turns the pass rate into the average number of attempts, the fees paid on average, your chance of being funded within 1, 2, 3 or 5 attempts, and the funded profit your share would need to earn those fees back. Example arithmetic: if a ${usd(25000)} two-phase plan passed 1 attempt in 4, that is 4 attempts on average, ${usd(feeExampleFees)} in fees at ${usd(feeExample.price)} each, and about ${usd(feeExampleProfit)} of funded profit at the ${feeExample.plan.profitSplitPercent}% split to earn it back. It assumes today's published fee for every attempt and no refund or discount.`,
+    link: { to: "/rules?size=25000&program=2-phase&sphase=all#simulator", label: "See what getting funded could cost" },
   },
   {
     id: "fee-returned",

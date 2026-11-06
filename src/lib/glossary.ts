@@ -271,6 +271,21 @@ const terms: GlossaryTerm[] = [
     link: { to: "/rules#trading-day", label: "See the sessions in your time" },
   },
   {
+    id: "long-short",
+    term: "Long and short",
+    group: "trading",
+    aliases: ["buy", "sell", "going long", "going short", "direction"],
+    definition: "Going long (a Buy) profits if the price rises; going short (a Sell) profits if it falls. Comparing your long and short results shows whether one direction is doing better for you.",
+  },
+  {
+    id: "challenge-fee",
+    term: "Challenge fee",
+    group: "rules",
+    aliases: ["price", "cost", "fee", "retake"],
+    definition: "The one-time price of an evaluation attempt, set by account size and program. Your share of funded profit has to exceed the fees you paid before you are ahead; fee-refund eligibility depends on the terms shown at purchase.",
+    link: { to: "/rules#simulator", label: "See what getting funded could cost" },
+  },
+  {
     id: "funded-stage",
     term: "Funded stage",
     group: "payouts",

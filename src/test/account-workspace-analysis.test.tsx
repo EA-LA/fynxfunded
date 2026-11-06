@@ -68,3 +68,20 @@ describe("account workspace analysis tab", () => {
     expect(await screen.findByText(/Everything your winning trades made divided by everything your losing trades lost/)).toBeInTheDocument();
   });
 });
+
+describe("account workspace long / short comparison", () => {
+  it("shows win rate, wins/losses and average per side with help", async () => {
+    const sell = (t: Trade): Trade => ({ ...t, type: "Sell" });
+    mocks.trades = [trade("1", "EURUSD", 100), trade("2", "EURUSD", -40), trade("3", "EURUSD", 60), sell(trade("4", "EURUSD", -20)), sell(trade("5", "EURUSD", -10)), sell(trade("6", "XAUUSD", 30))];
+    render(<MemoryRouter initialEntries={["/dashboard/accounts/ch-1"]}><Routes><Route path="/dashboard/accounts/:challengeId" element={<AccountWorkspace />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /Analysis/ }));
+    const long = screen.getByTestId("side-long");
+    expect(long).toHaveTextContent("$120.00");
+    expect(long).toHaveTextContent("66.7%");
+    expect(long).toHaveTextContent("2 / 1");
+    expect(long).toHaveTextContent("$40.00");
+    expect(screen.getByTestId("side-short")).toHaveTextContent("33.3%");
+    expect(screen.getByTestId("side-note")).toHaveTextContent("Long trades average $40.00 more per trade than short trades.");
+    expect(document.querySelector('[data-glossary-term="long-short"]') ?? screen.getByRole("button", { name: /long and short/i })).toBeTruthy();
+  });
+});
