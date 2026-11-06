@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-06 00:20 UTC — [autopilot] "Am I ready to request a payout?" check, and word explanations on Challenges, How it works and Payouts
+
+- New on https://www.fynxfunded.com/payouts#readiness: answer five quick questions (trading days since your last payout, net profit, rule violations, open positions, identity verification) and see which payout conditions you meet, what is still missing and exactly what to do about it, plus the request window to aim for (for example "Nov 16 – 18, opens in 6 days"). Your share is worked out with your plan's split against the $50 minimum. Nothing is saved or sent; every real request is still reviewed.
+- The eligibility checklist on the Payouts page links to the new check, the FAQ answer "What do I need before requesting a payout?" now opens it, and the dashboard Payouts page has an "Am I ready to request?" link.
+- On https://www.fynxfunded.com/challenges every plan card label (account size, phase targets, daily loss limit, max loss limit, minimum days, profit split) and every row of the "Compare all sizes" table is dotted: tap it for a plain explanation and a link to the glossary.
+- On https://www.fynxfunded.com/how-it-works each step ends with a "Words used here" line (profit target, daily loss limit, maximum loss, static drawdown, minimum days, 40% rule; funded stage, profit split, payout window, KYC), the trading-day box explains trading day, daily reset and breach, and there is a link to the full glossary.
+- Payouts page: profit split, the eligibility list and the payout calendar have the same tap-to-explain help.
+- Fixed: the dashboard Payouts page said payouts were "Bi-weekly, every 14 calendar days", which contradicted the published calendar. It now says "Twice a month: requests open the 1st–3rd and 16th–18th (UTC)".
+- Fixed: the Quick/Full and 1/2/3-phase switches above the comparison table on /challenges now tell screen readers which one is selected.
+
 ## 2026-11-05 20:25 UTC — [autopilot] Tap any rules word on the Rules page for a plain explanation
 
 - On https://www.fynxfunded.com/rules, words such as "Daily loss limit", "Equity", "Consistency rule" and "Minimum days" are now dotted: tap or click one to see what it means in plain words, with a link to the full glossary entry and the right calculator.

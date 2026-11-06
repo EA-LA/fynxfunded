@@ -80,7 +80,8 @@ describe("payout estimator", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(7);
     expect(screen.getByText(/keep 75% to 90%/)).toBeTruthy();
     expect(screen.getByTestId("trader-share").textContent).toBe("$800");
-    fireEvent.click(screen.getByRole("button", { name: "$100K" }));
+    // The readiness check further down has its own size buttons; use the estimator's.
+    fireEvent.click(within(document.getElementById("estimator")!).getByRole("button", { name: "$100K" }));
     fireEvent.change(screen.getByLabelText(/net profit in the funded account/i), { target: { value: "$2,500" } });
     expect(screen.getByTestId("trader-share").textContent).toBe("$2,250");
     fireEvent.change(screen.getByLabelText(/net profit in the funded account/i), { target: { value: "20" } });

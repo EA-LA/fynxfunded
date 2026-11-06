@@ -4,6 +4,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { ArrowRight, Calculator, CheckCircle2, Clock, Gauge } from "lucide-react";
 import { riskPlannerLink } from "@/lib/riskPlanner";
+import GlossaryTip from "@/components/GlossaryTip";
+import { getGlossaryTerm } from "@/lib/glossary";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, PROGRAMS, calculatorLink, parseCalculatorPreset, summarizeProgram, type ProgramId } from "@/lib/ruleCalculator";
 
@@ -28,7 +30,13 @@ export interface PathStep {
   desc: string;
   details: string[];
   link?: { to: string; label: string };
+  /** Glossary term ids explained under the card ("Words used here"). */
+  terms: string[];
 }
+
+const phaseTerms = ["profit-target", "daily-loss-limit", "maximum-loss", "static-vs-trailing", "minimum-trading-days", "consistency-rule"];
+const fundedTerms = ["funded-stage", "profit-split", "payout-window", "kyc"];
+const termName = (id: string) => getGlossaryTerm(id)?.term ?? id;
 
 /** The steps of one program for one account size, built from the published schedule. */
 export function buildPath(accountSize: number, program: ProgramId): PathStep[] {
@@ -46,6 +54,7 @@ export function buildPath(accountSize: number, program: ProgramId): PathStep[] {
       "No time limit",
     ],
     link: { to: calculatorLink(accountSize, program, ph.phase), label: `Plan phase ${ph.phase} in the calculator` },
+    terms: phaseTerms,
   }));
   steps.push({
     num: "Funded",
@@ -59,6 +68,7 @@ export function buildPath(accountSize: number, program: ProgramId): PathStep[] {
       "Fee refund where included in the purchased plan",
     ],
     link: { to: "/payouts#estimator", label: "Estimate a payout" },
+    terms: fundedTerms,
   });
   return steps;
 }
@@ -160,6 +170,12 @@ export default function HowItWorks() {
                       <Calculator size={14} aria-hidden="true" /> {phase.link.label}
                     </Link>
                   )}
+                  <p className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>Words used here:</span>
+                    {phase.terms.map((id) => (
+                      <GlossaryTip key={id} term={id} className="text-foreground/90">{termName(id)}</GlossaryTip>
+                    ))}
+                  </p>
                 </div>
               </div>
             </div>
@@ -170,6 +186,11 @@ export default function HowItWorks() {
           <h2 id="trading-day-title" className="flex items-center gap-2 text-xl font-bold">
             <Clock size={18} aria-hidden="true" /> How a trading day works
           </h2>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Words used here: <GlossaryTip term="trading-day" className="text-foreground/90">{termName("trading-day")}</GlossaryTip>,{" "}
+            <GlossaryTip term="daily-reset" className="text-foreground/90">{termName("daily-reset")}</GlossaryTip>,{" "}
+            <GlossaryTip term="breach" className="text-foreground/90">{termName("breach")}</GlossaryTip>
+          </p>
           <ul className="mt-4 space-y-2 text-sm">
             {dayRules.map((r) => (
               <li key={r} className="flex items-start gap-2">
@@ -178,7 +199,10 @@ export default function HowItWorks() {
               </li>
             ))}
           </ul>
-          <Link to="/faq" className="mt-4 inline-block text-sm underline">More questions? Read the FAQ</Link>
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <Link to="/faq" className="underline">More questions? Read the FAQ</Link>
+            <Link to="/faq#glossary" className="underline">Browse the full glossary</Link>
+          </p>
         </section>
 
         <div className="mt-16 text-center animate-fade-up delay-800">

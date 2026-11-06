@@ -161,7 +161,7 @@ export const faqItems: FaqItem[] = [
     topic: "payouts",
     q: "What do I need before requesting a payout?",
     a: `At least 5 trading days since your last payout, no active rule violations, all positions closed, identity verification (KYC) completed, and a payout of at least ${usd(MINIMUM_PAYOUT_USD)}. Every request is reviewed before it is approved.`,
-    link: { to: "/payouts", label: "See payout requirements" },
+    link: { to: "/payouts#readiness", label: "Check if you're ready to request" },
   },
   {
     id: "payout-windows",

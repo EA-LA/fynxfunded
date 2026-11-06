@@ -24,6 +24,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 ## Challenges (/challenges)
 - [x] Side-by-side comparison of 1/2/3-phase programs for a chosen size, in dollars (2026-11-03)
 - [x] Link each plan to the rules calculator preset for that size/program (2026-11-03)
+- [x] Comparison switches (Quick/Full, 1/2/3-phase) announce the selected option to screen readers; table row labels are proper row headers (2026-11-06)
 - [ ] Let "Start challenge" preselect size/program in the builder (needs care: builder feeds checkout)
 
 ## How it works (/how-it-works)
@@ -54,6 +55,10 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Fix incomplete profit-split tiers: full size × program table from the catalog (2026-11-03)
 - [x] Payout calendar: live "next request window" card based on today's date, linkable as /payouts#calendar (2026-11-03)
 - [x] "Add both windows to my calendar" (.ics download for the next two request windows) (2026-11-04)
+- [x] "Am I ready to request a payout?" self-check (/payouts#readiness): five published conditions answered by the trader (days since last payout, net profit vs $50 minimum at the plan split, violations, open positions, KYC), met/missing/unanswered per item with what to do, next request window; nothing saved or sent; linked from the eligibility list, FAQ payout-eligibility answer and dashboard Payouts (2026-11-06)
+- [ ] Dashboard Payouts: prefill the readiness check from the trader's verified funded account once payout eligibility data is reliable
+- [x] Fixed: dashboard Payouts said "Bi-weekly, every 14 calendar days"; now matches the published calendar (twice a month, 1st–3rd and 16th–18th UTC) (2026-11-06)
+- [ ] Dashboard Payouts says profit split "Up to 90%" for everyone; show the trader's own plan split once account data is verified
 
 ## FAQ (/faq)
 - [x] Search, FAQPage structured data, related links and "Email support" block (2026-11-03)
@@ -62,7 +67,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Home FAQ preview: curated questions from the real FAQ, each linking to its answer (/faq#id) (2026-11-04)
 - [x] Glossary (/faq#glossary): 36 trading and evaluation terms with search (names, other names and definitions), area filters, A–Z jump links, a shareable link per term (/faq#term-pip, highlighted when opened) and links to the matching calculator or answer; FYNX figures come from the published schedule (2026-11-05)
 - [x] Glossary help on /rules: dotted words in the schedule table, a "Words used here" line on every rule card, and "?" buttons beside the labels of the rules calculator, risk planner, pass simulator, position size calculator and trading-day clock; tap/click/keyboard opens the plain definition with "Open in the glossary" and the term's next step (2026-11-05)
-- [ ] Add the same glossary help to How it works, Challenges, Payouts and the dashboard Objectives/Analytics labels
+- [x] Glossary help on How it works ("Words used here" on every step and the trading-day box), Challenges (plan card labels and comparison rows) and Payouts (split, eligibility list, calendar) (2026-11-06)
+- [ ] Add the same glossary help to the dashboard Objectives/Analytics labels
 - [ ] Translate the glossary with the rest of the FAQ
 
 ## Legal pages (/terms, /privacy, /risk-disclosure, /refund-policy, /aml-kyc)

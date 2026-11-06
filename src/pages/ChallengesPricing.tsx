@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Calculator, Check, Globe2 } from "lucide-react";
 import ProgramComparison from "@/components/ProgramComparison";
 import { calculatorLink } from "@/lib/ruleCalculator";
+import GlossaryTip from "@/components/GlossaryTip";
 
 type CompareView = "quick" | "full";
 type PhaseType = "1-phase" | "2-phase" | "3-phase";
@@ -49,12 +50,12 @@ export default function ChallengesPricing() {
                 <span className="text-sm text-muted-foreground ml-1">one-time</span>
               </div>
               <div className="space-y-3 text-sm">
-                <PlanRow label="Account Size" value={`$${plan.accountSize}`} />
-                <PlanRow label="Phase Targets" value={plan.profitTarget} />
-                <PlanRow label="Daily Loss Limit" value={plan.dailyLoss} />
-                <PlanRow label="Max Loss Limit" value={plan.maxLoss} />
-                <PlanRow label="Min Trading Days" value={`${plan.minDays} days`} />
-                <PlanRow label="Profit Split" value={plan.profitSplit} />
+                <PlanRow label="Account Size" term="account-size" value={`$${plan.accountSize}`} />
+                <PlanRow label="Phase Targets" term="profit-target" value={plan.profitTarget} />
+                <PlanRow label="Daily Loss Limit" term="daily-loss-limit" value={plan.dailyLoss} />
+                <PlanRow label="Max Loss Limit" term="maximum-loss" value={plan.maxLoss} />
+                <PlanRow label="Min Trading Days" term="minimum-trading-days" value={`${plan.minDays} days`} />
+                <PlanRow label="Profit Split" term="profit-split" value={plan.profitSplit} />
                 <PlanRow label="Fee Refund" value={plan.refund ? "Yes" : "No"} />
               </div>
               <Link
@@ -86,6 +87,8 @@ export default function ChallengesPricing() {
               {(["1-phase", "2-phase", "3-phase"] as PhaseType[]).map((pt) => (
                 <button
                   key={pt}
+                  type="button"
+                  aria-pressed={comparePhase === pt}
                   onClick={() => setComparePhase(pt)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors capitalize ${
                     comparePhase === pt ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -98,6 +101,8 @@ export default function ChallengesPricing() {
             {/* View toggle */}
             <div className="inline-flex items-center gap-1 bg-secondary rounded-md p-0.5">
               <button
+                type="button"
+                aria-pressed={compareView === "quick"}
                 onClick={() => setCompareView("quick")}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   compareView === "quick" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -106,6 +111,8 @@ export default function ChallengesPricing() {
                 Quick
               </button>
               <button
+                type="button"
+                aria-pressed={compareView === "full"}
                 onClick={() => setCompareView("full")}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   compareView === "full" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -134,32 +141,39 @@ export default function ChallengesPricing() {
               />
               <CompareRow
                 label="Phase Type"
+                term="phase"
                 values={challengeConfigs.map(() => comparePhase.replace("-", " "))}
               />
               <CompareRow
                 label="Profit Target(s)"
+                term="profit-target"
                 values={challengeConfigs.map((c) => c.phases[comparePhase].profitTargets.join(" → "))}
               />
               <CompareRow
                 label="Daily Loss Limit"
+                term="daily-loss-limit"
                 values={challengeConfigs.map((c) => c.phases[comparePhase].dailyLoss)}
               />
               <CompareRow
                 label="Max Loss Limit"
+                term="maximum-loss"
                 values={challengeConfigs.map((c) => c.phases[comparePhase].maxLoss)}
               />
               <CompareRow
                 label="Min Trading Days"
+                term="minimum-trading-days"
                 values={challengeConfigs.map((c) => `${c.phases[comparePhase].minDays} days`)}
               />
               <CompareRow
                 label="Profit Split"
+                term="profit-split"
                 values={challengeConfigs.map((c) => c.phases[comparePhase].profitSplit)}
               />
               {compareView === "full" && (
                 <>
                   <CompareRow
                     label="Leverage (Forex)"
+                    term="leverage"
                     values={challengeConfigs.map((c) => c.phases[comparePhase].leverageForex)}
                   />
                   <CompareRow
@@ -187,6 +201,7 @@ export default function ChallengesPricing() {
                   />
                   <CompareRow
                     label="Consistency Rule"
+                    term="consistency-rule"
                     values={challengeConfigs.map(() => "40% of net phase profit")}
                   />
                 </>
@@ -213,19 +228,19 @@ export default function ChallengesPricing() {
   );
 }
 
-function PlanRow({ label, value }: { label: string; value: string }) {
+function PlanRow({ label, value, term }: { label: string; value: string; term?: string }) {
   return (
-    <div className="flex justify-between border-b border-border/50 pb-2">
-      <span className="text-muted-foreground">{label}</span>
+    <div className="flex justify-between gap-3 border-b border-border/50 pb-2">
+      <span className="text-muted-foreground">{term ? <GlossaryTip term={term}>{label}</GlossaryTip> : label}</span>
       <span className="font-medium">{value}</span>
     </div>
   );
 }
 
-function CompareRow({ label, values, isCheck }: { label: string; values: string[]; isCheck?: boolean }) {
+function CompareRow({ label, values, isCheck, term }: { label: string; values: string[]; isCheck?: boolean; term?: string }) {
   return (
     <tr>
-      <td className="py-3 px-4 text-muted-foreground">{label}</td>
+      <th scope="row" className="py-3 px-4 text-left font-normal text-muted-foreground">{term ? <GlossaryTip term={term}>{label}</GlossaryTip> : label}</th>
       {values.map((v, i) => (
         <td key={i} className="py-3 px-4 text-center">
           {isCheck ? <Check size={16} className="mx-auto" /> : v}
