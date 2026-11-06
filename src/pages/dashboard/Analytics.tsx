@@ -9,6 +9,11 @@ import TradeTimingCard from "@/components/analytics/TradeTimingCard";
 import TradingDaysCard from "@/components/analytics/TradingDaysCard";
 import InstrumentSessionCard from "@/components/analytics/InstrumentSessionCard";
 import JournalSimulatorCard from "@/components/analytics/JournalSimulatorCard";
+import JournalReplayCard from "@/components/analytics/JournalReplayCard";
+import GlossaryTip from "@/components/GlossaryTip";
+
+/** Glossary entries for the headline and trade-quality labels. */
+const LABEL_TERMS:Record<string,string>={"Win rate":"win-rate","Closed-trade drawdown":"drawdown","Payoff ratio":"payoff-ratio","Below peak now":"drawdown"};
 
 const money=(v:number)=>`${v>=0?"+":"-"}$${Math.abs(v).toFixed(2)}`;
 export default function Analytics(){
@@ -26,8 +31,8 @@ export default function Analytics(){
   return <div className="space-y-6 animate-fade-up">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold tracking-tight">Analytics</h1><p className="mt-1 text-sm text-muted-foreground">Recorded closed-trade performance · {data.accountName}</p><p className="mt-1 text-xs text-muted-foreground">{analyticsRangeLabel(range)} · showing {trades.length} of {data.trades.length} closed trades</p></div><div className="flex rounded-lg border p-1" aria-label="Analytics date range">{ANALYTICS_RANGES.map(x=><button type="button" aria-pressed={range===x} onClick={()=>setRange(x)} className={`rounded-md px-3 py-1.5 text-xs ${range===x?"bg-primary text-primary-foreground":"text-muted-foreground"}`} key={x}>{x}</button>)}</div></div>
     {data.loading && <p role="status">Loading trading records…</p>}{data.error && <p role="alert">{data.error}</p>}
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">{Array.from({length:6},(_,i)=><div className="premium-card" key={String(stats[i*2])}><p className="text-xs text-muted-foreground">{stats[i*2]}</p><p className="mt-2 text-xl font-bold">{stats[i*2+1]}</p></div>)}</div>
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6" data-testid="trade-quality">{quality.map(([k,v,d])=><div className="rounded-xl border bg-card/60 px-4 py-3" key={k}><p className="text-xs text-muted-foreground">{k}</p><p className="mt-1 text-lg font-bold">{v}</p><p className="text-[11px] text-muted-foreground">{d}</p></div>)}</div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">{Array.from({length:6},(_,i)=><div className="premium-card" key={String(stats[i*2])}><p className="flex items-center gap-1 text-xs text-muted-foreground">{stats[i*2]}{LABEL_TERMS[String(stats[i*2])]&&<GlossaryTip term={LABEL_TERMS[String(stats[i*2])]}/>}</p><p className="mt-2 text-xl font-bold">{stats[i*2+1]}</p></div>)}</div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6" data-testid="trade-quality">{quality.map(([k,v,d])=><div className="rounded-xl border bg-card/60 px-4 py-3" key={k}><p className="flex items-center gap-1 text-xs text-muted-foreground">{k}{LABEL_TERMS[k]&&<GlossaryTip term={LABEL_TERMS[k]}/>}</p><p className="mt-1 text-lg font-bold">{v}</p><p className="text-[11px] text-muted-foreground">{d}</p></div>)}</div>
     <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
       <div className="premium-card"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Cumulative P/L</h3><p className="text-xs text-muted-foreground">Recorded closed trades · {range}</p></div><BarChart3 size={18}/></div><div className="mt-5 h-72">{curve.length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={curve}><defs><linearGradient id="pnl" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="currentColor" stopOpacity={.25}/><stop offset="95%" stopColor="currentColor" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" opacity={.25}/><XAxis dataKey="name" fontSize={11}/><YAxis fontSize={11}/><Tooltip/><Area type="monotone" dataKey="pnl" stroke="currentColor" fill="url(#pnl)" strokeWidth={2}/></AreaChart></ResponsiveContainer>:<div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed"><Activity className="text-muted-foreground"/><p className="mt-3 text-sm font-semibold">No closed trades in this period</p><p className="mt-1 max-w-sm text-center text-xs text-muted-foreground">The cumulative P/L chart uses recorded closed trades in the selected period. It does not include open-position equity.</p></div>}</div></div>
       <div className="premium-card"><h3 className="font-semibold">Data status</h3><div className="mt-5 space-y-4">{([[Radio,data.brokerConnected?"Broker connected":"Live feed unverified",data.brokerConnected?"Listening for verified trade events":"Stored records do not establish a live connection"],[CalendarDays,`${tradingDays} trading day${tradingDays===1?"":"s"}`,`${range} · days run 22:00–22:00 UTC · from closed trades`],[Activity,trades.length?"Recorded analytics":"No trade history in this range","This workspace stays ready before purchase"]] as Array<[ElementType,string,string]>).map(([Icon,t,d])=><div className="flex gap-3" key={t}><span className="rounded-lg bg-secondary p-2"><Icon size={16}/></span><div><p className="text-sm font-medium">{t}</p><p className="text-xs text-muted-foreground">{d}</p></div></div>)}</div></div>
@@ -36,5 +41,6 @@ export default function Analytics(){
     <div className="grid gap-5 xl:grid-cols-2"><TradeTimingCard trades={trades} mode={zone} onModeChange={setZone}/><TradingDaysCard trades={trades}/></div>
     <InstrumentSessionCard trades={trades}/>
     <JournalSimulatorCard trades={trades} accountSize={data.accountSize} periodLabel={analyticsRangeLabel(range).toLowerCase()}/>
+    <JournalReplayCard trades={trades} accountSize={data.accountSize} periodLabel={analyticsRangeLabel(range).toLowerCase()}/>
   </div>
 }

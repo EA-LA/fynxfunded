@@ -428,3 +428,28 @@ export const EXAMPLE_DATED_RESULTS = [
   "2026-10-19 10:35,-60",
   "2026-10-19 15:45,245",
 ].join("\n");
+
+/**
+ * The trader's own journal (closed trades with close times and net P/L) as a
+ * replay record, oldest first. Results are resized to `targetSize` when the
+ * account size they were made on is known; trades without a readable close
+ * time are left out and counted.
+ */
+export function journalReplayTrades(
+  trades: { closeTime: string; pnl: number }[],
+  recordedSize: number,
+  targetSize: number,
+): { trades: ReplayTrade[]; undated: number; scale: number } {
+  const scale = recordedSize > 0 && targetSize > 0 ? targetSize / recordedSize : 1;
+  let undated = 0;
+  const dated: ReplayTrade[] = [];
+  for (const t of trades) {
+    const time = t.closeTime ? Date.parse(t.closeTime) : NaN;
+    if (!Number.isFinite(time) || !Number.isFinite(t.pnl)) {
+      undated++;
+      continue;
+    }
+    dated.push({ time, value: round2(t.pnl * scale) });
+  }
+  return { trades: finish({ trades: dated } as DatedTradesImport).trades, undated, scale };
+}

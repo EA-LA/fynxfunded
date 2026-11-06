@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-06 08:25 UTC — [autopilot] Replay your own dashboard trades day by day against the challenge rules
+
+- New "Your journal, replayed day by day" box on the dashboard Analytics page and on each account's Analysis tab. It plays your real closed trades back in the order they closed, day by day, against the published rules, and tells you the exact day you would have passed a phase, broken a loss limit, or what was still missing (profit, days, the 40% best-day rule).
+- Pick any account size, program and phase (or all phases in a row). It follows the 7D / 30D / All buttons, shows a balance chart against the target and loss floors and a row for every trading day. It is clearly marked as practice, not your official status, and links to your real Objectives.
+- Dashboard Objectives: tap any objective name (Profit Target, Daily Loss Limit, Max Loss Limit, Min Trading Days, Consistency Rule) or the "?" next to the planned-risk slider for a plain explanation, plus a link to replay your journal.
+- Dashboard Analytics: "?" help next to Win rate, Closed-trade drawdown, Payoff ratio and Below peak now.
+- See it (after logging in): https://www.fynxfunded.com/dashboard/analytics and https://www.fynxfunded.com/dashboard/objectives. The paste-your-own version stays at https://www.fynxfunded.com/rules#replay.
+
 ## 2026-11-06 04:35 UTC — [autopilot] Replay your real trades day by day against the challenge rules
 
 - New on https://www.fynxfunded.com/rules#replay: "Replay your record day by day". Paste or open your broker's trade history (a CSV with a close time and a profit column) and your real trades are played back in the order they happened, grouped into the same 22:00 UTC trading days the daily loss limit uses.
