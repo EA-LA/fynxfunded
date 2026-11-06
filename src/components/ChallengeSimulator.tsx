@@ -331,6 +331,9 @@ export default function ChallengeSimulator() {
               )}
             </div>
             {fileMessage && <p className="mt-2 text-xs text-muted-foreground" role="status">{fileMessage}</p>}
+            <p className="mt-3 text-xs text-muted-foreground">
+              Have dates for these trades? <a href="#replay" className="font-medium text-foreground underline underline-offset-4">Replay your record day by day</a> to keep their real order and see the exact day you would have passed or broken a limit.
+            </p>
           </div>
           <div>
             <label htmlFor="sim-recorded-size" className="text-sm font-medium">Account size these results were made on (optional)</label>

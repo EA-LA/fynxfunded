@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-06 04:35 UTC — [autopilot] Replay your real trades day by day against the challenge rules
+
+- New on https://www.fynxfunded.com/rules#replay: "Replay your record day by day". Paste or open your broker's trade history (a CSV with a close time and a profit column) and your real trades are played back in the order they happened, grouped into the same 22:00 UTC trading days the daily loss limit uses.
+- It tells you plainly what would have happened on the account you pick: "passed phase 1 at the close of Fri, Oct 9", "the daily loss limit would have been broken on Wed, Oct 7" (with the balance, the floor and by how much), or, if the record runs out first, exactly what was still missing (more profit, more trading days, or a smaller best day for the 40% rule).
+- You also see your closest call to a loss floor, a chart of your closing balance against the target and the floors, and a table with every trading day: trades, day result, closing balance, lowest allowed balance and room left.
+- Choose any size and program, a single phase or all phases in a row, the time zone your broker's file uses (for example UTC+2 server time), the account size the trades were made on (results are resized) and extra charges. No dates? It replays the results in order, a chosen number per day.
+- Your trades stay on your device: nothing is uploaded, saved or put in the share link. A "Try a made-up example record" button lets anyone try it.
+- Linked from the top of the Rules page, the pass simulator's "own trade results" mode and the FAQ answer https://www.fynxfunded.com/faq#pass-odds
+
 ## 2026-11-06 00:20 UTC — [autopilot] "Am I ready to request a payout?" check, and word explanations on Challenges, How it works and Payouts
 
 - New on https://www.fynxfunded.com/payouts#readiness: answer five quick questions (trading days since your last payout, net profit, rule violations, open positions, identity verification) and see which payout conditions you meet, what is still missing and exactly what to do about it, plus the request window to aim for (for example "Nov 16 – 18, opens in 6 days"). Your share is worked out with your plan's split against the $50 minimum. Nothing is saved or sent; every real request is still reviewed.

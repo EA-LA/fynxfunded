@@ -5,6 +5,7 @@ import MarketingLayout from "@/components/MarketingLayout";
 import RuleCalculator from "@/components/RuleCalculator";
 import RiskPlanner from "@/components/RiskPlanner";
 import ChallengeSimulator from "@/components/ChallengeSimulator";
+import RecordReplay from "@/components/RecordReplay";
 import PositionSizeCalculator from "@/components/PositionSizeCalculator";
 import TradingDayClock from "@/components/TradingDayClock";
 import GlossaryTip from "@/components/GlossaryTip";
@@ -97,6 +98,7 @@ export default function RulesPage() {
             <a href="#risk-planner" className="underline underline-offset-4">Plan your risk per trade and daily pace</a>
             <a href="#simulator" className="underline underline-offset-4">Simulate how often a plan passes</a>
             <Link to="/rules?smethod=own#simulator" className="underline underline-offset-4">Replay your own trade results</Link>
+            <a href="#replay" className="underline underline-offset-4">Replay your record day by day</a>
             <a href="#position-size" className="underline underline-offset-4">Turn your risk into a lot size</a>
             <a href="#trading-day" className="underline underline-offset-4">See when the daily reset happens in your time</a>
           </div>
@@ -124,6 +126,8 @@ export default function RulesPage() {
         <RiskPlanner />
 
         <ChallengeSimulator />
+
+        <RecordReplay />
 
         <PositionSizeCalculator />
 

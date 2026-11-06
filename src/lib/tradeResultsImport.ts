@@ -52,7 +52,7 @@ export function parseMoney(raw: string): number | null {
   return round2(negative ? -n : n);
 }
 
-const PROFIT_COLUMN = /^(net[\s_-]*)?(profit|p\s*\/\s*l|p&l|pnl|pl|result|gain|net)([\s_-]*(\(.*\)|usd|\$|amount))?$/i;
+export const PROFIT_COLUMN = /^(net[\s_-]*)?(profit|p\s*\/\s*l|p&l|pnl|pl|result|gain|net)([\s_-]*(\(.*\)|usd|\$|amount))?$/i;
 
 /** Splits one CSV/TSV line, keeping quoted fields (with "" escapes) together. */
 export function splitDelimited(line: string, delimiter: string): string[] {
@@ -83,14 +83,14 @@ export function splitDelimited(line: string, delimiter: string): string[] {
   return out.map((f) => f.trim());
 }
 
-const pickDelimiter = (header: string) => {
+export const pickDelimiter = (header: string) => {
   const counts = [",", "\t", ";"].map((d) => ({ d, n: splitDelimited(header, d).length - 1 }));
   counts.sort((a, b) => b.n - a.n);
   return counts[0].n > 0 ? counts[0].d : null;
 };
 
 /** A header row has at least one field with letters that isn't a money amount. */
-const looksLikeHeader = (line: string) => /[a-z]{2,}/i.test(line.replace(/usd/gi, ""));
+export const looksLikeHeader = (line: string) => /[a-z]{2,}/i.test(line.replace(/usd/gi, ""));
 
 /** Free list: commas inside "1,234.50" are thousand separators, other commas separate results. */
 function listTokens(line: string): string[] {
