@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-07 07:50 UTC — FYNX Trade home page: new premium design
+
+- https://www.fynxfunded.com/trade has a new design of its own: a dark product look with a warm gold accent, a lit-up headline ("Trade the world's currencies with precision.") and a large, detailed picture of the trading screen.
+- New "Global market hours" board: Sydney, Tokyo, London and New York with their local time, open/closed, a bar showing how far through the day each centre is, and when it opens or closes. It also shows UTC time, whether forex is open and the countdown to the daily reset.
+- New sections:
+  - "The platform" cards: order panel, risk in dollars, charts, Market Watch, phone.
+  - "The FYNX engine": how orders are checked and how loss limits are enforced.
+  - A restyled markets table for all 45 pairs, getting-started steps with shortcuts to the trading tools, and a partner section for prop firms and brokers.
+  - Rounded FAQ and a closing "Your desk is ready." call to action.
+
 ## 2026-11-07 07:30 UTC — The FYNX trading engine is built and wired into FYNX Trade
 
 - The trading engine behind FYNX Trade is ready. It:

@@ -11,9 +11,9 @@ const show = () => render(<MemoryRouter initialEntries={["/trade"]}><TradeWelcom
 describe("FYNX Trade welcome page", () => {
   it("sends every Trade now button to the terminal", () => {
     show();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Every forex pair.One deliberate terminal.");
-    const buttons = [...screen.getAllByRole("link", { name: /Trade now/ }), ...screen.getAllByRole("link", { name: /Open the terminal|Explore the terminal|Open the web terminal/ })];
-    expect(buttons.length).toBeGreaterThanOrEqual(5);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Trade the world’s currencies with precision.");
+    const buttons = [...screen.getAllByRole("link", { name: /Trade now/ }), ...screen.getAllByRole("link", { name: /Launch the terminal/ })];
+    expect(buttons.length).toBeGreaterThanOrEqual(4);
     buttons.forEach(b => expect(b).toHaveAttribute("href", "/trade/access"));
     expect(screen.getAllByRole("link", { name: "Log in" })[0]).toHaveAttribute("href", "/login?next=%2Ftrade%2Faccess");
   });
