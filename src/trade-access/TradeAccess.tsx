@@ -12,13 +12,18 @@ import {
   CONTRACT_SIZE, DEFAULT_SYMBOL, FOREX_PAIRS, LOT_MAX, LOT_MIN, LOT_STEP, calculatorKind, findPair, forexMarketOpen,
   loadFavorites, normalizeLots, pairLabel, pairName, saveFavorites, searchPairs, type ForexGroup, type ForexPair,
 } from './instruments';
-import { parsePips, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
+import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
+import { useEngine, type EngineHandle } from './useEngine';
+import type { TradingGateway } from '@/engine/gateway';
+import type { Snapshot } from '@/engine/venue';
+import { profitUsd } from '@/engine/core';
+import type { InstrumentSpec, QuoteBook } from '@/engine/types';
 import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
 
 interface Account {
   accountId: string; challengeId: string; orderId: string; platform: string; status: string;
   activationStatus: string; currentPhase: number; startingBalance: number; balance: number; equity: number;
-  tradingEnabled: false; tradingHoldReason: string; access?: string; accountEmailStatus?: string;
+  tradingEnabled: boolean; tradingHoldReason: string; access?: string; accountEmailStatus?: string;
   rules: AccountRules;
 }
 type Side = 'buy' | 'sell';
@@ -30,7 +35,7 @@ const GROUPS: (ForexGroup | 'Favorites' | 'All')[] = ['All', 'Favorites', 'Major
 const INTERVALS = [['1', '1m'], ['5', '5m'], ['15', '15m'], ['60', '1H'], ['240', '4H'], ['D', '1D']] as const;
 const TICKER = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD', 'EURGBP', 'EURJPY', 'GBPJPY'];
 
-export default function TradeAccess() {
+export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = {}) {
   const { user, signOut } = useAuth(), uid = user?.userId;
   const { resolvedTheme } = useTheme(), dark = resolvedTheme !== 'light';
   const [params, setParams] = useSearchParams(), requested = params.get('account') || '';
@@ -66,6 +71,7 @@ export default function TradeAccess() {
     return () => { window.removeEventListener('online', reload); window.clearInterval(timer); };
   }, [reload]);
   const visible = loadedFor === uid ? account : null;
+  const engine = useEngine(visible?.accountId ?? null, gateway);
 
   // Terminal state
   const pair = findPair(params.get('symbol')) ?? findPair(DEFAULT_SYMBOL)!;
@@ -95,6 +101,7 @@ export default function TradeAccess() {
             </select></label>}
         </div>
         <div className="flex items-center gap-1 text-sm sm:gap-3">
+          <span data-testid="engine-status" title={engine.status?.message} className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${engine.status?.execution ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${engine.status?.execution ? 'bg-emerald-500' : engine.status?.connected ? 'bg-amber-500' : 'bg-muted-foreground'}`} />{engine.status?.execution ? 'Trading engine live' : engine.status?.connected ? 'Engine connected · waiting for prices' : 'Engine not connected'}</span>
           <span className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`} title="Approximate forex week: Sunday to Friday, 22:00 UTC (21:00 in US summer time). Broker hours can differ."><span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />Forex {marketOpen ? 'open' : 'closed'}</span>
           <span className="hidden items-center gap-1.5 text-xs text-muted-foreground xl:inline-flex" title="The daily loss limit restarts from the balance at 22:00 UTC"><Clock size={13} aria-hidden="true" />Daily reset in {formatCountdown(day.msUntilReset)}</span>
           <button disabled={loading} onClick={reload} aria-label="Refresh accounts" className="rounded-md p-2 hover:bg-secondary disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /></button>
@@ -103,7 +110,7 @@ export default function TradeAccess() {
           <button className="rounded-md px-2 py-1.5 hover:bg-secondary" onClick={() => void signOut().catch(() => setError('Sign out could not finish. Try again.'))}>Sign out</button>
         </div>
       </div>
-      <AccountStrip account={visible} loading={loading} />
+      <AccountStrip account={visible} loading={loading} snapshot={engine.snapshot} />
     </header>
 
     <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs sm:px-5" role="note">
@@ -140,11 +147,11 @@ export default function TradeAccess() {
       </section>
 
       <section className={`${show('trade')} min-h-0 flex-col bg-card lg:row-span-2`} aria-label="Order panel">
-        <OrderTicket key={pair.symbol} pair={pair} account={visible} dailyLossAmount={rules?.dailyLossAmount ?? null} marketOpen={marketOpen} />
+        <OrderTicket key={pair.symbol} pair={pair} account={visible} dailyLossAmount={rules?.dailyLossAmount ?? null} marketOpen={marketOpen} engine={engine} />
       </section>
 
       <section className={`${view === 'history' || view === 'account' ? 'flex' : 'hidden'} min-w-0 flex-col bg-card lg:flex`} aria-label="Terminal">
-        <Toolbox tab={view === 'account' ? 'account' : tool} setTab={t => { setTool(t); if (view === 'history' && t === 'account') setView('account'); else if (view === 'account' && t !== 'account') setView('history'); }}
+        <Toolbox engine={engine} tab={view === 'account' ? 'account' : tool} setTab={t => { setTool(t); if (view === 'history' && t === 'account') setView('account'); else if (view === 'account' && t !== 'account') setView('history'); }}
           account={visible} accounts={accounts} loading={loading} rules={rules} loadedFor={loadedFor === uid} requested={requested}
           onSelectAccount={id => setParams(prev => { const next = new URLSearchParams(prev); next.set('account', id); return next; })} />
       </section>
@@ -158,12 +165,16 @@ export default function TradeAccess() {
   </div>;
 }
 
-function AccountStrip({ account, loading }: { account: Account | null; loading: boolean }) {
-  const items: [string, string, string?][] = account
-    ? [['Balance', money(account.balance)], ['Equity', money(account.equity)], ['Floating P/L', money(account.equity - account.balance), account.equity - account.balance < 0 ? 'text-red-500' : account.equity > account.balance ? 'text-emerald-500' : ''], ['Margin', money(0)], ['Free margin', money(account.equity)], ['Stage', `Phase ${account.currentPhase}`]]
-    : [['Balance', '—'], ['Equity', '—'], ['Floating P/L', '—'], ['Margin', '—'], ['Free margin', '—'], ['Stage', loading ? 'Loading…' : 'No account']];
+function AccountStrip({ account, loading, snapshot }: { account: Account | null; loading: boolean; snapshot: Snapshot | null }) {
+  const m = snapshot?.metrics;
+  const tone = (v: number) => (v < 0 ? 'text-red-500' : v > 0 ? 'text-emerald-500' : '');
+  const items: [string, string, string?][] = m
+    ? [['Balance', money(m.balance)], ['Equity', money(m.equity)], ['Floating P/L', money(m.floatingProfit), tone(m.floatingProfit)], ['Margin', money(m.margin)], ['Free margin', money(m.freeMargin)], ['Margin level', m.marginLevel === null ? '—' : `${m.marginLevel.toFixed(0)}%`], ['Room to loss limit', money(m.roomToFloor), m.roomToFloor < 0 ? 'text-red-500' : '']]
+    : account
+      ? [['Balance', money(account.balance)], ['Equity', money(account.equity)], ['Floating P/L', money(account.equity - account.balance), tone(account.equity - account.balance)], ['Margin', money(0)], ['Free margin', money(account.equity)], ['Stage', `Phase ${account.currentPhase}`]]
+      : [['Balance', '—'], ['Equity', '—'], ['Floating P/L', '—'], ['Margin', '—'], ['Free margin', '—'], ['Stage', loading ? 'Loading…' : 'No account']];
   return <dl className="flex gap-px overflow-x-auto border-t bg-border text-xs" aria-label="Account summary">
-    {items.map(([label, value, tone]) => <div key={label} className="min-w-[110px] flex-1 bg-card px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${tone ?? ''}`}>{value}</dd></div>)}
+    {items.map(([label, value, t]) => <div key={label} className="min-w-[110px] flex-1 bg-card px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${t ?? ''}`}>{value}</dd></div>)}
   </dl>;
 }
 
@@ -201,16 +212,27 @@ function MarketWatch({ selected, onSelect }: { selected: ForexPair; onSelect: (p
   </>;
 }
 
-function OrderTicket({ pair, account, dailyLossAmount, marketOpen }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; marketOpen: boolean }) {
+function OrderTicket({ pair, account, dailyLossAmount, marketOpen, engine }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; marketOpen: boolean; engine: EngineHandle }) {
   const [lotsText, setLotsText] = useState('0.10'), [type, setType] = useState<'market' | 'limit' | 'stop'>('market');
   const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState('');
-  const [review, setReview] = useState<Side | null>(null);
+  const [review, setReview] = useState<Side | null>(null), [sent, setSent] = useState('');
   const lots = normalizeLots(lotsText);
   const step = (dir: 1 | -1) => setLotsText(((normalizeLots((lots ?? LOT_MIN) + dir * LOT_STEP) ?? LOT_MIN)).toFixed(2));
   const sl = parsePips(slText), tp = parsePips(tpText);
   const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance: account?.balance, dailyLossAmount });
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
+  const quote = engine.snapshot?.quotes[pair.symbol];
+  const canSend = !!(account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
+  const holdReason = !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : '';
+  const send = async () => {
+    if (!review || !lots || !account || !quote) return;
+    const entryPrice = type === 'market' ? (review === 'buy' ? quote.ask : quote.bid) : Number(entry.replace(',', '.'));
+    if (!Number.isFinite(entryPrice) || entryPrice <= 0) { setSent(''); return; }
+    const p = protectionPrices(review, entryPrice, sl, tp, pair.pipSize, pair.digits);
+    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, clientId: crypto.randomUUID() }));
+    if (ok) { setSent(`${review === 'buy' ? 'Bought' : 'Sold'} ${lots.toFixed(2)} ${pair.symbol}${type === 'market' ? '' : ` (${type} order placed)`}.`); setReview(null); }
+  };
   const field = 'w-full rounded-md border bg-background px-2.5 py-2 font-mono text-sm tabular-nums outline-none focus:ring-2 focus:ring-ring';
   return <div className="flex flex-col gap-4 overflow-y-auto p-4" data-testid="order-ticket">
     <div className="flex items-start justify-between gap-2">
@@ -243,15 +265,19 @@ function OrderTicket({ pair, account, dailyLossAmount, marketOpen }: { pair: For
     </div>
 
     <div className="grid grid-cols-2 gap-2">
-      <button type="button" onClick={() => setReview('sell')} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="text-[11px] font-normal opacity-90">{type === 'market' ? 'at bid' : `${type} order`}</span></button>
-      <button type="button" onClick={() => setReview('buy')} disabled={!lots} className="flex flex-col items-center rounded-lg bg-blue-600 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50" data-testid="buy-button"><span className="flex items-center gap-1 text-base"><ArrowUpRight size={17} aria-hidden="true" />BUY</span><span className="text-[11px] font-normal opacity-90">{type === 'market' ? 'at ask' : `${type} order`}</span></button>
+      <button type="button" onClick={() => { setSent(''); setReview('sell'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.bid.toFixed(pair.digits) : 'at bid') : `${type} order`}</span></button>
+      <button type="button" onClick={() => { setSent(''); setReview('buy'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-blue-600 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50" data-testid="buy-button"><span className="flex items-center gap-1 text-base"><ArrowUpRight size={17} aria-hidden="true" />BUY</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.ask.toFixed(pair.digits) : 'at ask') : `${type} order`}</span></button>
     </div>
 
     {review && lots && <div role="status" className={`rounded-lg border p-3 text-sm ${review === 'buy' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`} data-testid="order-review">
       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{review === 'buy' ? 'Buy' : 'Sell'} {lots.toFixed(2)} {pair.symbol} {type === 'market' ? 'at market' : `${type} at ${entry || '—'}`}</p><button type="button" aria-label="Close order review" onClick={() => setReview(null)}><X size={14} /></button></div>
       <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}</p>
-      <p className="mt-2 flex items-start gap-1.5 text-xs"><LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />{account ? (account.tradingHoldReason || 'Trading is not available yet.') : 'Open a purchased account to trade.'} This order was not sent.</p>
+      {canSend
+        ? <button type="button" disabled={engine.busy} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
+        : <p className="mt-2 flex items-start gap-1.5 text-xs"><LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />{holdReason} This order was not sent.</p>}
+      {engine.error && <p role="alert" className="mt-2 text-xs text-red-500">{engine.error}</p>}
     </div>}
+    {sent && <p role="status" className="rounded-md bg-emerald-500/10 p-2 text-xs text-emerald-700 dark:text-emerald-400" data-testid="order-sent">{sent}</p>}
 
     <dl className="space-y-1.5 rounded-lg bg-secondary/40 p-3 text-xs">
       {([
@@ -269,8 +295,8 @@ function OrderTicket({ pair, account, dailyLossAmount, marketOpen }: { pair: For
   </div>;
 }
 
-function Toolbox({ tab, setTab, account, accounts, loading, rules, loadedFor, requested, onSelectAccount }: {
-  tab: ToolTab; setTab: (t: ToolTab) => void; account: Account | null; accounts: Account[]; loading: boolean; loadedFor: boolean; requested: string;
+function Toolbox({ engine, tab, setTab, account, accounts, loading, rules, loadedFor, requested, onSelectAccount }: {
+  engine: EngineHandle; tab: ToolTab; setTab: (t: ToolTab) => void; account: Account | null; accounts: Account[]; loading: boolean; loadedFor: boolean; requested: string;
   rules: ReturnType<typeof rulesInDollars> | null; onSelectAccount: (id: string) => void;
 }) {
   const tabs: [ToolTab, string][] = [['positions', 'Positions'], ['orders', 'Pending orders'], ['history', 'History'], ['account', 'Account']];
@@ -279,11 +305,7 @@ function Toolbox({ tab, setTab, account, accounts, loading, rules, loadedFor, re
     <div className="flex overflow-x-auto border-b" role="tablist" aria-label="Terminal">
       {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`shrink-0 border-b-2 px-4 py-2 text-xs font-medium ${tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
     </div>
-    {(tab === 'positions' || tab === 'orders') && <div className="overflow-x-auto" role="tabpanel">
-      <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{(tab === 'positions' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Current', 'Profit'] : ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'State']).map(h => <th key={h} scope="col" className={head}>{h}</th>)}</tr></thead></table>
-      <p className="p-4 text-sm text-muted-foreground">{tab === 'positions' ? 'No open positions.' : 'No pending orders.'} {account ? 'They will appear here once trading opens on this account.' : ''}</p>
-    </div>}
-    {tab === 'history' && <div className="p-4 text-sm" role="tabpanel"><p className="text-muted-foreground">No trades on this account yet. Closed trades, with time, volume, price and profit, will be listed here.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>}
+    {tab !== 'account' && <EngineTables tab={tab} engine={engine} hasAccount={!!account} />}
     {tab === 'account' && <div className="grid gap-4 p-4 md:grid-cols-2" role="tabpanel">
       <div className="space-y-3">
         {loading && !account && <p role="status" className="text-sm text-muted-foreground">Checking your account…</p>}
@@ -308,5 +330,46 @@ function Toolbox({ tab, setTab, account, accounts, loading, rules, loadedFor, re
         <div className="rounded-md border p-3"><p className="flex items-center gap-1.5 text-sm font-semibold"><Mail size={15} aria-hidden="true" />Account email</p><p className="mt-1 text-xs text-muted-foreground">After payment and account creation we email a secure link to this account. Sign in with your FYNX login; no trading password is emailed.</p>{account && <p role="status" className="mt-2 text-xs">{accountEmailStatus(account.accountEmailStatus)}</p>}</div>
       </div>
     </div>}
+  </div>;
+}
+
+function floatingUsd(symbol: string, side: Side, lots: number, entry: number, current: number | undefined, quotes: QuoteBook): number {
+  const pair = findPair(symbol);
+  if (!pair || current === undefined) return NaN;
+  try { return profitUsd({ contractSize: CONTRACT_SIZE, quote: pair.quote } as InstrumentSpec, side, lots, entry, current, quotes); } catch { return NaN; }
+}
+
+const time = (ms: number) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const px = (symbol: string, v?: number) => v === undefined ? '—' : v.toFixed(findPair(symbol)?.digits ?? 5);
+
+function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'account'>; engine: EngineHandle; hasAccount: boolean }) {
+  const snap = engine.snapshot, accountId = snap?.state.accountId;
+  const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
+  const cell = 'whitespace-nowrap px-3 py-1.5 font-mono';
+  const empty = (what: string) => <p className="p-4 text-sm text-muted-foreground">{what} {!engine.status?.connected && hasAccount ? 'They will appear here once trading opens on this account.' : ''}</p>;
+  const headers = tab === 'positions' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Current', 'Profit', '']
+    : tab === 'orders' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', '']
+    : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Profit', 'Reason'];
+  const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
+  return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
+    <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
+      <tbody>
+        {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes); return <tr key={p.id} className="border-b border-border/60">
+          <td className={`${cell} font-semibold`}>{p.symbol}</td><td className={cell}>{p.id}</td><td className={cell}>{time(p.openedAt)}</td><td className={`${cell} ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side}</td><td className={cell}>{p.lots.toFixed(2)}</td><td className={cell}>{px(p.symbol, p.entryPrice)}</td><td className={cell}>{px(p.symbol, p.stopLoss)}</td><td className={cell}>{px(p.symbol, p.takeProfit)}</td><td className={cell}>{px(p.symbol, cur)}</td>
+          <td className={`${cell} ${pr < 0 ? 'text-red-500' : pr > 0 ? 'text-emerald-500' : ''}`}>{Number.isFinite(pr) ? money(pr) : '—'}</td>
+          <td className="px-3 py-1"><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Close ${p.symbol} position ${p.id}`}><X size={12} /></button></td>
+        </tr>; })}
+        {tab === 'orders' && snap?.state.orders.map(o => <tr key={o.id} className="border-b border-border/60">
+          <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
+          <td className="px-3 py-1"><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
+        </tr>)}
+        {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <tr key={d.id} className="border-b border-border/60">
+          <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td>
+          <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
+        </tr>)}
+      </tbody>
+    </table>
+    {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
+    {engine.error && <p role="alert" className="px-4 pb-3 text-xs text-red-500">{engine.error}</p>}
   </div>;
 }

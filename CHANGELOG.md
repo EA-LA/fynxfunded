@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-07 07:30 UTC — The FYNX trading engine is built and wired into FYNX Trade
+
+- The trading engine behind FYNX Trade is ready. It:
+  - checks every order and fills it at the bid/ask;
+  - fills limit and stop orders when the price is reached;
+  - closes positions at stop loss and take profit;
+  - works out profit in dollars for all 45 pairs, plus equity, margin and free margin;
+  - resets the trading day at 22:00 UTC;
+  - closes everything and locks the account when the daily or maximum loss limit is hit;
+  - reports the profit target for review.
+- The trading screen (https://www.fynxfunded.com/trade/access) is connected to it:
+  - an engine status light ("Engine not connected" today);
+  - live bid/ask on the SELL/BUY buttons;
+  - a "Confirm buy/sell" step before an order is sent;
+  - open positions with a close button, pending orders with cancel, and closed-trade history;
+  - margin, margin level and room to the loss limit in the top bar.
+- Nothing is sent until you plug in a licensed price feed and the server and switch trading on for an account. docs/ENGINE-READINESS.md lists exactly what to connect.
+
 ## 2026-11-07 06:45 UTC — FYNX Trade home page redesigned in the FYNX Finance World style
 
 - https://www.fynxfunded.com/trade now looks like FYNX Finance World:

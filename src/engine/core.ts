@@ -1,0 +1,276 @@
+import Decimal from "decimal.js";
+import type {
+  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side,
+} from "./types";
+import { EngineError } from "./types";
+
+/**
+ * FYNX trading engine core: pure, deterministic functions. Every function takes
+ * the current state and returns a new state plus events; nothing is mutated and
+ * nothing reads the clock. A host (Cloud Function, FYNX API worker) supplies
+ * quotes, the time and ids, stores the state, and publishes the events.
+ *
+ * Money is computed with decimal.js and rounded to cents.
+ */
+
+export interface EngineContext {
+  specs: Record<string, InstrumentSpec | undefined>;
+  quotes: QuoteBook;
+  rules: RuleSet;
+  now: number;
+  /** Quotes older than this are refused for execution. */
+  maxQuoteAgeMs: number;
+  newId: (prefix: string) => string;
+}
+
+export interface Step {
+  state: AccountState;
+  events: EngineEvent[];
+}
+
+const cash = (v: Decimal.Value) => new Decimal(v).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+
+export function spec(ctx: Pick<EngineContext, "specs">, symbol: string): InstrumentSpec {
+  const s = ctx.specs[symbol];
+  if (!s) throw new EngineError("unknown_symbol", `${symbol} is not available on this account.`);
+  return s;
+}
+
+/** A quote that is fresh, consistent and usable for execution. */
+export function executableQuote(ctx: Pick<EngineContext, "quotes" | "now" | "maxQuoteAgeMs">, symbol: string): Quote {
+  const q = ctx.quotes[symbol];
+  if (!q || q.symbol !== symbol) throw new EngineError("no_quote", `No price for ${symbol} right now.`);
+  if (!Number.isFinite(q.bid) || !Number.isFinite(q.ask) || q.bid <= 0 || q.ask < q.bid) throw new EngineError("bad_quote", `The ${symbol} price is not valid.`);
+  if (q.time > ctx.now + 1000 || ctx.now - q.time > ctx.maxQuoteAgeMs) throw new EngineError("stale_quote", `The ${symbol} price is out of date.`);
+  return q;
+}
+
+const mid = (q: Quote) => (q.bid + q.ask) / 2;
+
+/** How many US dollars one unit of `currency` is worth, from the quote book. */
+export function usdPerUnit(quotes: QuoteBook, currency: string): number {
+  if (currency === "USD") return 1;
+  const direct = quotes[`${currency}USD`];
+  if (direct) return mid(direct);
+  const inverse = quotes[`USD${currency}`];
+  if (inverse) return 1 / mid(inverse);
+  throw new EngineError("no_conversion", `No ${currency}/USD price to convert profit into dollars.`);
+}
+
+/** Closing price for a position: buys close at the bid, sells at the ask. */
+export const closingPrice = (side: Side, q: Quote) => (side === "buy" ? q.bid : q.ask);
+/** Opening price for a market order: buys at the ask, sells at the bid. */
+export const openingPrice = (side: Side, q: Quote) => (side === "buy" ? q.ask : q.bid);
+
+export function profitUsd(s: InstrumentSpec, side: Side, lots: number, entry: number, exit: number, quotes: QuoteBook): number {
+  const quoteCcy = new Decimal(exit).minus(entry).times(side === "buy" ? 1 : -1).times(s.contractSize).times(lots);
+  return cash(quoteCcy.times(usdPerUnit(quotes, s.quote)));
+}
+
+export function marginUsd(s: InstrumentSpec, lots: number, quotes: QuoteBook): number {
+  return cash(new Decimal(lots).times(s.contractSize).times(usdPerUnit(quotes, s.base)).div(s.leverage));
+}
+
+const commission = (s: InstrumentSpec, lots: number) => cash(new Decimal(lots).times(s.commissionPerLotPerSide));
+
+export function tradingDayKey(now: number, resetHourUtc: number): string {
+  return new Date(now - resetHourUtc * 3_600_000).toISOString().slice(0, 10);
+}
+
+export function metrics(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes" | "rules">): AccountMetrics {
+  let floating = new Decimal(0), margin = new Decimal(0);
+  for (const p of state.positions) {
+    const s = spec(ctx, p.symbol), q = ctx.quotes[p.symbol];
+    if (q) floating = floating.plus(profitUsd(s, p.side, p.lots, p.entryPrice, closingPrice(p.side, q), ctx.quotes));
+    margin = margin.plus(marginUsd(s, p.lots, ctx.quotes));
+  }
+  const equity = cash(new Decimal(state.balance).plus(floating));
+  const { rules } = ctx;
+  const dailyLossFloor = cash(new Decimal(state.dayStartBalance).times(new Decimal(1).minus(new Decimal(rules.dailyLossPercent).div(100))));
+  const maxLossFloor = cash(new Decimal(rules.startingBalance).times(new Decimal(1).minus(new Decimal(rules.maxLossPercent).div(100))));
+  const m = cash(margin);
+  return {
+    balance: state.balance,
+    equity,
+    floatingProfit: cash(floating),
+    margin: m,
+    freeMargin: cash(new Decimal(equity).minus(m)),
+    marginLevel: m > 0 ? cash(new Decimal(equity).div(m).times(100)) : null,
+    dailyLossFloor,
+    maxLossFloor,
+    roomToFloor: cash(new Decimal(equity).minus(Math.max(dailyLossFloor, maxLossFloor))),
+    profitTargetBalance: rules.profitTargetPercent === null ? null : cash(new Decimal(rules.startingBalance).times(new Decimal(1).plus(new Decimal(rules.profitTargetPercent).div(100)))),
+  };
+}
+
+function checkLots(s: InstrumentSpec, lots: number) {
+  if (!Number.isFinite(lots) || lots < s.minLots || lots > s.maxLots) throw new EngineError("bad_volume", `Volume must be between ${s.minLots} and ${s.maxLots} lots.`);
+  if (!new Decimal(lots).div(s.lotStep).isInteger()) throw new EngineError("bad_volume", `Volume must be in steps of ${s.lotStep} lots.`);
+}
+
+function checkPrice(s: InstrumentSpec, value: number | undefined, label: string) {
+  if (value === undefined) return;
+  if (!Number.isFinite(value) || value <= 0) throw new EngineError("bad_price", `${label} must be a positive price.`);
+  if (!new Decimal(value).div(s.tickSize).isInteger()) throw new EngineError("bad_price", `${label} must be in steps of ${s.tickSize}.`);
+}
+
+/** Stop loss below / take profit above the reference price for buys (and the reverse for sells). */
+function checkProtection(side: Side, reference: number, sl?: number, tp?: number) {
+  if (sl !== undefined && (side === "buy" ? sl >= reference : sl <= reference)) throw new EngineError("bad_stop", `Stop loss must be ${side === "buy" ? "below" : "above"} ${reference}.`);
+  if (tp !== undefined && (side === "buy" ? tp <= reference : tp >= reference)) throw new EngineError("bad_target", `Take profit must be ${side === "buy" ? "above" : "below"} ${reference}.`);
+}
+
+function assertActive(state: AccountState) {
+  if (state.status !== "active") throw new EngineError("account_closed", state.status === "breached" ? "This account broke a loss limit; trading is closed." : state.status === "passed" ? "This phase is passed; trading is closed on this account." : "Trading is disabled on this account.");
+}
+
+function open(state: AccountState, ctx: EngineContext, req: { symbol: string; side: Side; lots: number; stopLoss?: number; takeProfit?: number; clientId?: string }, price: number): Step {
+  const s = spec(ctx, req.symbol);
+  const fee = commission(s, req.lots);
+  const position: Position = { id: ctx.newId("pos"), symbol: req.symbol, side: req.side, lots: req.lots, entryPrice: price, openedAt: ctx.now, stopLoss: req.stopLoss, takeProfit: req.takeProfit, commission: fee, ...(req.clientId ? { clientId: req.clientId } : {}) };
+  const day = tradingDayKey(ctx.now, ctx.rules.resetHourUtc);
+  const next: AccountState = {
+    ...state,
+    balance: cash(new Decimal(state.balance).minus(fee)),
+    positions: [...state.positions, position],
+    tradingDays: state.tradingDays.includes(day) ? state.tradingDays : [...state.tradingDays, day],
+    sequence: state.sequence + 1,
+  };
+  return { state: next, events: [{ type: "position_opened", position }] };
+}
+
+/** Validates and executes an order request. Market orders fill at the current bid/ask. */
+export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineContext): Step {
+  assertActive(state);
+  if (req.clientId && (state.positions.some(p => p.clientId === req.clientId) || state.orders.some(o => o.clientId === req.clientId) || state.history.some(d => d.clientId === req.clientId))) {
+    return { state, events: [] }; // idempotent replay
+  }
+  const s = spec(ctx, req.symbol);
+  checkLots(s, req.lots);
+  checkPrice(s, req.stopLoss, "Stop loss");
+  checkPrice(s, req.takeProfit, "Take profit");
+  const q = executableQuote(ctx, req.symbol);
+  const m = metrics(state, ctx);
+  const required = marginUsd(s, req.lots, ctx.quotes);
+  if (required > m.freeMargin) throw new EngineError("no_margin", `Not enough free margin: this order needs ${required.toFixed(2)} USD.`);
+  if (req.type === "market") {
+    const price = openingPrice(req.side, q);
+    checkProtection(req.side, price, req.stopLoss, req.takeProfit);
+    return open(state, ctx, req, price);
+  }
+  checkPrice(s, req.price, "Order price");
+  if (req.price === undefined) throw new EngineError("bad_price", "Pending orders need a price.");
+  const market = openingPrice(req.side, q);
+  // Buy limit below the market, buy stop above; the reverse for sells.
+  const below = req.price < market;
+  if ((req.type === "limit") !== (req.side === "buy" ? below : !below)) throw new EngineError("bad_price", `A ${req.side} ${req.type} must be ${(req.type === "limit") === (req.side === "buy") ? "below" : "above"} the current price.`);
+  checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
+  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
+  return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
+}
+
+function closeAt(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes" | "now">, positionId: string, lots: number, price: number, reason: CloseReason): Step {
+  const p = state.positions.find(x => x.id === positionId);
+  if (!p) throw new EngineError("no_position", "That position is not open.");
+  const s = spec(ctx, p.symbol);
+  if (!(lots > 0) || lots > p.lots || !new Decimal(lots).div(s.lotStep).isInteger()) throw new EngineError("bad_volume", `Close between ${s.lotStep} and ${p.lots} lots.`);
+  const gross = profitUsd(s, p.side, lots, p.entryPrice, price, ctx.quotes);
+  const fee = commission(s, lots);
+  const openFee = cash(new Decimal(p.commission).times(lots).div(p.lots));
+  const deal: Deal = { id: `${p.id}:${state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee)), reason, ...(p.clientId ? { clientId: p.clientId } : {}) };
+  const remaining = new Decimal(p.lots).minus(lots).toNumber();
+  const positions = remaining > 0 ? state.positions.map(x => (x.id === p.id ? { ...x, lots: remaining, commission: cash(new Decimal(x.commission).minus(openFee)) } : x)) : state.positions.filter(x => x.id !== p.id);
+  return { state: { ...state, balance: cash(new Decimal(state.balance).plus(gross).minus(fee)), positions, history: [...state.history, deal], sequence: state.sequence + 1 }, events: [{ type: "position_closed", deal }] };
+}
+
+/** Closes all or part of a position at the current market price. */
+export function closePosition(state: AccountState, positionId: string, lots: number | undefined, ctx: EngineContext): Step {
+  const p = state.positions.find(x => x.id === positionId);
+  if (!p) throw new EngineError("no_position", "That position is not open.");
+  const q = executableQuote(ctx, p.symbol);
+  return closeAt(state, ctx, positionId, lots ?? p.lots, closingPrice(p.side, q), "manual");
+}
+
+export function modifyPosition(state: AccountState, positionId: string, protection: { stopLoss?: number | null; takeProfit?: number | null }, ctx: EngineContext): Step {
+  assertActive(state);
+  const p = state.positions.find(x => x.id === positionId);
+  if (!p) throw new EngineError("no_position", "That position is not open.");
+  const s = spec(ctx, p.symbol);
+  const sl = protection.stopLoss === null ? undefined : protection.stopLoss ?? p.stopLoss;
+  const tp = protection.takeProfit === null ? undefined : protection.takeProfit ?? p.takeProfit;
+  checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit");
+  checkProtection(p.side, closingPrice(p.side, executableQuote(ctx, p.symbol)), sl, tp);
+  return { state: { ...state, positions: state.positions.map(x => (x.id === p.id ? { ...x, stopLoss: sl, takeProfit: tp } : x)), sequence: state.sequence + 1 }, events: [{ type: "position_modified", positionId }] };
+}
+
+export function cancelOrder(state: AccountState, orderId: string): Step {
+  if (!state.orders.some(o => o.id === orderId)) throw new EngineError("no_order", "That order is not pending.");
+  return { state: { ...state, orders: state.orders.filter(o => o.id !== orderId), sequence: state.sequence + 1 }, events: [{ type: "order_cancelled", orderId }] };
+}
+
+/**
+ * Runs on every price update and on a timer: rolls the trading day, fills
+ * pending orders, closes positions at stop loss / take profit, enforces the
+ * daily and maximum loss limits (closing everything on a breach) and marks a
+ * reached profit target once the minimum trading days are met.
+ */
+export function tick(state: AccountState, ctx: EngineContext): Step {
+  let current = state;
+  const events: EngineEvent[] = [];
+  const apply = (step: Step) => { current = step.state; events.push(...step.events); };
+  const day = tradingDayKey(ctx.now, ctx.rules.resetHourUtc);
+  if (day !== current.tradingDay) {
+    current = { ...current, tradingDay: day, dayStartBalance: current.balance, sequence: current.sequence + 1 };
+    events.push({ type: "day_reset", tradingDay: day, dayStartBalance: current.balance });
+  }
+  if (current.status !== "active") return { state: current, events };
+
+  for (const o of current.orders) {
+    const q = ctx.quotes[o.symbol];
+    if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs) continue;
+    const market = openingPrice(o.side, q);
+    const hit = o.type === "limit" ? (o.side === "buy" ? market <= o.price : market >= o.price) : (o.side === "buy" ? market >= o.price : market <= o.price);
+    if (!hit) continue;
+    current = { ...current, orders: current.orders.filter(x => x.id !== o.id) };
+    // Limits fill at their price or better; stops fill at the market (slippage is real).
+    const price = o.type === "limit" ? (o.side === "buy" ? Math.min(o.price, market) : Math.max(o.price, market)) : market;
+    const step = open(current, ctx, o, price);
+    apply(step);
+    const opened = step.events[0];
+    if (opened.type === "position_opened") events.push({ type: "order_triggered", orderId: o.id, positionId: opened.position.id });
+  }
+
+  for (const p of current.positions) {
+    const q = ctx.quotes[p.symbol];
+    if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs) continue;
+    const price = closingPrice(p.side, q);
+    const stopHit = p.stopLoss !== undefined && (p.side === "buy" ? price <= p.stopLoss : price >= p.stopLoss);
+    const targetHit = p.takeProfit !== undefined && (p.side === "buy" ? price >= p.takeProfit : price <= p.takeProfit);
+    if (stopHit) apply(closeAt(current, ctx, p.id, p.lots, price, "stop_loss"));
+    else if (targetHit) apply(closeAt(current, ctx, p.id, p.lots, price, "take_profit"));
+  }
+
+  const m = metrics(current, ctx);
+  const breach: CloseReason | null = m.equity <= m.maxLossFloor ? "maximum_loss_limit" : m.equity <= m.dailyLossFloor ? "daily_loss_limit" : null;
+  if (breach) {
+    for (const p of current.positions) {
+      const q = ctx.quotes[p.symbol];
+      if (q) apply(closeAt(current, ctx, p.id, p.lots, closingPrice(p.side, q), breach));
+    }
+    current = { ...current, orders: [], status: "breached", breachReason: breach, sequence: current.sequence + 1 };
+    events.push({ type: "account_breached", reason: breach });
+    return { state: current, events };
+  }
+
+  // Reaching the target is reported once; passing a phase stays an official review (consistency rule, KYC…).
+  if (!current.targetReachedAt && m.profitTargetBalance !== null && current.positions.length === 0 && current.balance >= m.profitTargetBalance && current.tradingDays.length >= ctx.rules.minTradingDays) {
+    current = { ...current, targetReachedAt: ctx.now, sequence: current.sequence + 1 };
+    events.push({ type: "target_reached" });
+  }
+  return { state: current, events };
+}
+
+export function newAccount(accountId: string, rules: RuleSet, now: number): AccountState {
+  return { accountId, currency: "USD", status: "active", balance: rules.startingBalance, dayStartBalance: rules.startingBalance, tradingDay: tradingDayKey(now, rules.resetHourUtc), tradingDays: [], positions: [], orders: [], history: [], sequence: 0 };
+}
+

@@ -93,7 +93,10 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Own home page at /trade (own header/footer, hero, facts, platform, features, how it works, all 45 pairs, prop firm & broker partnership, FAQ); "Trade Now" on FYNX Funded goes there; terminal at /trade/access; FYNX Trade in the ecosystem menu (2026-11-07)
 - [ ] Make /trade indexable by search engines (needs its own static page; vercel.json rewrites /trade to index.html, owner-controlled)
 - [x] MT5-style terminal: Market Watch with 45 forex pairs (search, groups, favourites), live TradingView chart, price and ticker after one-time consent, order panel (SELL/BUY, market/limit/stop, lots stepper, SL/TP in pips, pip value, risk/profit in dollars, share of daily loss allowance), account bar, Positions/Pending/History/Account tabs, phone bottom menu (2026-11-07)
-- [ ] Connect BUY/SELL to the production execution service once the owner approves a licensed price feed and the backend release (orders are not sent today)
+- [x] Trading engine (src/engine): order validation, bid/ask fills, pending orders, SL/TP, P/L in USD for all pairs, margin, daily reset, loss-limit lock, target report, idempotency; LocalVenue with QuoteFeed/AccountStore ports; Disconnected/HTTP/Local gateways; terminal wired (confirm order, positions/close, pending/cancel, history, metrics); docs/ENGINE-READINESS.md (2026-11-07)
+- [ ] Connect the engine: licensed QuoteFeed adapter, host (FYNX API or Cloud Function) exposing the HTTP contract, Firestore AccountStore, timer step, VITE_FYNX_TRADE_API_URL + CSP connect-src, tradingEnabled per account (owner decisions)
+- [ ] Engine: swap/rollover, per-symbol trading hours, weekend gap handling, consistency (40% best day) check in the target report
+- [ ] Terminal: modify SL/TP on open positions from the Positions tab
 - [ ] Account number + password sign-in emailed after purchase (owner request 2026-11-07): needs backend credential issuing and an owner-approved release; today the site deliberately emails no passwords
 - [ ] Positions/History tabs: fill from the production ledger when trading opens
 

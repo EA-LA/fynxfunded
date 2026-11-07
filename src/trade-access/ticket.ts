@@ -67,3 +67,17 @@ export function parsePips(value: string): number | null {
   const n = Number(value.replace(",", "."));
   return Number.isFinite(n) && n > 0 && n <= 100_000 ? Math.round(n * 10) / 10 : null;
 }
+
+/**
+ * Stop-loss / take-profit prices from distances in pips, measured from the
+ * entry: the ask for market buys, the bid for market sells, or the order price
+ * for pending orders.
+ */
+export function protectionPrices(side: "buy" | "sell", reference: number, slPips: number | null, tpPips: number | null, pipSize: number, digits: number) {
+  const round = (v: number) => Number(v.toFixed(digits));
+  const dir = side === "buy" ? 1 : -1;
+  return {
+    stopLoss: slPips ? round(reference - dir * slPips * pipSize) : undefined,
+    takeProfit: tpPips ? round(reference + dir * tpPips * pipSize) : undefined,
+  };
+}

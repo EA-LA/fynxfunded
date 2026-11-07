@@ -132,3 +132,41 @@ describe("FYNX Trade terminal", () => {
     expect(screen.getByTestId("trade-rules")).toHaveTextContent("equity must not fall below $9,000.00");
   });
 });
+
+import { act, waitFor } from "@testing-library/react";
+import { LocalVenue, MemoryStore, StaticQuoteFeed, buildSpecs } from "@/engine/venue";
+import { LocalGatewayAdapter } from "@/engine/gateway";
+
+describe("terminal connected to the engine", () => {
+  afterEach(cleanup);
+  it("says the engine is not connected by default", async () => {
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [account] } : account);
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Engine not connected")).toBeInTheDocument();
+  });
+
+  it("places, shows and closes a trade through the gateway", async () => {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const now = Date.now();
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), new MemoryStore(),
+      async () => ({ startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 }), { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: now });
+    await venue.open(live.accountId);
+    const gateway = new LocalGatewayAdapter(venue);
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={gateway} />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Trading engine live")).toBeInTheDocument();
+    const ticket = screen.getByTestId("order-ticket");
+    await waitFor(() => expect(within(ticket).getByTestId("buy-button")).toHaveTextContent("1.08010"));
+    fireEvent.change(within(ticket).getByLabelText("Stop loss (pips)"), { target: { value: "20" } });
+    fireEvent.click(within(ticket).getByTestId("buy-button"));
+    await act(async () => { fireEvent.click(screen.getByTestId("confirm-order")); });
+    expect(await screen.findByTestId("order-sent")).toHaveTextContent("Bought 0.10 EURUSD");
+    const positions = screen.getByTestId("engine-positions");
+    expect(within(positions).getByText("1.07810")).toBeInTheDocument(); // stop 20 pips under the 1.08010 entry
+    await act(async () => { fireEvent.click(within(positions).getByRole("button", { name: /Close EURUSD position/ })); });
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    expect(within(await screen.findByTestId("engine-history")).getByText("manual")).toBeInTheDocument();
+  });
+});
