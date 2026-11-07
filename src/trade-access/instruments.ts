@@ -1,3 +1,4 @@
+import { FOREX_HOURS, isMarketOpen } from "@/engine/hours";
 import type { CrossQuote, InstrumentKind } from "@/lib/positionSize";
 import { CROSS_QUOTES } from "@/lib/positionSize";
 
@@ -103,23 +104,9 @@ export function normalizeLots(value: string | number): number | null {
  * Approximate retail forex week: open from Sunday 22:00 UTC to Friday 22:00 UTC
  * (an hour earlier while the US is on daylight time). Broker hours can differ.
  */
+/** Forex week (Sunday 17:00 to Friday 17:00 New York time), same schedule the trading engine enforces. */
 export function forexMarketOpen(now: Date): boolean {
-  const day = now.getUTCDay(), hour = now.getUTCHours();
-  const closeHour = usDaylightTime(now) ? 21 : 22;
-  if (day === 6) return false;
-  if (day === 5) return hour < closeHour;
-  if (day === 0) return hour >= closeHour;
-  return true;
-}
-
-/** US daylight time: second Sunday of March to first Sunday of November (approximated at 07:00 UTC). */
-function usDaylightTime(now: Date): boolean {
-  const y = now.getUTCFullYear();
-  const nthSunday = (month: number, n: number) => {
-    const first = new Date(Date.UTC(y, month, 1)).getUTCDay();
-    return new Date(Date.UTC(y, month, 1 + ((7 - first) % 7) + (n - 1) * 7, 7));
-  };
-  return now >= nthSunday(2, 2) && now < nthSunday(10, 1);
+  return isMarketOpen(FOREX_HOURS, now.getTime());
 }
 
 const FAVORITES_KEY = "fynx-trade-favorites";

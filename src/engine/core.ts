@@ -3,6 +3,7 @@ import type {
   AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
 } from "./types";
 import { EngineError } from "./types";
+import { formatUtc, isMarketOpen, marketState } from "./hours";
 
 /**
  * FYNX trading engine core: pure, deterministic functions. Every function takes
@@ -45,6 +46,13 @@ export function executableQuote(ctx: Pick<EngineContext, "quotes" | "now" | "max
   return q;
 }
 
+/** Refuses trading actions while the instrument's market is closed (weekend, holiday, outside its hours). */
+export function assertMarketOpen(s: InstrumentSpec, now: number) {
+  if (isMarketOpen(s.hours, now)) return;
+  const st = marketState(s.hours, now);
+  throw new EngineError("market_closed", `The ${s.symbol} market is closed${st.reason && st.reason !== "Outside trading hours" ? ` (${st.reason})` : ""}${st.nextChange ? `; it opens ${formatUtc(st.nextChange)}` : ""}. Nothing was sent.`);
+}
+
 const mid = (q: Quote) => (q.bid + q.ask) / 2;
 
 /** How many US dollars one unit of `currency` is worth, from the quote book. */
@@ -82,6 +90,7 @@ export function metrics(state: AccountState, ctx: Pick<EngineContext, "specs" | 
   for (const p of state.positions) {
     const s = spec(ctx, p.symbol), q = ctx.quotes[p.symbol];
     if (q) floating = floating.plus(profitUsd(s, p.side, p.lots, p.entryPrice, closingPrice(p.side, q), ctx.quotes));
+    floating = floating.plus(p.swap ?? 0);
     margin = margin.plus(marginUsd(s, p.lots, ctx.quotes));
   }
   const equity = cash(new Decimal(state.balance).plus(floating));
@@ -152,6 +161,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
     return { state, events: [] }; // idempotent replay
   }
   const s = spec(ctx, req.symbol);
+  assertMarketOpen(s, ctx.now);
   checkLots(s, req.lots);
   checkPrice(s, req.stopLoss, "Stop loss");
   checkPrice(s, req.takeProfit, "Take profit");
@@ -180,16 +190,18 @@ function closeAt(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes
   const gross = profitUsd(s, p.side, lots, p.entryPrice, price, ctx.quotes);
   const fee = commission(s, lots);
   const openFee = cash(new Decimal(p.commission).times(lots).div(p.lots));
-  const deal: Deal = { id: `${p.id}:${state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee)), reason, ...(p.clientId ? { clientId: p.clientId } : {}) };
+  const swap = p.swap ? cash(new Decimal(p.swap).times(lots).div(p.lots)) : 0;
+  const deal: Deal = { id: `${p.id}:${state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), ...(swap ? { swap } : {}), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee).plus(swap)), reason, ...(p.clientId ? { clientId: p.clientId } : {}) };
   const remaining = new Decimal(p.lots).minus(lots).toNumber();
-  const positions = remaining > 0 ? state.positions.map(x => (x.id === p.id ? { ...x, lots: remaining, commission: cash(new Decimal(x.commission).minus(openFee)) } : x)) : state.positions.filter(x => x.id !== p.id);
-  return { state: { ...state, balance: cash(new Decimal(state.balance).plus(gross).minus(fee)), positions, history: [...state.history, deal], sequence: state.sequence + 1 }, events: [{ type: "position_closed", deal }] };
+  const positions = remaining > 0 ? state.positions.map(x => (x.id === p.id ? { ...x, lots: remaining, commission: cash(new Decimal(x.commission).minus(openFee)), ...(x.swap ? { swap: cash(new Decimal(x.swap).minus(swap)) } : {}) } : x)) : state.positions.filter(x => x.id !== p.id);
+  return { state: { ...state, balance: cash(new Decimal(state.balance).plus(gross).minus(fee).plus(swap)), positions, history: [...state.history, deal], sequence: state.sequence + 1 }, events: [{ type: "position_closed", deal }] };
 }
 
 /** Closes all or part of a position at the current market price. */
 export function closePosition(state: AccountState, positionId: string, lots: number | undefined, ctx: EngineContext): Step {
   const p = state.positions.find(x => x.id === positionId);
   if (!p) throw new EngineError("no_position", "That position is not open.");
+  assertMarketOpen(spec(ctx, p.symbol), ctx.now);
   const q = executableQuote(ctx, p.symbol);
   return closeAt(state, ctx, positionId, lots ?? p.lots, closingPrice(p.side, q), "manual");
 }
@@ -199,6 +211,7 @@ export function modifyPosition(state: AccountState, positionId: string, protecti
   const p = state.positions.find(x => x.id === positionId);
   if (!p) throw new EngineError("no_position", "That position is not open.");
   const s = spec(ctx, p.symbol);
+  assertMarketOpen(s, ctx.now);
   const sl = protection.stopLoss === null ? undefined : protection.stopLoss ?? p.stopLoss;
   const tp = protection.takeProfit === null ? undefined : protection.takeProfit ?? p.takeProfit;
   checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit");
@@ -226,6 +239,7 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   const o = state.orders.find(x => x.id === orderId);
   if (!o) throw new EngineError("no_order", "That order is not pending.");
   const s = spec(ctx, o.symbol);
+  assertMarketOpen(s, ctx.now);
   const price = change.price ?? o.price;
   const sl = change.stopLoss === null ? undefined : change.stopLoss ?? o.stopLoss;
   const tp = change.takeProfit === null ? undefined : change.takeProfit ?? o.takeProfit;
@@ -254,14 +268,19 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   const apply = (step: Step) => { current = step.state; events.push(...step.events); };
   const day = tradingDayKey(ctx.now, ctx.rules.resetHourUtc);
   if (day !== current.tradingDay) {
-    current = { ...current, tradingDay: day, dayStartBalance: current.balance, sequence: current.sequence + 1 };
-    events.push({ type: "day_reset", tradingDay: day, dayStartBalance: current.balance });
+    const swaps = applySwaps(current, ctx, day);
+    current = { ...swaps.state, tradingDay: day, dayStartBalance: current.balance, sequence: current.sequence + 1 };
+    events.push(...swaps.events, { type: "day_reset", tradingDay: day, dayStartBalance: current.balance });
   }
   if (current.status !== "active") return { state: current, events };
+  // Closed markets do not fill or stop out. When they reopen, the first fresh
+  // price decides: a stop or stop order beyond a weekend gap fills at that
+  // price (not at the level), a limit fills at its price or better.
+  const tradable = (symbol: string) => { const s = ctx.specs[symbol]; return !s || isMarketOpen(s.hours, ctx.now); };
 
   for (const o of current.orders) {
     const q = ctx.quotes[o.symbol];
-    if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs) continue;
+    if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs || !tradable(o.symbol)) continue;
     const market = openingPrice(o.side, q);
     const hit = o.type === "limit" ? (o.side === "buy" ? market <= o.price : market >= o.price) : (o.side === "buy" ? market >= o.price : market <= o.price);
     if (!hit) continue;
@@ -276,7 +295,7 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
 
   for (const p of current.positions) {
     const q = ctx.quotes[p.symbol];
-    if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs) continue;
+    if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs || !tradable(p.symbol)) continue;
     const price = closingPrice(p.side, q);
     const stopHit = p.stopLoss !== undefined && (p.side === "buy" ? price <= p.stopLoss : price >= p.stopLoss);
     const targetHit = p.takeProfit !== undefined && (p.side === "buy" ? price >= p.takeProfit : price <= p.takeProfit);
@@ -284,6 +303,10 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     else if (targetHit) apply(closeAt(current, ctx, p.id, p.lots, price, "take_profit"));
   }
 
+  // Loss limits are checked on tradable prices only: while an open position's
+  // market is closed its last price cannot be dealt on, so the check waits for
+  // the first price after the reopen (and closes at that price if breached).
+  if (current.positions.some(p => !tradable(p.symbol))) return { state: current, events };
   const m = metrics(current, ctx);
   const breach: CloseReason | null = m.equity <= m.maxLossFloor ? "maximum_loss_limit" : m.equity <= m.dailyLossFloor ? "daily_loss_limit" : null;
   if (breach) {
@@ -302,6 +325,44 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     events.push({ type: "target_reached" });
   }
   return { state: current, events };
+}
+
+/**
+ * Daily resets (rollovers) after the trading day `fromDay` up to and including
+ * the one that opened `toDay`, with how many nights of swap each one charges:
+ * Saturday/Sunday resets 0, the triple weekday 3, other days 1 (weekday of the
+ * reset instant in UTC).
+ */
+export function rollovers(fromDay: string, toDay: string, resetHourUtc: number, tripleWeekday = 3): { at: number; nights: number }[] {
+  const out: { at: number; nights: number }[] = [];
+  const start = Date.parse(`${fromDay}T00:00:00Z`), end = Date.parse(`${toDay}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return out;
+  for (let d = start + 86_400_000; d <= end; d += 86_400_000) {
+    const at = d + resetHourUtc * 3_600_000, wd = new Date(at).getUTCDay();
+    out.push({ at, nights: wd === 0 || wd === 6 ? 0 : wd === tripleWeekday ? 3 : 1 });
+  }
+  return out;
+}
+
+/** Charges (or pays) overnight swap on positions held through each reset between the stored trading day and `day`. */
+function applySwaps(state: AccountState, ctx: Pick<EngineContext, "specs" | "rules">, day: string): Step {
+  const events: EngineEvent[] = [];
+  const positions = state.positions.map(p => {
+    const s = ctx.specs[p.symbol];
+    if (!s?.swap) return p;
+    const rate = p.side === "buy" ? s.swap.longPerLot : s.swap.shortPerLot;
+    if (!Number.isFinite(rate) || rate === 0) return p;
+    let total = new Decimal(0), nights = 0, last = 0;
+    for (const r of rollovers(state.tradingDay, day, ctx.rules.resetHourUtc, s.swap.tripleWeekday ?? 3)) {
+      if (r.at <= p.openedAt || r.nights === 0) continue;
+      total = total.plus(new Decimal(rate).times(p.lots).times(r.nights)); nights += r.nights; last = r.at;
+    }
+    const amount = cash(total);
+    if (!nights || amount === 0) return p;
+    events.push({ type: "swap_applied", positionId: p.id, amount, nights, at: last });
+    return { ...p, swap: cash(new Decimal(p.swap ?? 0).plus(amount)) };
+  });
+  return { state: events.length ? { ...state, positions } : state, events };
 }
 
 /** Closed results per trading day (22:00 UTC days by default), from the account's deals. */

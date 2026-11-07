@@ -1,5 +1,6 @@
 import { cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type Step } from "./core";
-import type { AccountMetrics, AccountState, EngineEvent, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, TargetReport } from "./types";
+import type { AccountMetrics, AccountState, EngineEvent, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
+import { FOREX_HOURS, marketState, type MarketState, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 
 /**
@@ -36,12 +37,41 @@ export interface VenueSettings {
 
 export interface PairLike { symbol: string; base: string; quote: string; pipSize: number; digits: number }
 
+export interface SpecOptions {
+  /**
+   * Trading hours for every pair (default FOREX_HOURS: Sunday 17:00 to Friday
+   * 17:00 New York). Pass the provider's published hours, or null for no limit
+   * (tests only). `hoursBySymbol` overrides single pairs.
+   */
+  hours?: TradingHours | null;
+  hoursBySymbol?: Record<string, TradingHours | null>;
+  /** Swap rates per symbol from the broker/provider (USD per lot per night). Pairs left out charge no swap. */
+  swap?: Record<string, SwapRates>;
+}
+
 /** Builds engine instrument specs from the forex catalogue and venue settings. */
-export function buildSpecs(pairs: PairLike[], settings: Pick<VenueSettings, "leverage" | "commissionPerLotPerSide" | "maxLots">): Record<string, InstrumentSpec> {
-  return Object.fromEntries(pairs.map(p => [p.symbol, {
-    symbol: p.symbol, base: p.base, quote: p.quote, pipSize: p.pipSize, tickSize: Number((p.pipSize / 10).toFixed(6)), digits: p.digits,
-    contractSize: 100_000, minLots: 0.01, lotStep: 0.01, maxLots: settings.maxLots, leverage: settings.leverage, commissionPerLotPerSide: settings.commissionPerLotPerSide,
-  } satisfies InstrumentSpec]));
+export function buildSpecs(pairs: PairLike[], settings: Pick<VenueSettings, "leverage" | "commissionPerLotPerSide" | "maxLots"> & SpecOptions): Record<string, InstrumentSpec> {
+  const base = settings.hours === undefined ? FOREX_HOURS : settings.hours;
+  for (const [symbol, r] of Object.entries(settings.swap ?? {})) {
+    if (!pairs.some(p => p.symbol === symbol)) throw new EngineError("bad_settings", `Swap rates given for ${symbol}, which is not in the catalogue.`);
+    if (!Number.isFinite(r.longPerLot) || !Number.isFinite(r.shortPerLot) || (r.tripleWeekday !== undefined && !(Number.isInteger(r.tripleWeekday) && r.tripleWeekday >= 0 && r.tripleWeekday <= 6))) throw new EngineError("bad_settings", `Swap rates for ${symbol} must be numbers (triple weekday 0–6).`);
+  }
+  return Object.fromEntries(pairs.map(p => {
+    const hours = settings.hoursBySymbol && p.symbol in settings.hoursBySymbol ? settings.hoursBySymbol[p.symbol] : base;
+    const swap = settings.swap?.[p.symbol];
+    return [p.symbol, {
+      symbol: p.symbol, base: p.base, quote: p.quote, pipSize: p.pipSize, tickSize: Number((p.pipSize / 10).toFixed(6)), digits: p.digits,
+      contractSize: 100_000, minLots: 0.01, lotStep: 0.01, maxLots: settings.maxLots, leverage: settings.leverage, commissionPerLotPerSide: settings.commissionPerLotPerSide,
+      ...(hours ? { hours } : {}), ...(swap ? { swap } : {}),
+    } satisfies InstrumentSpec];
+  }));
+}
+
+/** Open/closed and next change for one symbol of a venue's specs (for /v1/status or the terminal). */
+export function symbolMarketState(specs: Record<string, InstrumentSpec | undefined>, symbol: string, now: number): MarketState {
+  const s = specs[symbol];
+  if (!s) throw new EngineError("unknown_symbol", `${symbol} is not available on this account.`);
+  return marketState(s.hours, now);
 }
 
 /** Purchased rules as stored with an order (percent fields may be strings like "8" or "8%"). */

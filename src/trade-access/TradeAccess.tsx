@@ -9,7 +9,7 @@ import { positionSizeLink } from '@/lib/positionSize';
 import { formatCountdown, tradingDayStatus } from '@/lib/tradingDayClock';
 import { accountEmailStatus } from './email-status';
 import {
-  CONTRACT_SIZE, DEFAULT_SYMBOL, FOREX_PAIRS, LOT_MAX, LOT_MIN, LOT_STEP, calculatorKind, findPair, forexMarketOpen,
+  CONTRACT_SIZE, DEFAULT_SYMBOL, FOREX_PAIRS, LOT_MAX, LOT_MIN, LOT_STEP, calculatorKind, findPair,
   loadFavorites, normalizeLots, pairLabel, pairName, saveFavorites, searchPairs, type ForexGroup, type ForexPair,
 } from './instruments';
 import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
@@ -22,6 +22,7 @@ import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
 import PositionEditor from './PositionEditor';
 import OrderEditor from './OrderEditor';
 import type { TargetReport } from '@/engine/types';
+import { FOREX_HOURS, marketState, type MarketState } from '@/engine/hours';
 
 interface Account {
   accountId: string; challengeId: string; orderId: string; platform: string; status: string;
@@ -90,7 +91,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
 
   const show = (v: MobileView) => `${view === v ? 'flex' : 'hidden'} lg:flex`;
   const rules = visible ? rulesInDollars(visible.startingBalance, visible.rules) : null;
-  const marketOpen = forexMarketOpen(now), day = tradingDayStatus(now);
+  const market = marketState(FOREX_HOURS, now.getTime()), marketOpen = market.open, day = tradingDayStatus(now);
 
   return <div className="flex min-h-screen flex-col bg-background pb-16 text-foreground lg:pb-0">
     {/* Top bar */}
@@ -105,7 +106,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
         </div>
         <div className="flex items-center gap-1 text-sm sm:gap-3">
           <span data-testid="engine-status" title={engine.status?.message} className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${engine.status?.execution ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${engine.status?.execution ? 'bg-emerald-500' : engine.status?.connected ? 'bg-amber-500' : 'bg-muted-foreground'}`} />{engine.status?.execution ? 'Trading engine live' : engine.status?.connected ? 'Engine connected · waiting for prices' : 'Engine not connected'}</span>
-          <span className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`} title="Approximate forex week: Sunday to Friday, 22:00 UTC (21:00 in US summer time). Broker hours can differ."><span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />Forex {marketOpen ? 'open' : 'closed'}</span>
+          <span className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`} title={`Forex week: Sunday 17:00 to Friday 17:00 New York time (22:00 UTC, 21:00 in US summer). ${market.nextChange ? `${marketOpen ? 'Closes' : 'Opens'} ${localAt(market.nextChange)} your time.` : ''} Broker hours can differ.`}><span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />Forex {marketOpen ? 'open' : 'closed'}</span>
           <span className="hidden items-center gap-1.5 text-xs text-muted-foreground xl:inline-flex" title="The daily loss limit restarts from the balance at 22:00 UTC"><Clock size={13} aria-hidden="true" />Daily reset in {formatCountdown(day.msUntilReset)}</span>
           <button disabled={loading} onClick={reload} aria-label="Refresh accounts" className="rounded-md p-2 hover:bg-secondary disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /></button>
           <Link to="/dashboard" className="hidden items-center gap-1 rounded-md px-2 py-1.5 hover:bg-secondary sm:inline-flex"><ArrowLeft size={14} />Dashboard</Link>
@@ -150,7 +151,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
       </section>
 
       <section className={`${show('trade')} min-h-0 flex-col bg-card lg:row-span-2`} aria-label="Order panel">
-        <OrderTicket key={pair.symbol} pair={pair} account={visible} dailyLossAmount={rules?.dailyLossAmount ?? null} marketOpen={marketOpen} engine={engine} />
+        <OrderTicket key={pair.symbol} pair={pair} account={visible} dailyLossAmount={rules?.dailyLossAmount ?? null} market={market} now={now.getTime()} engine={engine} />
       </section>
 
       <section className={`${view === 'history' || view === 'account' ? 'flex' : 'hidden'} min-w-0 flex-col bg-card lg:flex`} aria-label="Terminal">
@@ -215,7 +216,8 @@ function MarketWatch({ selected, onSelect }: { selected: ForexPair; onSelect: (p
   </>;
 }
 
-function OrderTicket({ pair, account, dailyLossAmount, marketOpen, engine }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; marketOpen: boolean; engine: EngineHandle }) {
+function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; market: MarketState; now: number; engine: EngineHandle }) {
+  const marketOpen = market.open;
   const [lotsText, setLotsText] = useState('0.10'), [type, setType] = useState<'market' | 'limit' | 'stop'>('market');
   const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState('');
   const [review, setReview] = useState<Side | null>(null), [sent, setSent] = useState('');
@@ -226,8 +228,8 @@ function OrderTicket({ pair, account, dailyLossAmount, marketOpen, engine }: { p
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
-  const canSend = !!(account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
-  const holdReason = !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : '';
+  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
+  const holdReason = !marketOpen ? `The forex market is closed${market.nextChange ? ` until ${localAt(market.nextChange)} your time` : ''}.` : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : '';
   const send = async () => {
     if (!review || !lots || !account || !quote) return;
     const entryPrice = type === 'market' ? (review === 'buy' ? quote.ask : quote.bid) : Number(entry.replace(',', '.'));
@@ -242,6 +244,7 @@ function OrderTicket({ pair, account, dailyLossAmount, marketOpen, engine }: { p
       <div><h2 className="text-sm font-semibold">New order</h2><p className="font-mono text-lg font-bold">{pair.symbol}</p></div>
       <span className={`rounded-full px-2 py-0.5 text-[11px] ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}>Market {marketOpen ? 'open' : 'closed'}</span>
     </div>
+    {!marketOpen && <MarketClosedNote market={market} now={now} />}
 
     <label className="text-xs text-muted-foreground">Order type
       <select value={type} onChange={e => setType(e.target.value as typeof type)} className={`${field} mt-1 font-sans`}>
@@ -337,6 +340,22 @@ function Toolbox({ engine, tab, setTab, account, accounts, loading, rules, loade
   </div>;
 }
 
+const localAt = (ms: number) => new Date(ms).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** "1d 4h 05m", "3h 20m", "12m". */
+function untilLabel(ms: number): string {
+  const m = Math.max(0, Math.ceil(ms / 60_000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), min = m % 60;
+  return d ? `${d}d ${h}h ${String(min).padStart(2, '0')}m` : h ? `${h}h ${String(min).padStart(2, '0')}m` : `${min}m`;
+}
+
+function MarketClosedNote({ market, now }: { market: MarketState; now: number }) {
+  return <div className="rounded-lg border bg-secondary/40 p-3 text-xs" role="note" data-testid="market-closed">
+    <p className="flex items-center gap-1.5 font-semibold"><Clock size={13} aria-hidden="true" />Forex market closed</p>
+    {market.nextChange && <p className="mt-1">Opens <span className="font-medium">{localAt(market.nextChange)}</span> your time ({new Date(market.nextChange).toUTCString().slice(0, 22)} UTC) · in {untilLabel(market.nextChange - now)}.</p>}
+    <p className="mt-1 text-muted-foreground">While the market is closed no order is filled, changed or closed. Pending orders and stops wait for the first price after the open; after a weekend gap that price can be beyond your level, and the order fills there.</p>
+  </div>;
+}
+
 function floatingUsd(symbol: string, side: Side, lots: number, entry: number, current: number | undefined, quotes: QuoteBook): number {
   const pair = findPair(symbol);
   if (!pair || current === undefined) return NaN;
@@ -354,15 +373,15 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
   const cell = 'whitespace-nowrap px-3 py-1.5 font-mono';
   const empty = (what: string) => <p className="p-4 text-sm text-muted-foreground">{what} {!engine.status?.connected && hasAccount ? 'They will appear here once trading opens on this account.' : ''}</p>;
-  const headers = tab === 'positions' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Current', 'Profit', '']
+  const headers = tab === 'positions' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Current', 'Swap', 'Profit', '']
     : tab === 'orders' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', '']
-    : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Profit', 'Reason'];
+    : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Swap', 'Profit', 'Reason'];
   const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
     <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
       <tbody>
-        {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes); return <Fragment key={p.id}><tr className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{p.symbol}</td><td className={cell}>{p.id}</td><td className={cell}>{time(p.openedAt)}</td><td className={`${cell} ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side}</td><td className={cell}>{p.lots.toFixed(2)}</td><td className={cell}>{px(p.symbol, p.entryPrice)}</td><td className={cell}>{px(p.symbol, p.stopLoss)}</td><td className={cell}>{px(p.symbol, p.takeProfit)}</td><td className={cell}>{px(p.symbol, cur)}</td>
+        {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes) + (p.swap ?? 0); return <Fragment key={p.id}><tr className="border-b border-border/60">
+          <td className={`${cell} font-semibold`}>{p.symbol}</td><td className={cell}>{p.id}</td><td className={cell}>{time(p.openedAt)}</td><td className={`${cell} ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side}</td><td className={cell}>{p.lots.toFixed(2)}</td><td className={cell}>{px(p.symbol, p.entryPrice)}</td><td className={cell}>{px(p.symbol, p.stopLoss)}</td><td className={cell}>{px(p.symbol, p.takeProfit)}</td><td className={cell}>{px(p.symbol, cur)}</td><td className={cell}>{money(p.swap ?? 0)}</td>
           <td className={`${cell} ${pr < 0 ? 'text-red-500' : pr > 0 ? 'text-emerald-500' : ''}`}>{Number.isFinite(pr) ? money(pr) : '—'}</td>
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Close ${p.symbol} position ${p.id}`}><X size={12} /></button></td>
         </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><PositionEditor position={p} snapshot={snap} engine={engine} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
@@ -371,7 +390,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss or take profit of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
         </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><OrderEditor order={o} snapshot={snap} engine={engine} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
         {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <tr key={d.id} className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td>
+          <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td><td className={cell}>{money(d.swap ?? 0)}</td>
           <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
         </tr>)}
       </tbody>

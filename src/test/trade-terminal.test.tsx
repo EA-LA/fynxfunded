@@ -139,6 +139,9 @@ import { LocalGatewayAdapter } from "@/engine/gateway";
 
 describe("terminal connected to the engine", () => {
   afterEach(cleanup);
+  // A Wednesday: the forex market is open (the engine enforces Sunday 17:00 – Friday 17:00 New York).
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-04T10:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
   it("says the engine is not connected by default", async () => {
     mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [account] } : account);
     render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess />} /></Routes></MemoryRouter>);
@@ -218,6 +221,9 @@ describe("terminal connected to the engine", () => {
 
 describe("terminal: pending orders", () => {
   afterEach(cleanup);
+  // A Wednesday: the forex market is open (the engine enforces Sunday 17:00 – Friday 17:00 New York).
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-04T10:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
   it("edits the price, stop loss and take profit of a pending order through the engine", async () => {
     const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
     mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
@@ -249,6 +255,32 @@ describe("terminal: pending orders", () => {
     expect(await screen.findByTestId("order-notice")).toHaveTextContent("price 1.07850, stop loss 1.07650, take profit 1.08350");
     expect((await venue.snapshot(live.accountId)).state.orders[0]).toMatchObject({ price: 1.0785, stopLoss: 1.0765, takeProfit: 1.0835, lots: 1 });
     expect(within(screen.getByTestId("engine-orders")).getByText("1.08350")).toBeInTheDocument();
+  });
+});
+
+describe("terminal: market hours", () => {
+  afterEach(cleanup);
+  afterEach(() => { vi.useRealTimers(); });
+  it("on a Saturday shows when the market opens and sends nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-07T12:00:00Z"));
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), new MemoryStore(),
+      async () => ({ startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 }), { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: Date.now() });
+    await venue.open(live.accountId);
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Trading engine live")).toBeInTheDocument();
+    const ticket = screen.getByTestId("order-ticket");
+    const note = within(ticket).getByTestId("market-closed");
+    expect(note).toHaveTextContent("Forex market closed");
+    expect(note).toHaveTextContent("Sun, 08 Nov 2026 22:00 UTC");
+    expect(note).toHaveTextContent("in 1d 10h 00m");
+    fireEvent.click(within(ticket).getByTestId("buy-button"));
+    expect(screen.queryByTestId("confirm-order")).not.toBeInTheDocument();
+    expect(screen.getByTestId("order-review")).toHaveTextContent("The forex market is closed until");
+    await expect(venue.place(live.accountId, { symbol: "EURUSD", side: "buy", type: "market", lots: 0.1 })).rejects.toMatchObject({ code: "market_closed" });
   });
 });
 

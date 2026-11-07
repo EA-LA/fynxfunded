@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-07 20:30 UTC — [autopilot] FYNX Trade knows when the market is open; overnight swap is ready
+
+- FYNX Trade terminal (https://www.fynxfunded.com/trade/access): when the forex market is closed (like this weekend) the order panel now says so clearly, shows when it opens in your own time zone and in UTC, and counts down to it ("in 1d 10h 00m"). No order can be confirmed while the market is closed.
+- The open/closed badge on the terminal and on https://www.fynxfunded.com/trade now follows the real forex week (Sunday 17:00 to Friday 17:00 New York time), including the summer/winter clock changes.
+- Positions and History tables have a new "Swap" column, and a position's profit includes its swap.
+- Behind the scenes (ready for when trading is switched on): the trading engine refuses to open, change or close trades while a market is closed, does not fill or stop out on weekend prices, and after a weekend gap fills stops at the first real price, the way real markets do. It also charges or pays overnight swap at the daily 22:00 UTC reset (three nights on Wednesday, none on weekends) as soon as the broker's swap rates are entered. Holiday closures can be added too.
+
 ## 2026-11-07 16:20 UTC — [autopilot] Dashboard home shows funded accounts; price feed and account storage ready to plug in
 
 - Dashboard home (https://www.fynxfunded.com/dashboard): funded accounts now get the main card (before, only accounts still in evaluation did, so a funded trader saw "No active challenges"). With more than one live account you can switch between them. A row of counts shows funded, in evaluation, passed and in review, and ended accounts. Each account has shortcuts to its workspace, payouts (funded) or objectives (evaluation), the FYNX Trade terminal and analytics. Passed accounts get a short "in review" note.

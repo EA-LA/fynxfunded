@@ -1,3 +1,5 @@
+import type { TradingHours } from "./hours";
+
 /**
  * FYNX trading engine: shared types. The engine is plain TypeScript with no
  * browser or Firebase dependencies so the same code can run in the web app,
@@ -26,6 +28,25 @@ export interface InstrumentSpec {
   leverage: number;
   /** Commission in account currency per lot per side. */
   commissionPerLotPerSide: number;
+  /** When the instrument can be traded. Missing = at all times. */
+  hours?: TradingHours;
+  /** Overnight financing. Missing = no swap is charged or paid. */
+  swap?: SwapRates;
+}
+
+/**
+ * Overnight financing (swap/rollover) in account currency (USD) per 1.00 lot
+ * per night, as the broker or liquidity provider publishes it. Negative is a
+ * charge, positive is paid to the trader. Applied to positions open at the
+ * engine's daily reset (rules.resetHourUtc). Saturday and Sunday resets charge
+ * nothing; the reset on `tripleWeekday` (default 3 = Wednesday) charges three
+ * nights to cover the weekend, the market convention.
+ */
+export interface SwapRates {
+  longPerLot: number;
+  shortPerLot: number;
+  /** 0 = Sunday … 6 = Saturday. Default 3 (Wednesday). */
+  tripleWeekday?: number;
 }
 
 export interface Quote {
@@ -61,6 +82,8 @@ export interface Position {
   stopLoss?: number;
   takeProfit?: number;
   commission: number;
+  /** Swap accumulated while open (USD, negative = charged). Settled into the balance on close. */
+  swap?: number;
   clientId?: string;
 }
 
@@ -89,6 +112,8 @@ export interface Deal {
   closedAt: number;
   grossProfit: number;
   commission: number;
+  /** Swap settled with this deal (USD, negative = charged). Included in netProfit. */
+  swap?: number;
   netProfit: number;
   reason: CloseReason;
   clientId?: string;
@@ -189,7 +214,8 @@ export type EngineEvent =
   | { type: "position_closed"; deal: Deal }
   | { type: "account_breached"; reason: CloseReason }
   | { type: "target_reached" }
-  | { type: "day_reset"; tradingDay: string; dayStartBalance: number };
+  | { type: "day_reset"; tradingDay: string; dayStartBalance: number }
+  | { type: "swap_applied"; positionId: string; amount: number; nights: number; at: number };
 
 export class EngineError extends Error {
   constructor(public code: string, message: string) {
