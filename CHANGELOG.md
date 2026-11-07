@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-07 16:20 UTC — [autopilot] Dashboard home shows funded accounts; price feed and account storage ready to plug in
+
+- Dashboard home (https://www.fynxfunded.com/dashboard): funded accounts now get the main card (before, only accounts still in evaluation did, so a funded trader saw "No active challenges"). With more than one live account you can switch between them. A row of counts shows funded, in evaluation, passed and in review, and ended accounts. Each account has shortcuts to its workspace, payouts (funded) or objectives (evaluation), the FYNX Trade terminal and analytics. Passed accounts get a short "in review" note.
+- Fixed: the trading credentials card showed a blank "Password" when revealed. It now says passwords are never shown or stored on the dashboard, and the server and login have copy buttons.
+- Engine readiness: the licensed price feed now only needs its connection and message format written; the template already checks every price (no fills on missing, crossed, too-wide, future or out-of-order prices), reconnects on its own and reports whether prices are live. Account storage in Firestore is built with the lock that stops two requests overwriting each other. Nothing is switched on; see docs/ENGINE-READINESS.md.
+
 ## 2026-11-07 12:20 UTC — [autopilot] FYNX Trade: edit pending orders; the trading server's front door is built
 
 - Pending orders tab in the terminal (https://www.fynxfunded.com/trade/access): each waiting order now has an edit button. Move the order price, add, change or remove the stop loss and take profit, and see how many pips the order sits from the market and what each level would make or lose in dollars once it fills. Wrong-side prices are explained before anything is sent, and a stop bigger than the room left before the loss limit is flagged.
