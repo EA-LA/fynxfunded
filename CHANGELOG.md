@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-07 06:45 UTC — FYNX Trade home page redesigned in the FYNX Finance World style
+
+- https://www.fynxfunded.com/trade now looks like FYNX Finance World:
+  - A black top bar with today's date and time in UTC.
+  - A "FYNX / TRADE PLATFORM" wordmark, sharp square buttons and deep-green highlights.
+  - Small upper-case section labels, numbered items with arrow links, thin grid lines and a dark footer with link columns.
+- A new live market-hours bar under the menu shows:
+  - whether the forex market is open and how long until the daily reset;
+  - Sydney, Tokyo, London and New York with their local time and "Open · closes in…" / "Opens in…".
+  - It's worked out from your own clock, with daylight saving handled.
+- "Find a forex pair" search in the first screen: type EUR/USD, "yen" or "GBP" and open the pair straight in the terminal. Popular pairs sit underneath.
+- "Start with what you need" list: open the terminal, get an account, size your next trade, partner with FYNX Trade.
+- Markets is now a proper table of all 45 pairs: symbol, name, group, pip size, digits, lot size and pip value. You can filter by group, type to search, and open any pair with "Trade ↗".
+- The terminal picture now sits in a dark section; the FAQ has rounded question cards with + / − buttons.
+
 ## 2026-11-07 06:00 UTC — FYNX Trade gets its own home page
 
 - "Trade Now" on the FYNX Funded site now opens FYNX Trade's own home page at https://www.fynxfunded.com/trade. It has its own FYNX Trade logo, menu and footer, and its sections are:
