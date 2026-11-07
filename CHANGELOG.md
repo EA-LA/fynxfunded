@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-07 06:00 UTC — FYNX Trade gets its own home page
+
+- "Trade Now" on the FYNX Funded site now opens FYNX Trade's own home page at https://www.fynxfunded.com/trade. It has its own FYNX Trade logo, menu and footer, and its sections are:
+  - A hero with "Trade now" and a drawn picture of the terminal.
+  - Key numbers: 45 forex pairs, 6 chart timeframes, 0.01 lot minimum, no download.
+  - The platform on desktop and phone, the features, and "How it works" (get an account → check your email → open FYNX Trade).
+  - All 45 pairs, each opening in the terminal.
+  - A "For prop firms & brokers" partnership section.
+  - Questions and answers, plus a clear risk notice.
+- Every "Trade now" button opens the trading terminal at https://www.fynxfunded.com/trade/access. Sign-in is asked for first if needed.
+- The FYNX menu (the grid button next to the logo) now lists FYNX Trade next to FYNX Funded and marks the one you're on.
+
 ## 2026-11-07 05:20 UTC — FYNX Trade is now a full trading screen (like MT5)
 
 - https://www.fynxfunded.com/trade has been rebuilt as a trading terminal. You'll see:
