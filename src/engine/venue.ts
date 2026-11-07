@@ -1,5 +1,5 @@
-import { cancelOrder, closePosition, metrics, modifyPosition, newAccount, placeOrder, tick, type EngineContext, type Step } from "./core";
-import type { AccountMetrics, AccountState, EngineEvent, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet } from "./types";
+import { cancelOrder, closePosition, metrics, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type Step } from "./core";
+import type { AccountMetrics, AccountState, EngineEvent, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, TargetReport } from "./types";
 import { EngineError } from "./types";
 
 /**
@@ -44,6 +44,45 @@ export function buildSpecs(pairs: PairLike[], settings: Pick<VenueSettings, "lev
   } satisfies InstrumentSpec]));
 }
 
+/** Purchased rules as stored with an order (percent fields may be strings like "8" or "8%"). */
+export interface PurchasedRules {
+  starting_balance?: number | string;
+  profit_target_percent: number | string | null;
+  daily_loss_percent: number | string;
+  max_loss_percent: number | string;
+  min_trading_days: number | string;
+  consistency_percent?: number | string | null;
+  reset_hour_utc?: number | string;
+}
+
+const percentField = (v: unknown, name: string, optional = false): number | null => {
+  if ((v === null || v === undefined || v === "") && optional) return null;
+  const n = Number.parseFloat(String(v ?? "").replace("%", ""));
+  if (!Number.isFinite(n) || n < 0 || n > 100) throw new EngineError("bad_rules", `${name} must be a percent between 0 and 100.`);
+  return n;
+};
+
+/**
+ * Turns an account's purchased rules into an engine RuleSet, for a host's
+ * `rulesFor`. Funded accounts pass `funded: true` (no profit target). Refuses
+ * anything malformed rather than guessing.
+ */
+export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, opts: { funded?: boolean } = {}): RuleSet {
+  if (!Number.isFinite(startingBalance) || startingBalance <= 0) throw new EngineError("bad_rules", "Starting balance must be a positive number.");
+  const days = Number(r.min_trading_days), reset = r.reset_hour_utc === undefined ? 22 : Number(r.reset_hour_utc);
+  if (!Number.isInteger(days) || days < 0) throw new EngineError("bad_rules", "Minimum trading days must be a whole number.");
+  if (!Number.isInteger(reset) || reset < 0 || reset > 23) throw new EngineError("bad_rules", "Reset hour must be 0–23 (UTC).");
+  return {
+    startingBalance,
+    dailyLossPercent: percentField(r.daily_loss_percent, "Daily loss")!,
+    maxLossPercent: percentField(r.max_loss_percent, "Maximum loss")!,
+    profitTargetPercent: opts.funded ? null : percentField(r.profit_target_percent, "Profit target")!,
+    minTradingDays: days,
+    resetHourUtc: reset,
+    consistencyPercent: percentField(r.consistency_percent, "Consistency", true),
+  };
+}
+
 export class MemoryStore implements AccountStore {
   private data = new Map<string, AccountState>();
   async load(id: string) { return this.data.get(id) ?? null; }
@@ -54,7 +93,13 @@ export class MemoryStore implements AccountStore {
   }
 }
 
-export interface Snapshot { state: AccountState; metrics: AccountMetrics; quotes: QuoteBook }
+export interface Snapshot {
+  state: AccountState;
+  metrics: AccountMetrics;
+  quotes: QuoteBook;
+  /** Target, minimum days and consistency progress. Optional in the HTTP contract; LocalVenue always sends it. */
+  report?: TargetReport;
+}
 
 export class LocalVenue {
   readonly quotes: QuoteBook = {};
@@ -91,7 +136,7 @@ export class LocalVenue {
       const events = [...ticked.events, ...step.events];
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
-      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes } };
+      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules) };
     });
     this.queue = job.catch(() => undefined);
     return job;

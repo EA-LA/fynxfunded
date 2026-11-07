@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-07 08:17 UTC — [autopilot] FYNX Trade: edit open trades, partial close and a progress card with the 40% best-day rule
+
+- In the trading terminal (https://www.fynxfunded.com/trade/access), each open position now has an edit (pencil) button next to Close. It opens a panel where you can:
+  - set, move or remove the stop loss and take profit as prices;
+  - see what you would make or lose in dollars (and pips) if each level is hit;
+  - move the stop to break-even with one click when the trade is in profit;
+  - get a warning when a stop sits further away than the room left before your loss limit;
+  - close part of the position (for example 0.40 of 1.00 lots).
+  Wrong-side levels are explained before anything is sent.
+- The Account tab gets a "Progress on this account" card: profit against the target, trading days, your best day against the 40% best-day rule, open positions, and a plain list of what is still needed.
+- The trading engine now checks the 40% best-day rule before it reports a profit target as reached, the same way FYNX Funded's official review does. It can also read an account's purchased rules directly. Both are tested and written up in the engine readiness guide.
+- All of this works as soon as the trading engine is connected. Until then the terminal still sends nothing.
+
 ## 2026-11-07 07:50 UTC — FYNX Trade home page: new premium design
 
 - https://www.fynxfunded.com/trade has a new design of its own: a dark product look with a warm gold accent, a lit-up headline ("Trade the world's currencies with precision.") and a large, detailed picture of the trading screen.

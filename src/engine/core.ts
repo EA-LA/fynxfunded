@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side,
+  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
 } from "./types";
 import { EngineError } from "./types";
 
@@ -262,12 +262,60 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     return { state: current, events };
   }
 
-  // Reaching the target is reported once; passing a phase stays an official review (consistency rule, KYC…).
-  if (!current.targetReachedAt && m.profitTargetBalance !== null && current.positions.length === 0 && current.balance >= m.profitTargetBalance && current.tradingDays.length >= ctx.rules.minTradingDays) {
+  // Reaching the target is reported once; passing a phase stays an official review (KYC, trade review…).
+  if (!current.targetReachedAt && targetReport(current, ctx.rules).ready) {
     current = { ...current, targetReachedAt: ctx.now, sequence: current.sequence + 1 };
     events.push({ type: "target_reached" });
   }
   return { state: current, events };
+}
+
+/** Closed results per trading day (22:00 UTC days by default), from the account's deals. */
+export function dailyResults(state: Pick<AccountState, "history">, resetHourUtc: number): Record<string, number> {
+  const days: Record<string, Decimal> = {};
+  for (const d of state.history) {
+    const key = tradingDayKey(d.closedAt, resetHourUtc);
+    days[key] = (days[key] ?? new Decimal(0)).plus(d.netProfit);
+  }
+  return Object.fromEntries(Object.entries(days).map(([k, v]) => [k, cash(v)]));
+}
+
+/**
+ * Where the account stands against its target, minimum days and consistency
+ * rule. Same arithmetic as the server rule engine: best day = the largest
+ * positive closed day, share = best day ÷ (balance − starting balance).
+ */
+export function targetReport(state: AccountState, rules: RuleSet): TargetReport {
+  const profit = cash(new Decimal(state.balance).minus(rules.startingBalance));
+  const targetProfit = rules.profitTargetPercent === null ? null : cash(new Decimal(rules.startingBalance).times(rules.profitTargetPercent).div(100));
+  const targetMet = targetProfit !== null && profit >= targetProfit;
+  const daysMet = state.tradingDays.length >= rules.minTradingDays;
+  let bestDay: TargetReport["bestDay"] = null;
+  for (const [day, result] of Object.entries(dailyResults(state, rules.resetHourUtc)).sort(([a], [b]) => a.localeCompare(b))) {
+    if (!bestDay || result > bestDay.profit) bestDay = { day, profit: result };
+  }
+  const best = bestDay && bestDay.profit > 0 ? bestDay.profit : 0;
+  const bestDayShare = profit > 0 ? cash(new Decimal(best).div(profit).times(100)) : null;
+  const limit = rules.consistencyPercent ?? null;
+  const consistencyMet = limit === null || (bestDayShare !== null && new Decimal(best).div(profit).times(100).lte(limit));
+  const profitForConsistency = limit === null || limit <= 0 || best <= 0 ? null : cash(new Decimal(best).times(100).div(limit).toDecimalPlaces(2, Decimal.ROUND_UP));
+  const missing: string[] = [];
+  if (state.status === "breached") missing.push("A loss limit was broken; this account cannot pass.");
+  if (targetProfit === null) missing.push("Funded accounts have no profit target.");
+  else if (!targetMet) missing.push(`${cash(new Decimal(targetProfit).minus(profit)).toFixed(2)} USD more closed profit for the target.`);
+  if (!daysMet) missing.push(`${rules.minTradingDays - state.tradingDays.length} more trading day${rules.minTradingDays - state.tradingDays.length === 1 ? "" : "s"}.`);
+  if (!consistencyMet && limit !== null) missing.push(profit > 0 && profitForConsistency !== null
+    ? `Best day is ${bestDayShare}% of the profit (limit ${limit}%): total profit needs to reach ${profitForConsistency.toFixed(2)} USD.`
+    : `Total profit must be positive for the ${limit}% best-day rule.`);
+  if (state.positions.length) missing.push(`Close ${state.positions.length} open position${state.positions.length === 1 ? "" : "s"}.`);
+  return {
+    profit, targetProfit, profitToGo: targetProfit === null ? null : Math.max(0, cash(new Decimal(targetProfit).minus(profit))), targetMet,
+    tradingDays: state.tradingDays.length, minTradingDays: rules.minTradingDays, daysMet,
+    bestDay, bestDayShare, consistencyLimit: limit, consistencyMet, profitForConsistency,
+    openPositions: state.positions.length,
+    ready: state.status !== "breached" && targetMet && daysMet && consistencyMet && state.positions.length === 0,
+    missing,
+  };
 }
 
 export function newAccount(accountId: string, rules: RuleSet, now: number): AccountState {

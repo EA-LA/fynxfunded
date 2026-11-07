@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, LineChart, ListOrdered, LockKeyhole, Mail, Minus, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, LineChart, ListOrdered, LockKeyhole, Mail, Minus, Pencil, Plus, RefreshCw, Search, Star, Target, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -19,6 +19,8 @@ import type { Snapshot } from '@/engine/venue';
 import { profitUsd } from '@/engine/core';
 import type { InstrumentSpec, QuoteBook } from '@/engine/types';
 import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
+import PositionEditor from './PositionEditor';
+import type { TargetReport } from '@/engine/types';
 
 interface Account {
   accountId: string; challengeId: string; orderId: string; platform: string; status: string;
@@ -327,6 +329,7 @@ function Toolbox({ engine, tab, setTab, account, accounts, loading, rules, loade
             ['Minimum trading days', String(account.rules.min_trading_days)],
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right">{v}</dd></div>)}</dl>
           <p className="mt-2 text-xs text-muted-foreground">Rules recorded with your purchase. Viewing prices does not start a trading day.</p></div>}
+        {engine.snapshot?.report && <TargetProgress report={engine.snapshot.report} />}
         <div className="rounded-md border p-3"><p className="flex items-center gap-1.5 text-sm font-semibold"><Mail size={15} aria-hidden="true" />Account email</p><p className="mt-1 text-xs text-muted-foreground">After payment and account creation we email a secure link to this account. Sign in with your FYNX login; no trading password is emailed.</p>{account && <p role="status" className="mt-2 text-xs">{accountEmailStatus(account.accountEmailStatus)}</p>}</div>
       </div>
     </div>}
@@ -344,6 +347,9 @@ const px = (symbol: string, v?: number) => v === undefined ? '—' : v.toFixed(f
 
 function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'account'>; engine: EngineHandle; hasAccount: boolean }) {
   const snap = engine.snapshot, accountId = snap?.state.accountId;
+  const [editing, setEditing] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const editingOpen = !!editing && !!snap?.state.positions.some(p => p.id === editing);
   const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
   const cell = 'whitespace-nowrap px-3 py-1.5 font-mono';
   const empty = (what: string) => <p className="p-4 text-sm text-muted-foreground">{what} {!engine.status?.connected && hasAccount ? 'They will appear here once trading opens on this account.' : ''}</p>;
@@ -354,11 +360,11 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
     <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
       <tbody>
-        {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes); return <tr key={p.id} className="border-b border-border/60">
+        {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes); return <Fragment key={p.id}><tr className="border-b border-border/60">
           <td className={`${cell} font-semibold`}>{p.symbol}</td><td className={cell}>{p.id}</td><td className={cell}>{time(p.openedAt)}</td><td className={`${cell} ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side}</td><td className={cell}>{p.lots.toFixed(2)}</td><td className={cell}>{px(p.symbol, p.entryPrice)}</td><td className={cell}>{px(p.symbol, p.stopLoss)}</td><td className={cell}>{px(p.symbol, p.takeProfit)}</td><td className={cell}>{px(p.symbol, cur)}</td>
           <td className={`${cell} ${pr < 0 ? 'text-red-500' : pr > 0 ? 'text-emerald-500' : ''}`}>{Number.isFinite(pr) ? money(pr) : '—'}</td>
-          <td className="px-3 py-1"><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Close ${p.symbol} position ${p.id}`}><X size={12} /></button></td>
-        </tr>; })}
+          <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Close ${p.symbol} position ${p.id}`}><X size={12} /></button></td>
+        </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><PositionEditor position={p} snapshot={snap} engine={engine} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
         {tab === 'orders' && snap?.state.orders.map(o => <tr key={o.id} className="border-b border-border/60">
           <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
           <td className="px-3 py-1"><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
@@ -370,6 +376,25 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
       </tbody>
     </table>
     {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
+    {tab === 'positions' && notice && !editingOpen && <p role="status" data-testid="position-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {engine.error && <p role="alert" className="px-4 pb-3 text-xs text-red-500">{engine.error}</p>}
+  </div>;
+}
+
+/** Target, minimum days and 40% best-day progress from the engine (shown only when the engine sends a report). */
+function TargetProgress({ report }: { report: TargetReport }) {
+  const share = report.bestDayShare;
+  const pct = report.targetProfit ? Math.max(0, Math.min(100, (report.profit / report.targetProfit) * 100)) : 0;
+  const rows: [string, string, boolean | null][] = [
+    ['Profit target', report.targetProfit === null ? 'None (funded account)' : `${money(report.profit)} of ${money(report.targetProfit)}${report.profitToGo ? ` · ${money(report.profitToGo)} to go` : ''}`, report.targetProfit === null ? null : report.targetMet],
+    ['Trading days', `${report.tradingDays} of ${report.minTradingDays}`, report.daysMet],
+    ['Best day', report.consistencyLimit === null ? 'No best-day rule' : report.bestDay && share !== null ? `${money(report.bestDay.profit)} on ${report.bestDay.day} · ${share.toFixed(1)}% of profit (limit ${report.consistencyLimit}%)` : `Limit ${report.consistencyLimit}% of total profit`, report.consistencyLimit === null ? null : report.consistencyMet],
+    ['Open positions', String(report.openPositions), report.openPositions === 0],
+  ];
+  return <div className="rounded-md border p-3" data-testid="target-progress">
+    <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Target size={15} aria-hidden="true" />Progress on this account</h3>
+    {report.targetProfit !== null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-label="Profit target progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><div className="h-full bg-primary" style={{ width: `${pct}%` }} /></div>}
+    <dl className="mt-2 space-y-1.5 text-xs">{rows.map(([k, v, ok]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right">{v}{ok !== null && <span className={`ml-1.5 ${ok ? 'text-emerald-500' : 'text-muted-foreground'}`}>{ok ? '✓' : '·'}</span>}</dd></div>)}</dl>
+    <p className="mt-2 text-xs" role="status">{report.ready ? 'Every condition is met. The result goes to the official review; it is not a pass until confirmed.' : report.missing.length ? `Still needed: ${report.missing.join(' ')}` : ''}</p>
   </div>;
 }

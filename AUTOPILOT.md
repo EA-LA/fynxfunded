@@ -95,8 +95,11 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] MT5-style terminal: Market Watch with 45 forex pairs (search, groups, favourites), live TradingView chart, price and ticker after one-time consent, order panel (SELL/BUY, market/limit/stop, lots stepper, SL/TP in pips, pip value, risk/profit in dollars, share of daily loss allowance), account bar, Positions/Pending/History/Account tabs, phone bottom menu (2026-11-07)
 - [x] Trading engine (src/engine): order validation, bid/ask fills, pending orders, SL/TP, P/L in USD for all pairs, margin, daily reset, loss-limit lock, target report, idempotency; LocalVenue with QuoteFeed/AccountStore ports; Disconnected/HTTP/Local gateways; terminal wired (confirm order, positions/close, pending/cancel, history, metrics); docs/ENGINE-READINESS.md (2026-11-07)
 - [ ] Connect the engine: licensed QuoteFeed adapter, host (FYNX API or Cloud Function) exposing the HTTP contract, Firestore AccountStore, timer step, VITE_FYNX_TRADE_API_URL + CSP connect-src, tradingEnabled per account (owner decisions)
-- [ ] Engine: swap/rollover, per-symbol trading hours, weekend gap handling, consistency (40% best day) check in the target report
-- [ ] Terminal: modify SL/TP on open positions from the Positions tab
+- [x] Engine: consistency (40% best day) check in the target report: `targetReport` (profit vs target, trading days, best 22:00 UTC day and its share, total profit at which the best day fits, plain list of what's missing); the target is only reported when all rules are met; every venue snapshot carries the report; `rulesFromPurchase` turns stored purchase rules into an engine rule set (2026-11-07)
+- [ ] Engine: swap/rollover, per-symbol trading hours, weekend gap handling
+- [x] Terminal: edit an open position from the Positions tab: stop loss / take profit as prices (set, change or remove), dollar and pip result at each level, "Stop to break-even", same-side checks as the engine before sending, warning when the stop is beyond the room left before the loss limit, partial close by lots; "Progress on this account" card on the Account tab (target, days, best day vs 40%, open positions, what's still needed) (2026-11-07)
+- [ ] Terminal: modify price / SL / TP of pending orders (engine has no modifyOrder yet)
+- [ ] Engine: Firestore AccountStore adapter and QuoteFeed adapter template; server host skeleton for the HTTP contract (non-deployed path)
 - [ ] Account number + password sign-in emailed after purchase (owner request 2026-11-07): needs backend credential issuing and an owner-approved release; today the site deliberately emails no passwords
 - [ ] Positions/History tabs: fill from the production ledger when trading opens
 

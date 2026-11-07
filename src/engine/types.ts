@@ -105,6 +105,41 @@ export interface RuleSet {
   minTradingDays: number;
   /** Hour (UTC) when the trading day resets. */
   resetHourUtc: number;
+  /**
+   * Consistency rule: the best trading day may be at most this % of the total
+   * profit (FYNX Funded uses 40). null or missing = no consistency rule.
+   */
+  consistencyPercent?: number | null;
+}
+
+/** Where an account stands against its profit target, minimum days and consistency rule. */
+export interface TargetReport {
+  /** Closed profit: balance minus the starting balance. */
+  profit: number;
+  /** Profit the target needs in dollars; null for funded accounts. */
+  targetProfit: number | null;
+  /** Profit still missing (0 once met); null for funded accounts. */
+  profitToGo: number | null;
+  targetMet: boolean;
+  tradingDays: number;
+  minTradingDays: number;
+  daysMet: boolean;
+  /** Best trading day by closed result (22:00 UTC days), null before any closed trade. */
+  bestDay: { day: string; profit: number } | null;
+  /** Best day as % of total profit; null while the total profit is not positive. */
+  bestDayShare: number | null;
+  consistencyLimit: number | null;
+  consistencyMet: boolean;
+  /**
+   * Total profit at which the best day would fit the consistency rule (best day ÷ limit);
+   * null when there is no rule or no positive best day.
+   */
+  profitForConsistency: number | null;
+  openPositions: number;
+  /** Every condition met with nothing open: ready for the official review. */
+  ready: boolean;
+  /** Plain reasons the target is not reported yet. */
+  missing: string[];
 }
 
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";

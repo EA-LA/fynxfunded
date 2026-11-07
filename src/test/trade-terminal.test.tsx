@@ -169,4 +169,68 @@ describe("terminal connected to the engine", () => {
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(within(await screen.findByTestId("engine-history")).getByText("manual")).toBeInTheDocument();
   });
+
+  it("edits stop loss and take profit, closes part of a position and shows target progress", async () => {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const now = Date.now();
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), new MemoryStore(),
+      async () => ({ startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22, consistencyPercent: 40 }), { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: now });
+    await venue.open(live.accountId);
+    await venue.place(live.accountId, { symbol: "EURUSD", side: "buy", type: "market", lots: 1 });
+    feed.push({ symbol: "EURUSD", bid: 1.0821, ask: 1.0822, time: now });
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    const positions = await screen.findByTestId("engine-positions");
+    fireEvent.click(await within(positions).findByRole("button", { name: /Edit stop loss, take profit or volume of EURUSD/ }));
+    const editor = screen.getByTestId("position-editor");
+    fireEvent.change(within(editor).getByLabelText("Stop loss (price)"), { target: { value: "1.0830" } });
+    expect(within(editor).getByRole("alert")).toHaveTextContent("Stop loss must be below the current bid 1.08210");
+    expect(within(editor).getByRole("button", { name: "Save levels" })).toBeDisabled();
+    fireEvent.click(within(editor).getByRole("button", { name: /Stop to break-even/ }));
+    expect(within(editor).getByLabelText("Stop loss (price)")).toHaveValue("1.08010");
+    fireEvent.change(within(editor).getByLabelText("Take profit (price)"), { target: { value: "1.0851" } });
+    expect(within(editor).getByTestId("sl-outcome")).toHaveTextContent("If hit: $0.00 (0.0 pips)");
+    expect(within(editor).getByTestId("tp-outcome")).toHaveTextContent("If hit: $500.00 (+50.0 pips)");
+    await act(async () => { fireEvent.click(within(editor).getByRole("button", { name: "Save levels" })); });
+    expect(await screen.findByTestId("position-notice")).toHaveTextContent("stop loss 1.08010, take profit 1.08510");
+    const stored = (await venue.snapshot(live.accountId)).state.positions[0];
+    expect(stored).toMatchObject({ stopLoss: 1.0801, takeProfit: 1.0851 });
+
+    fireEvent.click(within(screen.getByTestId("engine-positions")).getByRole("button", { name: /Edit stop loss/ }));
+    const again = screen.getByTestId("position-editor");
+    fireEvent.change(within(again).getByLabelText("Lots to close"), { target: { value: "1" } });
+    fireEvent.click(within(again).getByRole("button", { name: "Close part" }));
+    expect(within(again).getByRole("alert")).toHaveTextContent("For the whole 1.00 lots use Close position.");
+    fireEvent.change(within(again).getByLabelText("Lots to close"), { target: { value: "0.4" } });
+    await act(async () => { fireEvent.click(within(again).getByRole("button", { name: "Close part" })); });
+    expect(await screen.findByTestId("position-notice")).toHaveTextContent("Closed 0.40 of 1.00 lots EURUSD; 0.60 lots stay open.");
+    expect((await venue.snapshot(live.accountId)).state.positions[0].lots).toBe(0.6);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
+    const progress = await screen.findByTestId("target-progress");
+    expect(progress).toHaveTextContent("Trading days1 of 5");
+    expect(progress).toHaveTextContent("Still needed:");
+    expect(progress).toHaveTextContent("Close 1 open position.");
+  });
+});
+
+describe("position protection helpers", () => {
+  it("reads prices, checks sides and works out results", async () => {
+    const { parseLevel, levelErrors, levelOutcome, protectionChange, parseCloseLots } = await import("@/trade-access/protection");
+    expect(parseLevel("", 5, "Stop loss")).toEqual({ ok: true, value: null });
+    expect(parseLevel("1,0805", 5, "Stop loss")).toEqual({ ok: true, value: 1.0805 });
+    expect(parseLevel("1.080051", 5, "Stop loss")).toEqual({ ok: false, error: "Stop loss: use at most 5 decimals." });
+    expect(parseLevel("abc", 3, "Take profit")).toMatchObject({ ok: false });
+    expect(levelErrors("sell", 150.1, 150.0, null, 3)[0]).toMatch(/above the current ask 150.100/);
+    expect(levelErrors("sell", 150.1, 150.5, 149.5, 3)).toEqual([]);
+    const book = { USDJPY: { symbol: "USDJPY", bid: 150, ask: 150.02, time: 0 } };
+    expect(levelOutcome(findPair("USDJPY")!, "sell", 1, 150.5, 150, book)).toEqual({ pips: 50, dollars: 333.31 });
+    expect(levelOutcome(findPair("EURGBP")!, "buy", 1, 0.85, 0.851, {}).dollars).toBeNull();
+    expect(protectionChange({ stopLoss: 1.07 }, { stopLoss: 1.07, takeProfit: null })).toEqual({});
+    expect(protectionChange({ stopLoss: 1.07, takeProfit: 1.1 }, { stopLoss: null, takeProfit: 1.09 })).toEqual({ stopLoss: null, takeProfit: 1.09 });
+    expect(parseCloseLots("0.255", 1)).toMatchObject({ ok: false, error: "Volume goes in steps of 0.01 lots." });
+    expect(parseCloseLots("0.25", 1)).toEqual({ ok: true, value: 0.25 });
+  });
 });
