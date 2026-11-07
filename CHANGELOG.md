@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-07 00:30 UTC — [autopilot] Lot sizes for cross pairs like GBP/JPY and EUR/GBP; long vs short on dashboard Analytics
+
+- The position size calculator on the Trading rules page now handles forex pairs without the US dollar (EUR/GBP, GBP/JPY, EUR/JPY, AUD/CAD, EUR/CHF, AUD/NZD and more). Pick "Forex cross pair", choose the second currency, type the matching US-dollar price from your platform, and it shows the lot size, the dollar value of a pip and the loss at your stop. The share link keeps the pair type. See it at https://www.fynxfunded.com/rules?inst=cross&qc=JPY#position-size
+- The FAQ answer "How do I work out my lot size?" now explains cross pairs with a worked example: https://www.fynxfunded.com/faq#lot-size
+- Dashboard Analytics now has the long/short comparison (Buy vs Sell results, win rate, wins/losses, average per trade and a plain comparison), following the 7D/30D/All range: https://www.fynxfunded.com/dashboard/analytics
+
 ## 2026-11-06 20:30 UTC — [autopilot] "What could getting funded cost?" in the pass simulator, fee check in the payout estimator, better long/short stats
 
 - New under the pass simulator results on https://www.fynxfunded.com/rules#simulator (choose "All phases", or any 1-phase program): the challenge fee per attempt, how many attempts your plan would take on average, the fees that adds up to, the funded profit your share would need to earn them back, and your chance of being funded within 1, 2, 3 or 5 attempts (with the most it could cost in fees). It warns plainly when the plan never passes. Example link: https://www.fynxfunded.com/rules?size=25000&program=2-phase&sphase=all#simulator

@@ -11,7 +11,35 @@ import { REWARD_RATIOS, type RiskMode } from "@/lib/riskPlanner";
  * as planning estimates.
  */
 
-export type InstrumentKind = "xxxusd" | "usdxxx" | "usdjpy" | "xauusd" | "custom";
+export type InstrumentKind = "xxxusd" | "usdxxx" | "usdjpy" | "cross" | "xauusd" | "custom";
+
+/** Quote (second) currency of a forex cross pair: the currency the pip is paid in. */
+export type CrossQuote = "JPY" | "GBP" | "CAD" | "CHF" | "AUD" | "NZD";
+
+export interface CrossQuoteConvention {
+  id: CrossQuote;
+  /** Common cross pairs quoted in this currency. */
+  examples: string;
+  /** Size of one pip in the pair's price. */
+  pipSize: number;
+  /** US-dollar pair whose price turns the quote currency into dollars. */
+  conversionPair: string;
+  /** "multiply" when the dollar is the second currency (GBP/USD), "divide" when it is the first (USD/JPY). */
+  conversion: "multiply" | "divide";
+  priceExample: string;
+}
+
+export const CROSS_QUOTES: CrossQuoteConvention[] = [
+  { id: "JPY", examples: "EUR/JPY, GBP/JPY, AUD/JPY, CAD/JPY, CHF/JPY, NZD/JPY", pipSize: 0.01, conversionPair: "USD/JPY", conversion: "divide", priceExample: "150.25" },
+  { id: "GBP", examples: "EUR/GBP", pipSize: 0.0001, conversionPair: "GBP/USD", conversion: "multiply", priceExample: "1.2700" },
+  { id: "CAD", examples: "EUR/CAD, GBP/CAD, AUD/CAD, NZD/CAD", pipSize: 0.0001, conversionPair: "USD/CAD", conversion: "divide", priceExample: "1.3650" },
+  { id: "CHF", examples: "EUR/CHF, GBP/CHF, AUD/CHF, CAD/CHF, NZD/CHF", pipSize: 0.0001, conversionPair: "USD/CHF", conversion: "divide", priceExample: "0.8800" },
+  { id: "AUD", examples: "EUR/AUD, GBP/AUD", pipSize: 0.0001, conversionPair: "AUD/USD", conversion: "multiply", priceExample: "0.6600" },
+  { id: "NZD", examples: "EUR/NZD, GBP/NZD, AUD/NZD", pipSize: 0.0001, conversionPair: "NZD/USD", conversion: "multiply", priceExample: "0.6000" },
+];
+
+export const DEFAULT_CROSS_QUOTE: CrossQuote = "JPY";
+export const crossQuoteById = (id: CrossQuote | undefined) => CROSS_QUOTES.find((q) => q.id === id) ?? CROSS_QUOTES[0];
 
 export interface InstrumentConvention {
   id: InstrumentKind;
@@ -68,6 +96,17 @@ export const INSTRUMENTS: InstrumentConvention[] = [
     needsUnitValue: false,
   },
   {
+    id: "cross",
+    label: "Forex cross pair (no US dollar)",
+    examples: "EUR/GBP, EUR/JPY, GBP/JPY, AUD/CAD and other pairs without the dollar",
+    unit: ["pip", "pips"],
+    contractSize: 100_000,
+    contractUnit: "units of the base currency",
+    needsPrice: true,
+    priceLabel: "Price of the US-dollar pair for the second currency",
+    needsUnitValue: false,
+  },
+  {
     id: "xauusd",
     label: "Gold (XAU/USD)",
     examples: "Stop measured in dollars of gold price",
@@ -81,7 +120,7 @@ export const INSTRUMENTS: InstrumentConvention[] = [
   {
     id: "custom",
     label: "Other instrument",
-    examples: "Index, crypto or a cross pair: use your platform's contract details",
+    examples: "Index, crypto or anything not listed: use your platform's contract details",
     unit: ["point", "points"],
     needsPrice: false,
     needsUnitValue: true,
@@ -96,7 +135,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const valid = (n: number | undefined): n is number => n !== undefined && Number.isFinite(n) && n > 0;
 
 /** US-dollar value of one stop unit (pip, price dollar, point) for a 1.00 lot. */
-export function unitValuePerLot(kind: InstrumentKind, price?: number, customValue?: number): number {
+export function unitValuePerLot(kind: InstrumentKind, price?: number, customValue?: number, quote?: CrossQuote): number {
   switch (kind) {
     case "xxxusd":
       return 10; // 100,000 × 0.0001 USD
@@ -106,6 +145,12 @@ export function unitValuePerLot(kind: InstrumentKind, price?: number, customValu
     case "usdjpy":
       if (!valid(price)) throw new Error("Enter the current price");
       return 1000 / price; // 100,000 × 0.01 JPY, converted to USD
+    case "cross": {
+      if (!valid(price)) throw new Error("Enter the conversion price");
+      const q = crossQuoteById(quote);
+      const inQuote = 100_000 * q.pipSize; // pip value in the quote currency (1,000 JPY or 10 GBP/CAD/…)
+      return q.conversion === "multiply" ? inQuote * price : inQuote / price;
+    }
     case "xauusd":
       return 100; // 100 oz × $1.00
     case "custom":
@@ -122,6 +167,8 @@ export interface PositionSizeInput {
   stopDistance: number;
   price?: number;
   customValue?: number;
+  /** Second currency of a cross pair (kind "cross" only). */
+  quote?: CrossQuote;
   /** Round-turn trading charge per 1.00 lot in USD (0 if none). */
   commissionPerLot: number;
   /** Planned reward as a multiple of the stop distance. */
@@ -169,7 +216,7 @@ export function sizePosition(input: PositionSizeInput): PositionSizeResult {
   if (!valid(input.rewardRatio)) throw new Error("Reward ratio must be a positive number");
   const step = input.lotStep ?? LOT_STEP;
   const convention = instrumentById(input.kind);
-  const value = unitValuePerLot(input.kind, input.price, input.customValue);
+  const value = unitValuePerLot(input.kind, input.price, input.customValue, input.quote);
   const stopPerLot = input.stopDistance * value;
   const lossPerLot = stopPerLot + input.commissionPerLot;
   const exactLots = input.riskAmount / lossPerLot;
@@ -205,6 +252,7 @@ export interface PositionPreset {
   riskMode: RiskMode;
   riskInput: string;
   kind: InstrumentKind;
+  quote: CrossQuote;
   stopInput: string;
   priceInput: string;
   valueInput: string;
@@ -218,6 +266,7 @@ export const DEFAULT_POSITION_PRESET: PositionPreset = {
   riskMode: "percent",
   riskInput: "0.5",
   kind: "xxxusd",
+  quote: DEFAULT_CROSS_QUOTE,
   stopInput: "20",
   priceInput: "",
   valueInput: "",
@@ -233,7 +282,8 @@ const positiveText = (raw: string | null, max: number) => {
 
 /**
  * Reads a shared address such as
- * /rules?size=50000&program=1-phase&risk=250&unit=usd&inst=usdjpy&stop=15&px=150.25&comm=7&rr=2#position-size.
+ * /rules?size=50000&program=1-phase&risk=250&unit=usd&inst=usdjpy&stop=15&px=150.25&comm=7&rr=2#position-size
+ * (a cross pair adds its second currency, for example inst=cross&qc=GBP).
  * Shares size, program, risk, unit and rr with the risk planner, so a planner
  * link opens the sizer on the same account and risk.
  */
@@ -254,6 +304,7 @@ export function parsePositionPreset(params: URLSearchParams): PositionPreset {
     riskMode: risk ? riskMode : d.riskMode,
     riskInput: risk ?? d.riskInput,
     kind,
+    quote: CROSS_QUOTES.find((q) => q.id === params.get("qc")?.toUpperCase())?.id ?? DEFAULT_CROSS_QUOTE,
     stopInput: positiveText(params.get("stop"), 1_000_000) ?? d.stopInput,
     priceInput: positiveText(params.get("px"), 1_000_000) ?? d.priceInput,
     valueInput: positiveText(params.get("pv"), 1_000_000) ?? d.valueInput,
@@ -268,6 +319,7 @@ export interface PositionLinkInput {
   riskMode?: RiskMode;
   riskValue?: number;
   kind?: InstrumentKind;
+  quote?: CrossQuote;
   stop?: number;
   price?: number;
   customValue?: number;
@@ -284,6 +336,7 @@ export function positionSizeLink(input: PositionLinkInput): string {
     if (input.riskMode === "dollars") params.set("unit", "usd");
   }
   if (input.kind) params.set("inst", input.kind);
+  if (input.kind === "cross") params.set("qc", crossQuoteById(input.quote).id);
   if (valid(input.stop)) params.set("stop", String(input.stop));
   const convention = input.kind ? instrumentById(input.kind) : undefined;
   if (convention?.needsPrice && valid(input.price)) params.set("px", String(input.price));

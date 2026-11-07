@@ -5,12 +5,15 @@ import { challengeConfigs } from "@/lib/challengeConfig";
 import { getRulePlan, PROGRAMS as programs, type ProgramId } from "@/lib/ruleCalculator";
 import { REWARD_RATIOS, type RiskMode } from "@/lib/riskPlanner";
 import {
+  CROSS_QUOTES,
+  crossQuoteById,
   INSTRUMENTS,
   instrumentById,
   LOT_STEP,
   parsePositionPreset,
   positionSizeLink,
   sizePosition,
+  type CrossQuote,
   type InstrumentKind,
   type PositionPreset,
 } from "@/lib/positionSize";
@@ -54,10 +57,12 @@ export default function PositionSizeCalculator() {
 
   const set = <K extends keyof PositionPreset>(key: K, value: PositionPreset[K]) => setState((s) => ({ ...s, [key]: value }));
 
-  const { accountSize, program, riskMode, riskInput, kind, stopInput, priceInput, valueInput, commissionInput, rewardRatio } = state;
+  const { accountSize, program, riskMode, riskInput, kind, quote, stopInput, priceInput, valueInput, commissionInput, rewardRatio } = state;
   const plan = useMemo(() => getRulePlan(accountSize, program as ProgramId), [accountSize, program]);
   const dailyAllowance = Math.round(accountSize * plan.dailyLossPercent) / 100;
   const convention = instrumentById(kind);
+  const cross = kind === "cross" ? crossQuoteById(quote) : null;
+  const pipSize = cross ? cross.pipSize : convention.unitSize;
 
   const riskValue = parsePositive(riskInput);
   const riskValid = riskValue !== undefined && (riskMode === "dollars" ? riskValue >= 0.01 : riskValue <= 100);
@@ -73,7 +78,7 @@ export default function PositionSizeCalculator() {
 
   const ready = riskValid && riskAmount > 0 && stop !== undefined && priceValid && valueValid && commissionValid;
   const result = ready
-    ? sizePosition({ riskAmount, kind, stopDistance: stop!, price, customValue, commissionPerLot: commission, rewardRatio, dailyAllowance, accountSize })
+    ? sizePosition({ riskAmount, kind, quote, stopDistance: stop!, price, customValue, commissionPerLot: commission, rewardRatio, dailyAllowance, accountSize })
     : null;
 
   const sharePath = positionSizeLink({
@@ -82,6 +87,7 @@ export default function PositionSizeCalculator() {
     riskMode,
     riskValue: riskValid ? riskValue : undefined,
     kind,
+    quote,
     stop,
     price,
     customValue,
@@ -171,7 +177,11 @@ export default function PositionSizeCalculator() {
           id="ps-instrument"
           className={`${inputClass} mt-1 md:max-w-md`}
           value={kind}
-          onChange={(e) => set("kind", e.target.value as InstrumentKind)}
+          onChange={(e) => {
+            const next = e.target.value as InstrumentKind;
+            // A cross pair converts with a different price than USD/CAD or USD/JPY, so don't carry the old price across.
+            setState((s) => ({ ...s, kind: next, priceInput: (s.kind === "cross") !== (next === "cross") ? "" : s.priceInput }));
+          }}
           aria-describedby="ps-instrument-help"
         >
           {INSTRUMENTS.map((i) => (
@@ -179,11 +189,26 @@ export default function PositionSizeCalculator() {
           ))}
         </select>
         <p id="ps-instrument-help" className="mt-1 text-xs text-muted-foreground">
-          {convention.examples}.
+          {cross ? `Pairs quoted in ${cross.id}: ${cross.examples}.` : `${convention.examples}.`}
           {convention.contractSize
-            ? ` Assumes 1.00 lot = ${num(convention.contractSize)} ${convention.contractUnit}${convention.unitSize ? ` and 1 ${convention.unit[0]} = ${convention.unitSize}` : ""}.`
+            ? ` Assumes 1.00 lot = ${num(convention.contractSize)} ${convention.contractUnit}${pipSize ? ` and 1 ${convention.unit[0]} = ${pipSize}` : ""}.`
             : " Use the value your platform shows for one point on 1.00 lot."}
         </p>
+        {cross && (
+          <fieldset className="mt-4">
+            <legend className="text-sm font-medium">Second currency of the pair (the one after the slash)</legend>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {CROSS_QUOTES.map((q) => (
+                <button key={q.id} type="button" aria-pressed={quote === q.id} className={chip(quote === q.id)} onClick={() => setState((s) => (s.quote === q.id ? s : { ...s, quote: q.id as CrossQuote, priceInput: "" }))}>
+                  {q.id}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="ps-cross-help">
+              A pip on a {cross.id}-quoted pair is paid in {cross.id}: {num(100_000 * cross.pipSize)} {cross.id} per pip on 1.00 lot. The {cross.conversionPair} price turns that into US dollars.
+            </p>
+          </fieldset>
+        )}
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
@@ -196,10 +221,10 @@ export default function PositionSizeCalculator() {
         </div>
         {convention.needsPrice && (
           <div>
-            <label htmlFor="ps-price" className="text-sm font-medium">Current price</label>
+            <label htmlFor="ps-price" className="text-sm font-medium">{cross ? `Current ${cross.conversionPair} price` : "Current price"}</label>
             <input id="ps-price" inputMode="decimal" className={`${inputClass} mt-1`} value={priceInput} onChange={(e) => set("priceInput", e.target.value)} aria-invalid={!priceValid} aria-describedby="ps-price-help" />
             <p id="ps-price-help" className={`mt-1 text-xs ${priceValid ? "text-muted-foreground" : "text-destructive"}`}>
-              {convention.priceLabel}. Needed to turn the pip value into US dollars; we never fill in prices for you.
+              {cross ? `The ${cross.conversionPair} price on your platform (for example ${cross.priceExample}), not the price of the cross pair itself` : convention.priceLabel}. Needed to turn the pip value into US dollars; we never fill in prices for you.
             </p>
           </div>
         )}

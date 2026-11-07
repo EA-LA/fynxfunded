@@ -139,7 +139,7 @@ export const faqItems: FaqItem[] = [
     id: "lot-size",
     topic: "rules",
     q: "How do I work out my lot size?",
-    a: "Decide how much you are willing to lose on the trade, then divide it by what one lot loses if your stop is hit. Example: risking $125 with a 25-pip stop on EUR/USD, where one standard lot (100,000 units) moves $10 per pip, gives $125 ÷ $250 = 0.50 lots. Contract sizes and charges for FYNX Funded accounts are pending broker verification, so check your platform's contract details before trading.",
+    a: "Decide how much you are willing to lose on the trade, then divide it by what one lot loses if your stop is hit. Example: risking $125 with a 25-pip stop on EUR/USD, where one standard lot (100,000 units) moves $10 per pip, gives $125 ÷ $250 = 0.50 lots. On a cross pair such as GBP/JPY the pip is paid in the second currency (1,000 yen per pip on 1.00 lot), so it is turned into dollars with the matching US-dollar pair: at USD/JPY 150.00 that is about $6.67 per pip. The position size calculator does this for yen, pound, Canadian dollar, Swiss franc, Australian dollar and New Zealand dollar crosses. Contract sizes and charges for FYNX Funded accounts are pending broker verification, so check your platform's contract details before trading.",
     link: { to: "/rules#position-size", label: "Open the position size calculator" },
   },
   {

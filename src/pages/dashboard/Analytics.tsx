@@ -10,6 +10,7 @@ import TradingDaysCard from "@/components/analytics/TradingDaysCard";
 import InstrumentSessionCard from "@/components/analytics/InstrumentSessionCard";
 import JournalSimulatorCard from "@/components/analytics/JournalSimulatorCard";
 import JournalReplayCard from "@/components/analytics/JournalReplayCard";
+import LongShortCard from "@/components/analytics/LongShortCard";
 import GlossaryTip from "@/components/GlossaryTip";
 import { formatProfitFactor } from "@/lib/tradingData";
 
@@ -41,6 +42,7 @@ export default function Analytics(){
     <div className="grid gap-5 lg:grid-cols-2"><div className="premium-card"><h3 className="font-semibold">Session performance</h3><div className="mt-4 space-y-3">{Object.entries(analytics?.sessions||{London:0,"New York":0,Asia:0}).map(([x,v])=><div className="flex items-center justify-between rounded-lg bg-secondary/50 px-4 py-3" key={x}><span className="text-sm">{x}</span><b>{money(v)}</b></div>)}</div></div><div className="premium-card"><h3 className="font-semibold">Instrument performance</h3><div className="mt-4 space-y-3">{analytics?.instruments.length?analytics.instruments.slice(0,6).map(([x,v])=><div className="flex items-center justify-between rounded-lg bg-secondary/50 px-4 py-3" key={x}><span className="text-sm">{x} <small className="text-muted-foreground">· {v.count} trades</small></span><b>{money(v.pnl)}</b></div>):<p className="rounded-lg bg-secondary/50 p-5 text-sm text-muted-foreground">Pairs will be ranked here after trading begins.</p>}</div></div></div>
     <div className="grid gap-5 xl:grid-cols-2"><TradeTimingCard trades={trades} mode={zone} onModeChange={setZone}/><TradingDaysCard trades={trades}/></div>
     <InstrumentSessionCard trades={trades}/>
+    <LongShortCard trades={trades} description="Buy and Sell trades compared across the closed trades in this period."/>
     <JournalSimulatorCard trades={trades} accountSize={data.accountSize} periodLabel={analyticsRangeLabel(range).toLowerCase()}/>
     <JournalReplayCard trades={trades} accountSize={data.accountSize} periodLabel={analyticsRangeLabel(range).toLowerCase()}/>
   </div>

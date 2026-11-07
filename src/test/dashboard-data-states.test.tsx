@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, within, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({data:{} as any}));
@@ -50,7 +50,9 @@ describe("dashboard data states",()=>{
     render(<MemoryRouter><Analytics/></MemoryRouter>);
     expect(screen.getByTestId("journal-replay")).toBeInTheDocument();
     expect(screen.getByTestId("replay-verdict")).toHaveTextContent("The daily loss limit would have been broken on Fri, Oct 2, 2026");
-    expect(screen.getByRole("button",{name:/What does "win rate" mean/})).toBeInTheDocument();
+    // Headline tile plus the Long and Short tiles of the long/short comparison.
+    expect(screen.getAllByRole("button",{name:/What does "win rate" mean/})).toHaveLength(3);
+    expect(within(screen.getByTestId("long-short-card")).getAllByRole("button",{name:/What does "win rate" mean/})).toHaveLength(2);
     expect(screen.getByRole("button",{name:/What does "payoff ratio" mean/})).toBeInTheDocument();
   });
 });
