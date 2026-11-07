@@ -184,6 +184,7 @@ export type EngineEvent =
   | { type: "order_placed"; order: PendingOrder }
   | { type: "order_triggered"; orderId: string; positionId: string }
   | { type: "order_cancelled"; orderId: string }
+  | { type: "order_modified"; order: PendingOrder }
   | { type: "position_modified"; positionId: string }
   | { type: "position_closed"; deal: Deal }
   | { type: "account_breached"; reason: CloseReason }

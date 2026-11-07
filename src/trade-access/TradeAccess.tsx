@@ -20,6 +20,7 @@ import { profitUsd } from '@/engine/core';
 import type { InstrumentSpec, QuoteBook } from '@/engine/types';
 import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
 import PositionEditor from './PositionEditor';
+import OrderEditor from './OrderEditor';
 import type { TargetReport } from '@/engine/types';
 
 interface Account {
@@ -307,7 +308,7 @@ function Toolbox({ engine, tab, setTab, account, accounts, loading, rules, loade
     <div className="flex overflow-x-auto border-b" role="tablist" aria-label="Terminal">
       {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`shrink-0 border-b-2 px-4 py-2 text-xs font-medium ${tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
     </div>
-    {tab !== 'account' && <EngineTables tab={tab} engine={engine} hasAccount={!!account} />}
+    {tab !== 'account' && <EngineTables key={tab} tab={tab} engine={engine} hasAccount={!!account} />}
     {tab === 'account' && <div className="grid gap-4 p-4 md:grid-cols-2" role="tabpanel">
       <div className="space-y-3">
         {loading && !account && <p role="status" className="text-sm text-muted-foreground">Checking your account…</p>}
@@ -349,7 +350,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   const snap = engine.snapshot, accountId = snap?.state.accountId;
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const editingOpen = !!editing && !!snap?.state.positions.some(p => p.id === editing);
+  const editingOpen = !!editing && (tab === 'positions' ? !!snap?.state.positions.some(p => p.id === editing) : !!snap?.state.orders.some(o => o.id === editing));
   const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
   const cell = 'whitespace-nowrap px-3 py-1.5 font-mono';
   const empty = (what: string) => <p className="p-4 text-sm text-muted-foreground">{what} {!engine.status?.connected && hasAccount ? 'They will appear here once trading opens on this account.' : ''}</p>;
@@ -365,10 +366,10 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
           <td className={`${cell} ${pr < 0 ? 'text-red-500' : pr > 0 ? 'text-emerald-500' : ''}`}>{Number.isFinite(pr) ? money(pr) : '—'}</td>
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Close ${p.symbol} position ${p.id}`}><X size={12} /></button></td>
         </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><PositionEditor position={p} snapshot={snap} engine={engine} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
-        {tab === 'orders' && snap?.state.orders.map(o => <tr key={o.id} className="border-b border-border/60">
+        {tab === 'orders' && snap?.state.orders.map(o => <Fragment key={o.id}><tr className="border-b border-border/60">
           <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
-          <td className="px-3 py-1"><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
-        </tr>)}
+          <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss or take profit of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
+        </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><OrderEditor order={o} snapshot={snap} engine={engine} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
         {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <tr key={d.id} className="border-b border-border/60">
           <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td>
           <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
@@ -376,6 +377,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
       </tbody>
     </table>
     {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
+    {tab === 'orders' && notice && !editingOpen && <p role="status" data-testid="order-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {tab === 'positions' && notice && !editingOpen && <p role="status" data-testid="position-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {engine.error && <p role="alert" className="px-4 pb-3 text-xs text-red-500">{engine.error}</p>}
   </div>;

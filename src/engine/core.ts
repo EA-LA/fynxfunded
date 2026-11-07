@@ -120,6 +120,12 @@ function checkProtection(side: Side, reference: number, sl?: number, tp?: number
   if (tp !== undefined && (side === "buy" ? tp <= reference : tp >= reference)) throw new EngineError("bad_target", `Take profit must be ${side === "buy" ? "above" : "below"} ${reference}.`);
 }
 
+/** Buy limit below the market, buy stop above; the reverse for sells. */
+function checkPendingSide(side: Side, type: "limit" | "stop", price: number, market: number) {
+  const below = price < market;
+  if ((type === "limit") !== (side === "buy" ? below : !below)) throw new EngineError("bad_price", `A ${side} ${type} must be ${(type === "limit") === (side === "buy") ? "below" : "above"} the current price.`);
+}
+
 function assertActive(state: AccountState) {
   if (state.status !== "active") throw new EngineError("account_closed", state.status === "breached" ? "This account broke a loss limit; trading is closed." : state.status === "passed" ? "This phase is passed; trading is closed on this account." : "Trading is disabled on this account.");
 }
@@ -160,10 +166,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   }
   checkPrice(s, req.price, "Order price");
   if (req.price === undefined) throw new EngineError("bad_price", "Pending orders need a price.");
-  const market = openingPrice(req.side, q);
-  // Buy limit below the market, buy stop above; the reverse for sells.
-  const below = req.price < market;
-  if ((req.type === "limit") !== (req.side === "buy" ? below : !below)) throw new EngineError("bad_price", `A ${req.side} ${req.type} must be ${(req.type === "limit") === (req.side === "buy") ? "below" : "above"} the current price.`);
+  checkPendingSide(req.side, req.type, req.price, openingPrice(req.side, q));
   checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
   const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
   return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
@@ -201,6 +204,37 @@ export function modifyPosition(state: AccountState, positionId: string, protecti
   checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit");
   checkProtection(p.side, closingPrice(p.side, executableQuote(ctx, p.symbol)), sl, tp);
   return { state: { ...state, positions: state.positions.map(x => (x.id === p.id ? { ...x, stopLoss: sl, takeProfit: tp } : x)), sequence: state.sequence + 1 }, events: [{ type: "position_modified", positionId }] };
+}
+
+export interface OrderChange {
+  /** New trigger price of the pending order. */
+  price?: number;
+  /** A number sets the level, null removes it, leaving it out keeps it. */
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+}
+
+/**
+ * Changes the price, stop loss or take profit of a pending order. The same
+ * checks as a new order apply: the price must still be on the right side of
+ * the market for its type, and stop loss / take profit on the right side of
+ * the (new) order price. Volume, side and type cannot change; cancel and place
+ * a new order for that.
+ */
+export function modifyOrder(state: AccountState, orderId: string, change: OrderChange, ctx: EngineContext): Step {
+  assertActive(state);
+  const o = state.orders.find(x => x.id === orderId);
+  if (!o) throw new EngineError("no_order", "That order is not pending.");
+  const s = spec(ctx, o.symbol);
+  const price = change.price ?? o.price;
+  const sl = change.stopLoss === null ? undefined : change.stopLoss ?? o.stopLoss;
+  const tp = change.takeProfit === null ? undefined : change.takeProfit ?? o.takeProfit;
+  checkPrice(s, price, "Order price"); checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit");
+  if (change.price !== undefined) checkPendingSide(o.side, o.type, price, openingPrice(o.side, executableQuote(ctx, o.symbol)));
+  checkProtection(o.side, price, sl, tp);
+  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit) return { state, events: [] };
+  const next: PendingOrder = { ...o, price, stopLoss: sl, takeProfit: tp };
+  return { state: { ...state, orders: state.orders.map(x => (x.id === o.id ? next : x)), sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }] };
 }
 
 export function cancelOrder(state: AccountState, orderId: string): Step {

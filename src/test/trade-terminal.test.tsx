@@ -216,6 +216,42 @@ describe("terminal connected to the engine", () => {
   });
 });
 
+describe("terminal: pending orders", () => {
+  afterEach(cleanup);
+  it("edits the price, stop loss and take profit of a pending order through the engine", async () => {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const now = Date.now();
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), new MemoryStore(),
+      async () => ({ startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 }), { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: now });
+    await venue.open(live.accountId);
+    await venue.place(live.accountId, { symbol: "EURUSD", side: "buy", type: "limit", lots: 1, price: 1.079, stopLoss: 1.077 });
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("tab", { name: "Pending orders" }));
+    const orders = await screen.findByTestId("engine-orders");
+    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss or take profit of EURUSD order/ }));
+    const editor = screen.getByTestId("order-editor");
+    expect(within(editor).getByTestId("order-distance")).toHaveTextContent("11.0 pips below the current ask 1.08010");
+    expect(within(editor).getByTestId("order-sl-outcome")).toHaveTextContent("If hit after the fill: -$200.00 (-20.0 pips)");
+    expect(within(editor).getByRole("button", { name: "Save order" })).toBeDisabled();
+    fireEvent.change(within(editor).getByLabelText("Buy limit price"), { target: { value: "1.0810" } });
+    expect(within(editor).getAllByRole("alert")[0]).toHaveTextContent("A buy limit must be below the current ask 1.08010");
+    expect(within(editor).getByRole("button", { name: "Save order" })).toBeDisabled();
+    fireEvent.change(within(editor).getByLabelText("Buy limit price"), { target: { value: "1.0785" } });
+    fireEvent.change(within(editor).getByLabelText("Stop loss (price)"), { target: { value: "1.0790" } });
+    expect(within(editor).getByRole("alert")).toHaveTextContent("Stop loss must be below the order price 1.07850.");
+    fireEvent.change(within(editor).getByLabelText("Stop loss (price)"), { target: { value: "1.0765" } });
+    fireEvent.change(within(editor).getByLabelText("Take profit (price)"), { target: { value: "1.0835" } });
+    expect(within(editor).getByTestId("order-tp-outcome")).toHaveTextContent("If hit after the fill: $500.00 (+50.0 pips)");
+    await act(async () => { fireEvent.click(within(editor).getByRole("button", { name: "Save order" })); });
+    expect(await screen.findByTestId("order-notice")).toHaveTextContent("price 1.07850, stop loss 1.07650, take profit 1.08350");
+    expect((await venue.snapshot(live.accountId)).state.orders[0]).toMatchObject({ price: 1.0785, stopLoss: 1.0765, takeProfit: 1.0835, lots: 1 });
+    expect(within(screen.getByTestId("engine-orders")).getByText("1.08350")).toBeInTheDocument();
+  });
+});
+
 describe("position protection helpers", () => {
   it("reads prices, checks sides and works out results", async () => {
     const { parseLevel, levelErrors, levelOutcome, protectionChange, parseCloseLots } = await import("@/trade-access/protection");

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-07 12:20 UTC — [autopilot] FYNX Trade: edit pending orders; the trading server's front door is built
+
+- Pending orders tab in the terminal (https://www.fynxfunded.com/trade/access): each waiting order now has an edit button. Move the order price, add, change or remove the stop loss and take profit, and see how many pips the order sits from the market and what each level would make or lose in dollars once it fills. Wrong-side prices are explained before anything is sent, and a stop bigger than the room left before the loss limit is flagged.
+- The trading engine can now change a pending order with the same safety checks as a new order.
+- The server side of the trading connection is ready as code: it checks the trader's sign-in, that the account is theirs, and that trading is switched on before opening or changing anything (closing and cancelling always work). When the price feed and server are plugged in, this is the piece that answers the terminal. Nothing was switched on or deployed.
+
 ## 2026-11-07 08:17 UTC — [autopilot] FYNX Trade: edit open trades, partial close and a progress card with the 40% best-day rule
 
 - In the trading terminal (https://www.fynxfunded.com/trade/access), each open position now has an edit (pencil) button next to Close. It opens a panel where you can:

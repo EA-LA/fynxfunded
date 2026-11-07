@@ -68,3 +68,35 @@ export function parseCloseLots(text: string, open: number): { ok: true; value: n
   if (lots >= open) return { ok: false, error: `For the whole ${open.toFixed(2)} lots use Close position.` };
   return { ok: true, value: lots };
 }
+
+/** The price a new position opens at now: buys at the ask, sells at the bid. */
+export const openSidePrice = (side: Side, quote: { bid: number; ask: number }) => (side === "buy" ? quote.ask : quote.bid);
+
+/**
+ * Same checks as the engine for a pending order: a buy limit sits below the
+ * ask and a buy stop above it (the reverse for sells, against the bid), and the
+ * stop loss / take profit sit on the right side of the order price.
+ */
+export function pendingErrors(side: Side, type: "limit" | "stop", market: number | undefined, price: number, stopLoss: number | null, takeProfit: number | null, digits: number): string[] {
+  const errors: string[] = [];
+  const ref = side === "buy" ? "ask" : "bid";
+  if (market !== undefined) {
+    const below = price < market;
+    const wantBelow = (type === "limit") === (side === "buy");
+    if (below !== wantBelow) errors.push(`A ${side} ${type} must be ${wantBelow ? "below" : "above"} the current ${ref} ${market.toFixed(digits)}; otherwise use a ${type === "limit" ? "stop" : "limit"} order or a market order.`);
+  }
+  const at = price.toFixed(digits);
+  if (stopLoss !== null && (side === "buy" ? stopLoss >= price : stopLoss <= price)) errors.push(`Stop loss must be ${side === "buy" ? "below" : "above"} the order price ${at}.`);
+  if (takeProfit !== null && (side === "buy" ? takeProfit <= price : takeProfit >= price)) errors.push(`Take profit must be ${side === "buy" ? "above" : "below"} the order price ${at}.`);
+  return errors;
+}
+
+/** Pips between the order price and the market, always positive. */
+export const pipsAway = (price: number, market: number, pipSize: number) => Math.round((Math.abs(price - market) / pipSize) * 10) / 10;
+
+/** Request body for a pending-order change; unchanged fields are left out. */
+export function orderChange(current: { price: number; stopLoss?: number; takeProfit?: number }, next: { price: number; stopLoss: number | null; takeProfit: number | null }) {
+  const out: { price?: number; stopLoss?: number | null; takeProfit?: number | null } = protectionChange(current, next);
+  if (next.price !== current.price) out.price = next.price;
+  return out;
+}

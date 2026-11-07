@@ -1,0 +1,151 @@
+import type { LocalVenue, Snapshot } from "./venue";
+import type { OrderChange } from "./core";
+import type { OrderRequest } from "./types";
+import { EngineError } from "./types";
+
+/**
+ * Server-side skeleton for the HTTP contract in docs/ENGINE-READINESS.md.
+ *
+ * Framework-free: a host (Cloud Function, FYNX API, any Node server) turns its
+ * incoming request into a HostRequest, calls handleEngineRequest, and writes
+ * the HostResponse back as JSON. Nothing in the web app imports this file, so
+ * it is not part of the site bundle and is not deployed anywhere by itself.
+ *
+ * Safety: every request needs a valid token for a user who owns the account,
+ * and opening or changing orders also needs the account's tradingEnabled flag
+ * (the same owner switch the terminal checks). Closing positions and
+ * cancelling orders are always allowed because they only reduce risk.
+ */
+
+export interface HostRequest {
+  method: string;
+  /** Path without the host, e.g. "/v1/accounts/acc_1/orders". A query string is ignored. */
+  path: string;
+  headers: Record<string, string | undefined>;
+  /** Parsed JSON body (undefined when there is none). */
+  body?: unknown;
+}
+
+export interface HostResponse {
+  status: number;
+  body: unknown;
+}
+
+export interface HostOptions {
+  venue: LocalVenue;
+  /** Verifies the bearer token (e.g. Firebase Admin verifyIdToken) and returns the user id, or null. */
+  verifyToken: (token: string) => Promise<string | null>;
+  /** Whether this user may see and trade this account. */
+  canAccess: (userId: string, accountId: string) => Promise<boolean>;
+  /** The owner's per-account switch. Until it returns true no order is opened or changed. */
+  tradingEnabled: (accountId: string) => Promise<boolean>;
+  /** What GET /v1/status reports. */
+  status: () => { priceFeed: boolean; execution: boolean; message: string };
+}
+
+const STATUS_BY_CODE: Record<string, number> = {
+  unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
+  not_found: 404, no_account: 404, no_position: 404, no_order: 404,
+  method_not_allowed: 405, conflict: 409, bad_request: 400,
+};
+
+const fail = (code: string, message: string): HostResponse => ({ status: STATUS_BY_CODE[code] ?? 422, body: { error: { code, message } } });
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const num = (v: unknown, name: string, optional = true): number | undefined => {
+  if (v === undefined && optional) return undefined;
+  if (typeof v !== "number" || !Number.isFinite(v)) throw new EngineError("bad_request", `${name} must be a number.`);
+  return v;
+};
+const level = (v: unknown, name: string): number | null | undefined => (v === null ? null : num(v, name));
+
+/** Strictly reads an order request body; unknown fields are refused so typos never pass silently. */
+export function parseOrderRequest(body: unknown, idempotencyKey?: string): OrderRequest {
+  if (!isObject(body)) throw new EngineError("bad_request", "The order must be a JSON object.");
+  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "clientId"]);
+  const extra = Object.keys(body).filter(k => !allowed.has(k));
+  if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
+  const { symbol, side, type, clientId } = body;
+  if (typeof symbol !== "string" || !/^[A-Z]{6}$/.test(symbol)) throw new EngineError("bad_request", "symbol must be a pair like EURUSD.");
+  if (side !== "buy" && side !== "sell") throw new EngineError("bad_request", "side must be buy or sell.");
+  if (type !== "market" && type !== "limit" && type !== "stop") throw new EngineError("bad_request", "type must be market, limit or stop.");
+  if (clientId !== undefined && (typeof clientId !== "string" || !clientId || clientId.length > 100)) throw new EngineError("bad_request", "clientId must be a short string.");
+  if (idempotencyKey && clientId && idempotencyKey !== clientId) throw new EngineError("bad_request", "Idempotency-Key and clientId differ.");
+  const key = (clientId as string | undefined) ?? (idempotencyKey || undefined);
+  const req: OrderRequest = { symbol, side, type, lots: num(body.lots, "lots", false)! };
+  const price = num(body.price, "price"), sl = num(body.stopLoss, "stopLoss"), tp = num(body.takeProfit, "takeProfit");
+  if (price !== undefined) req.price = price;
+  if (sl !== undefined) req.stopLoss = sl;
+  if (tp !== undefined) req.takeProfit = tp;
+  if (key) req.clientId = key;
+  return req;
+}
+
+function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit")[]): OrderChange {
+  if (!isObject(body)) throw new EngineError("bad_request", "The change must be a JSON object.");
+  const extra = Object.keys(body).filter(k => !(fields as string[]).includes(k));
+  if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
+  const out: OrderChange = {};
+  if ("price" in body) { const p = num(body.price, "price", false); if (p !== undefined) out.price = p; }
+  if ("stopLoss" in body) out.stopLoss = level(body.stopLoss, "stopLoss");
+  if ("takeProfit" in body) out.takeProfit = level(body.takeProfit, "takeProfit");
+  if (!Object.keys(out).length) throw new EngineError("bad_request", "Nothing to change.");
+  return out;
+}
+
+const header = (h: HostRequest["headers"], name: string) => {
+  const key = Object.keys(h).find(k => k.toLowerCase() === name.toLowerCase());
+  return key ? h[key] : undefined;
+};
+
+/** Handles one request of the HTTP contract. Never throws: errors come back as { error: { code, message } }. */
+export async function handleEngineRequest(req: HostRequest, opts: HostOptions): Promise<HostResponse> {
+  try {
+    const path = req.path.split("?")[0].replace(/\/+$/, "");
+    const method = req.method.toUpperCase();
+    const auth = header(req.headers, "authorization") ?? "";
+    const token = /^Bearer\s+(\S+)$/i.exec(auth)?.[1];
+    if (!token) return fail("unauthorized", "Sign in again to trade.");
+    const userId = await opts.verifyToken(token);
+    if (!userId) return fail("unauthorized", "Sign in again to trade.");
+
+    if (path === "/v1/status") return method === "GET" ? { status: 200, body: opts.status() } : fail("method_not_allowed", "Use GET.");
+
+    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
+    if (!m) return fail("not_found", "Unknown address.");
+    const [, rawAccount, collection, rawItem, action] = m;
+    const accountId = decodeURIComponent(rawAccount), itemId = rawItem === undefined ? undefined : decodeURIComponent(rawItem);
+    if (!(await opts.canAccess(userId, accountId))) return fail("forbidden", "This account belongs to someone else.");
+    const ok = (s: Snapshot): HostResponse => ({ status: 200, body: s });
+    const needsTrading = async () => { if (!(await opts.tradingEnabled(accountId))) throw new EngineError("trading_disabled", "Trading isn't switched on for this account yet, so no order was sent."); };
+
+    if (!collection) return method === "GET" ? ok(await opts.venue.snapshot(accountId)) : fail("method_not_allowed", "Use GET.");
+    if (collection === "orders" && !itemId) {
+      if (method !== "POST") return fail("method_not_allowed", "Use POST.");
+      const order = parseOrderRequest(req.body, header(req.headers, "idempotency-key"));
+      await needsTrading();
+      return ok(await opts.venue.place(accountId, order));
+    }
+    if (collection === "orders" && itemId && !action) {
+      if (method === "DELETE") return ok(await opts.venue.cancel(accountId, itemId));
+      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
+      return fail("method_not_allowed", "Use PATCH or DELETE.");
+    }
+    if (collection === "positions" && itemId && action === "close") {
+      if (method !== "POST") return fail("method_not_allowed", "Use POST.");
+      const body = req.body === undefined ? {} : req.body;
+      if (!isObject(body) || Object.keys(body).some(k => k !== "lots")) throw new EngineError("bad_request", "Send { lots } or an empty body.");
+      return ok(await opts.venue.close(accountId, itemId, num(body.lots, "lots")));
+    }
+    if (collection === "positions" && itemId && !action) {
+      if (method !== "PATCH") return fail("method_not_allowed", "Use PATCH.");
+      const change = parseChange(req.body, ["stopLoss", "takeProfit"]);
+      await needsTrading();
+      return ok(await opts.venue.modify(accountId, itemId, { stopLoss: change.stopLoss, takeProfit: change.takeProfit }));
+    }
+    return fail("not_found", "Unknown address.");
+  } catch (e) {
+    if (e instanceof EngineError) return fail(e.code, e.message);
+    return { status: 500, body: { error: { code: "server_error", message: "The trading server had a problem. Refresh to see whether the request went through." } } };
+  }
+}

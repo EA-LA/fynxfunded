@@ -1,4 +1,4 @@
-import { cancelOrder, closePosition, metrics, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type Step } from "./core";
+import { cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type Step } from "./core";
 import type { AccountMetrics, AccountState, EngineEvent, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, TargetReport } from "./types";
 import { EngineError } from "./types";
 
@@ -151,6 +151,7 @@ export class LocalVenue {
   place(accountId: string, req: OrderRequest) { return this.run(accountId, (s, c) => placeOrder(s, req, c)); }
   close(accountId: string, positionId: string, lots?: number) { return this.run(accountId, (s, c) => closePosition(s, positionId, lots, c)); }
   modify(accountId: string, positionId: string, p: { stopLoss?: number | null; takeProfit?: number | null }) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c)); }
+  modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c)); }
   cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId)); }
 }
 

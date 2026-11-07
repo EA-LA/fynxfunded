@@ -98,8 +98,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Engine: consistency (40% best day) check in the target report: `targetReport` (profit vs target, trading days, best 22:00 UTC day and its share, total profit at which the best day fits, plain list of what's missing); the target is only reported when all rules are met; every venue snapshot carries the report; `rulesFromPurchase` turns stored purchase rules into an engine rule set (2026-11-07)
 - [ ] Engine: swap/rollover, per-symbol trading hours, weekend gap handling
 - [x] Terminal: edit an open position from the Positions tab: stop loss / take profit as prices (set, change or remove), dollar and pip result at each level, "Stop to break-even", same-side checks as the engine before sending, warning when the stop is beyond the room left before the loss limit, partial close by lots; "Progress on this account" card on the Account tab (target, days, best day vs 40%, open positions, what's still needed) (2026-11-07)
-- [ ] Terminal: modify price / SL / TP of pending orders (engine has no modifyOrder yet)
-- [ ] Engine: Firestore AccountStore adapter and QuoteFeed adapter template; server host skeleton for the HTTP contract (non-deployed path)
+- [x] Terminal: edit a pending order from the Pending orders tab: move the price, set/change/remove stop loss and take profit, pips from the market, dollar result at each level after the fill, loss-limit warning; engine `modifyOrder` + venue + all gateways + `PATCH /v1/accounts/{id}/orders/{orderId}` (2026-11-07)
+- [x] Engine: server host skeleton for the HTTP contract (`src/engine/host.ts`, not imported by the site): token check, account ownership, tradingEnabled switch for opening/changing orders, strict bodies, error codes to HTTP statuses; tested end to end against HttpGateway (2026-11-07)
+- [ ] Engine: Firestore AccountStore adapter and QuoteFeed adapter template
 - [ ] Account number + password sign-in emailed after purchase (owner request 2026-11-07): needs backend credential issuing and an owner-approved release; today the site deliberately emails no passwords
 - [ ] Positions/History tabs: fill from the production ledger when trading opens
 
