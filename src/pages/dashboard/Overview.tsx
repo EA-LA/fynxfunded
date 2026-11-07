@@ -5,6 +5,7 @@ import { dataService } from "@/services/database";
 import { useState, useEffect } from "react";
 import type { Challenge, TradingAccount } from "@/services/types";
 import { displayDate, publicAccountReference } from "@/lib/publicReferences";
+import AccountPlanCard from "@/components/AccountPlanCard";
 
 export default function DashboardOverview() {
   const { user } = useAuth();
@@ -69,6 +70,23 @@ export default function DashboardOverview() {
           >
             Start Your First Challenge <ArrowRight size={16} />
           </Link>
+          <div className="mx-auto mt-8 max-w-2xl border-t border-border pt-6 text-left" data-testid="plan-before-buying">
+            <h4 className="text-sm font-semibold">Plan before you buy</h4>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-3">
+              {[
+                { to: "/challenges#finder", label: "Find your challenge", hint: "Plans that fit your budget and risk" },
+                { to: "/rules#risk-planner", label: "Risk planner", hint: "Losing trades each plan can absorb" },
+                { to: "/rules#simulator", label: "Pass simulator", hint: "Test a plan 2,000 times" },
+              ].map((t) => (
+                <li key={t.to}>
+                  <Link to={t.to} className="block h-full rounded-md border border-border p-3 transition-colors hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <span className="block text-sm font-medium">{t.label}</span>
+                    <span className="block text-xs text-muted-foreground">{t.hint}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
@@ -133,6 +151,8 @@ function ActiveDashboard({ challenge, account }: { challenge: Challenge; account
           </div>
         </div>
       </div>
+
+      <AccountPlanCard challenge={challenge} />
 
       {/* Trading Platform Credentials */}
       {account ? (

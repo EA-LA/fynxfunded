@@ -90,6 +90,9 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [ ] Learning certificates: hide rows that don't apply (passed/funded date, profit split) instead of showing "—"
 
 ## Dashboard (/dashboard/*)
+- [x] Dashboard home (/dashboard): "Your rules in dollars" for the active challenge (phase target and balance, daily loss limit, static maximum-loss floor, minimum days; profit split and payout requests for funded accounts), Phase 1 → Funded path with the current step, later phases' targets, live countdown to the 22:00 UTC reset in local time, and four tools preloaded with the account's size/program/phase; sizes outside the published schedule get a plain note pointing to Objectives (2026-11-07)
+- [x] Dashboard home with no active challenge: "Plan before you buy" links to Find your challenge, the risk planner and the pass simulator (2026-11-07)
+- [ ] Dashboard home: show funded accounts (today only "active" challenges get the main card)
 - [x] Trades: Breakeven filter (was missing), Buy/Sell and session filters, "Clear filters", sortable columns with screen-reader order, totals that follow the filters, wins/losses/average/largest row, filtered CSV export (2026-11-04)
 - [x] Trades: losing P/L showed as "$-80.00"; now "-$80.00" (2026-11-04)
 - [x] Trades: open/close times were raw computer timestamps ("2026-11-02T09:00:00.000Z"); now readable ("Nov 2, 10:00") in the trader's local time with a Local/UTC switch that is remembered; CSV export headers say the times are UTC (2026-11-04)
@@ -107,4 +110,4 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Fixed: Account MetriX showed the closed-trade drawdown as a gain ("+$120.00"); now "$120.00" like Analytics. "General statistics" showed "+$0.00" for average profit/loss and a best session when there were no such trades; now "—" (2026-11-06)
 - [x] Account workspace Analysis: long/short comparison now shows result, trades and share, win rate, wins/losses and average per trade for each side, a plain comparison once each side has 3+ trades, and "?" help (new glossary term "Long and short") (2026-11-06)
 - [x] Dashboard Analytics: the same long/short comparison (result, trades and share, win rate, wins/losses, average per trade, comparison once each side has 3+ trades) for the recorded trades, following the 7D/30D/All range; one shared card with the account Analysis tab (2026-11-07)
-- [ ] Add tests covering public marketing pages render (Index, Challenges, Rules, Payouts)
+- [x] Tests covering public marketing pages render (Index, Challenges, Rules, Payouts): already covered by home-tools, challenge-finder, rule-calculator and how-it-works-payouts tests (checked 2026-11-07)

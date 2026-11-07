@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-07 04:20 UTC — [autopilot] Dashboard home: your rules in dollars, today's reset countdown and tools set to your account
+
+- The dashboard home page now shows, for your active challenge, the rules of your purchase in dollars: the profit target for the phase you're in (and the balance to reach), the daily loss limit, the maximum loss floor and the minimum trading days, each with a "?" explanation. It also shows where the account is on its path (Phase 1 → Phase 2 → Funded) and what the later phases will ask for. Official progress stays on Objectives. See it at https://www.fynxfunded.com/dashboard
+- A live countdown to the 22:00 UTC daily reset, with the reset time in your own time zone, sits under the rules.
+- Four shortcuts open the rules calculator, risk planner, position size calculator and pass simulator already set to your account size, program and phase.
+- With no active challenge, the dashboard home now offers "Plan before you buy" links: Find your challenge, the risk planner and the pass simulator.
+
 ## 2026-11-07 00:30 UTC — [autopilot] Lot sizes for cross pairs like GBP/JPY and EUR/GBP; long vs short on dashboard Analytics
 
 - The position size calculator on the Trading rules page now handles forex pairs without the US dollar (EUR/GBP, GBP/JPY, EUR/JPY, AUD/CAD, EUR/CHF, AUD/NZD and more). Pick "Forex cross pair", choose the second currency, type the matching US-dollar price from your platform, and it shows the lot size, the dollar value of a pip and the loss at your stop. The share link keeps the pair type. See it at https://www.fynxfunded.com/rules?inst=cross&qc=JPY#position-size
