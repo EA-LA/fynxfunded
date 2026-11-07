@@ -89,6 +89,12 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [ ] Add /certificates/verify to the search-engine page list (needs a static render route; check the Vercel rewrite first)
 - [ ] Learning certificates: hide rows that don't apply (passed/funded date, profit split) instead of showing "—"
 
+## FYNX Trade (/trade)
+- [x] MT5-style terminal: Market Watch with 45 forex pairs (search, groups, favourites), live TradingView chart, price and ticker after one-time consent, order panel (SELL/BUY, market/limit/stop, lots stepper, SL/TP in pips, pip value, risk/profit in dollars, share of daily loss allowance), account bar, Positions/Pending/History/Account tabs, phone bottom menu (2026-11-07)
+- [ ] Connect BUY/SELL to the production execution service once the owner approves a licensed price feed and the backend release (orders are not sent today)
+- [ ] Account number + password sign-in emailed after purchase (owner request 2026-11-07): needs backend credential issuing and an owner-approved release; today the site deliberately emails no passwords
+- [ ] Positions/History tabs: fill from the production ledger when trading opens
+
 ## Dashboard (/dashboard/*)
 - [x] Dashboard home (/dashboard): "Your rules in dollars" for the active challenge (phase target and balance, daily loss limit, static maximum-loss floor, minimum days; profit split and payout requests for funded accounts), Phase 1 → Funded path with the current step, later phases' targets, live countdown to the 22:00 UTC reset in local time, and four tools preloaded with the account's size/program/phase; sizes outside the published schedule get a plain note pointing to Objectives (2026-11-07)
 - [x] Dashboard home with no active challenge: "Plan before you buy" links to Find your challenge, the risk planner and the pass simulator (2026-11-07)

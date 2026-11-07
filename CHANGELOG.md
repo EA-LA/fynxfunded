@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-07 05:20 UTC — FYNX Trade is now a full trading screen (like MT5)
+
+- https://www.fynxfunded.com/trade has been rebuilt as a trading terminal. You'll see:
+  - Market Watch with all 45 forex pairs (7 majors, 21 minors, 17 exotics). You can search by symbol or currency name ("yen", "rand"), filter by group, and star favourites.
+  - A live TradingView chart and live price for the pair you pick, with 1m–1D timeframes and a live ticker for the main pairs. These load after you agree once, and that choice is remembered on the device.
+  - An order panel with big red SELL and blue BUY buttons, market/limit/stop types, a lot picker (− / + and 0.01/0.10/0.50/1.00), and stop loss and take profit in pips. It shows contract size, pip size and pip value, and the dollar risk and profit at your stop and target. It also says how much of your daily loss limit one stop would use.
+  - An account bar (balance, equity, floating P/L, margin, free margin, phase), forex market open/closed, and a countdown to the daily reset.
+  - Positions, Pending orders, History and Account tabs, including your rules in dollars and the account email status.
+  - On phones, an MT5-style bottom menu: Quotes, Chart, Trade, History, Account.
+- Orders are not sent yet. Pressing BUY or SELL shows the order summary and says that trading isn't switched on for the account. Turning on real trading needs a licensed price feed, the production trading server and an approved backend release.
+
 ## 2026-11-07 05:00 UTC — Log in goes straight to the dashboard; second owner account prepared
 
 - After logging in you now go straight to the dashboard (https://www.fynxfunded.com/dashboard) instead of the "Purchases and trading are paused" page. Accounts that don't have Funded access are still sent to that page automatically.
