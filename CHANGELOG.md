@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-07 05:00 UTC — Log in goes straight to the dashboard; second owner account prepared
+
+- After logging in you now go straight to the dashboard (https://www.fynxfunded.com/dashboard) instead of the "Purchases and trading are paused" page. Accounts that don't have Funded access are still sent to that page automatically.
+- The server rules now accept ha6876122@gmail.com as a second owner account next to fynxteam5@gmail.com. It still needs the same protections: an operator-set owner flag, its account ID added to the private access settings, and an email + password sign-in. A new script (scripts/grant-funded-owner.cjs) sets the flag and adds the ID. These changes only work after the backend is redeployed, and the "Funded access check" server function, which isn't in this code, also has to allow the new email.
+
 ## 2026-11-07 04:20 UTC — [autopilot] Dashboard home: your rules in dollars, today's reset countdown and tools set to your account
 
 - The dashboard home page now shows, for your active challenge, the rules of your purchase in dollars: the profit target for the phase you're in (and the balance to reach), the daily loss limit, the maximum loss floor and the minimum trading days, each with a "?" explanation. It also shows where the account is on its path (Phase 1 → Phase 2 → Funded) and what the later phases will ask for. Official progress stays on Objectives. See it at https://www.fynxfunded.com/dashboard

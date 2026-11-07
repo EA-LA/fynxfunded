@@ -1,13 +1,13 @@
 import * as admin from "firebase-admin";
 import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
-import { privateOwnerAllowed } from "./privateFundedPolicy";
+import { configuredOwnerUIDs, privateOwnerAllowed } from "./privateFundedPolicy";
 
 /** Background fulfillment has no client session; resolve the pinned identity and current trusted role. */
 export async function isPrivateFundedUser(uid: string): Promise<boolean> {
   if (!uid) return false;
   const configuration = await admin.firestore().doc("funded_private_access/current").get();
   const config = configuration.data();
-  if (config?.enabled !== true || config.ownerUID !== uid) return false;
+  if (!configuredOwnerUIDs(config).includes(uid)) return false;
   let user;
   try { user = await admin.auth().getUser(uid); }
   catch (error) { if ((error as { code?: string }).code === "auth/user-not-found") return false; throw error; }

@@ -36,7 +36,8 @@ describe('auth context session publication', () => {
     mock.signIn.mockResolvedValue(customer); show('/login');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('customer'));
-    expect(screen.getByTestId('location')).toHaveTextContent('/account');
+    // The dashboard checks Funded access itself and sends everyone else to /account.
+    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard');
   });
   it('preserves a safe requested destination after sign-in', async () => {
     mock.signIn.mockResolvedValue(customer); show('/login?next=%2Ftrade%2Faccess%3Faccount%3Dexample');

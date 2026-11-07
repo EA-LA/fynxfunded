@@ -1,16 +1,26 @@
 /** Private Funded authorization is separate from Tools authentication. */
 export const FUNDED_OWNER_EMAIL = "fynxteam5@gmail.com";
-export interface PrivateOwnerConfig { enabled?: boolean; ownerUID?: string }
+/** Owner accounts that may hold private Funded access (each still needs the operator-set claim and a pinned UID). */
+export const FUNDED_OWNER_EMAILS: readonly string[] = Object.freeze([FUNDED_OWNER_EMAIL, "ha6876122@gmail.com"]);
+const MAX_PRIVATE_OWNERS = 5;
+export interface PrivateOwnerConfig { enabled?: boolean; ownerUID?: string; ownerUIDs?: unknown }
+/** UIDs pinned in funded_private_access/current: the original ownerUID plus an optional short ownerUIDs list. */
+export function configuredOwnerUIDs(config: PrivateOwnerConfig | undefined): string[] {
+  if (!config || config.enabled !== true) return [];
+  const extra = Array.isArray(config.ownerUIDs) && config.ownerUIDs.length <= MAX_PRIVATE_OWNERS ? config.ownerUIDs : [];
+  return [config.ownerUID, ...extra].filter((uid): uid is string => typeof uid === "string" && uid.trim().length > 0 && uid === uid.trim());
+}
 export interface PrivateIdentity { uid: string; token: Record<string, any> }
 export interface PrivateUser { uid: string; email?: string; emailVerified: boolean; disabled: boolean; customClaims?: Record<string, any>; tokensValidAfterTime?: string; providerData: Array<{ providerId: string }> }
 export function privateOwnerAllowed(identity: PrivateIdentity | undefined, config: PrivateOwnerConfig | undefined, user: PrivateUser | undefined): boolean {
-  if (!identity || !config || !user || config.enabled !== true || !config.ownerUID || config.ownerUID !== identity.uid || user.uid !== identity.uid) return false;
+  if (!identity || !config || !user || !configuredOwnerUIDs(config).includes(identity.uid) || user.uid !== identity.uid) return false;
+  const email = String(user.email ?? "").toLowerCase();
   const provider = identity.token.firebase?.sign_in_provider;
   const passwordSession = provider === "password" || (provider === "custom" && typeof identity.token.funded_mfa === "string" && /^[a-f0-9]{64}$/.test(identity.token.funded_mfa));
   const authTime = Number(identity.token.auth_time), validAfter = Date.parse(user.tokensValidAfterTime ?? "") / 1000;
   return passwordSession && user.providerData.some(p => p.providerId === "password") && !user.disabled && user.emailVerified === true &&
-    identity.token.email_verified === true && String(user.email ?? "").toLowerCase() === FUNDED_OWNER_EMAIL &&
-    String(identity.token.email ?? "").toLowerCase() === FUNDED_OWNER_EMAIL && identity.token.fundedOwner === true && user.customClaims?.fundedOwner === true &&
+    identity.token.email_verified === true && FUNDED_OWNER_EMAILS.includes(email) &&
+    String(identity.token.email ?? "").toLowerCase() === email && identity.token.fundedOwner === true && user.customClaims?.fundedOwner === true &&
     Number.isFinite(authTime) && authTime > 0 && (!Number.isFinite(validAfter) || authTime >= validAfter);
 }
 export interface WaitlistInput { email: string; name: string; source: "ios" | "web"; consentVersion: string }
