@@ -185,6 +185,15 @@ export interface ArchivedHistory {
   lastClosedAt: number;
 }
 
+/** One archived chunk of old deals (oldest first), as a store keeps it. */
+export interface ArchiveChunk { accountId: string; index: number; firstClosedAt: number; lastClosedAt: number; deals: Deal[] }
+
+/** One page of archived history for the terminal: a chunk plus how many chunks the account has. */
+export interface HistoryPage extends ArchiveChunk {
+  /** Number of archive chunks (indexes 0 … chunks − 1, 0 is the oldest). */
+  chunks: number;
+}
+
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";
 
 export interface AccountState {

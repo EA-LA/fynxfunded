@@ -64,7 +64,8 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Payout estimator: "Compared with the challenge fee": how many times the estimated share covers the published fee for that size/program, or how far short it is, and the net profit that covers it; links to the simulator's funding-cost view (2026-11-06)
 - [ ] Dashboard Payouts: prefill the readiness check from the trader's verified funded account once payout eligibility data is reliable
 - [x] Fixed: dashboard Payouts said "Bi-weekly, every 14 calendar days"; now matches the published calendar (twice a month, 1st–3rd and 16th–18th UTC) (2026-11-06)
-- [ ] Dashboard Payouts says profit split "Up to 90%" for everyone; show the trader's own plan split once account data is verified
+- [x] Dashboard Payouts: "Your Profit Split" shows the funded account's split from the published schedule (range when several), and a "Your profit split" card lists each funded account with its split and a labelled $1,000 example (you / FYNX); plans outside the schedule point to Objectives; no funded account keeps "Up to 90%" (2026-11-08)
+- [ ] Dashboard Payouts: "Min Days 5 days" is the same for every plan; confirm the payout minimum-days policy with the owner and show the plan's own value
 
 ## FAQ (/faq)
 - [x] Search, FAQPage structured data, related links and "Email support" block (2026-11-03)
@@ -105,7 +106,7 @@ Prioritized, page by page. One to three focused changes per run. Safety: no chan
 - [x] Engine: server host skeleton for the HTTP contract (`src/engine/host.ts`, not imported by the site): token check, account ownership, tradingEnabled switch for opening/changing orders, strict bodies, error codes to HTTP statuses; tested end to end against HttpGateway (2026-11-07)
 - [x] Engine: Firestore AccountStore adapter (`src/engine/firestore-store.ts`, transaction lock on `sequence`, size/shape/id checks) and QuoteFeed adapter template (`src/engine/quote-feed.ts`, symbol mapping, price validation, reconnect backoff, health for /v1/status) with tests (2026-11-07)
 - [x] Engine: old deal history moves out of the account document before the store limit: `archiveHistory` (core, pure) keeps the newest deals and an `archived` summary (count, net, daily results for the best-day rule, recent client ids for retries, deal numbering); `FirestoreAccountStore` writes the moved deals to `engineAccounts/{id}/history/{000000…}` in the same transaction above 600 KB, `archivedDeals()` reads them back; terminal History tab says how many older trades are archived, their dates and net result (2026-11-08)
-- [ ] Engine: `GET /v1/accounts/{id}/history?chunk=n` in host.ts + HttpGateway so the terminal can page through archived deals
+- [x] Engine: `GET /v1/accounts/{id}/history?chunk=n` (host.ts, `venue.history`, optional `AccountStore.archivedDeals`, `HttpGateway.archivedDeals` with page validation, local adapter; archiving `MemoryStore` for tests); terminal History tab "Show older trades" loads the archive page by page, newest first, with per-page heading, "All N shown" and retry on error (2026-11-08)
 - [ ] Account number + password sign-in emailed after purchase (owner request 2026-11-07): needs backend credential issuing and an owner-approved release; today the site deliberately emails no passwords
 - [ ] Positions/History tabs: fill from the production ledger when trading opens
 

@@ -17,7 +17,7 @@ import { useEngine, type EngineHandle } from './useEngine';
 import type { TradingGateway } from '@/engine/gateway';
 import type { Snapshot } from '@/engine/venue';
 import { profitUsd } from '@/engine/core';
-import type { InstrumentSpec, QuoteBook } from '@/engine/types';
+import type { Deal, HistoryPage, InstrumentSpec, QuoteBook } from '@/engine/types';
 import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
 import PositionEditor from './PositionEditor';
 import OrderEditor from './OrderEditor';
@@ -367,6 +367,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const now = useNow();
+  const archive = useArchivePages(engine, accountId, snap?.state.archived?.chunks ?? 0);
   const editingOpen = !!editing && (tab === 'positions' ? !!snap?.state.positions.some(p => p.id === editing) : !!snap?.state.orders.some(o => o.id === editing));
   const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
   const cell = 'whitespace-nowrap px-3 py-1.5 font-mono';
@@ -387,20 +388,60 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
           <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss or take profit of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
         </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><OrderEditor order={o} snapshot={snap} engine={engine} hours={pairMarket(engine.status, o.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
-        {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <tr key={d.id} className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td><td className={cell}>{money(d.swap ?? 0)}</td>
-          <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
-        </tr>)}
+        {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <DealRow key={d.id} d={d} cell={cell} />)}
       </tbody>
+      {tab === 'history' && archive.pages.map(page => <tbody key={page.index} data-testid={`archive-page-${page.index}`}>
+        <tr className="border-b border-border/60 bg-secondary/30"><th scope="rowgroup" colSpan={headers.length} className="px-3 py-1 text-left font-medium text-muted-foreground">Archived · {time(page.firstClosedAt)} – {time(page.lastClosedAt)} · {page.deals.length} trade{page.deals.length === 1 ? '' : 's'} · net {money(page.deals.reduce((t, d) => t + d.netProfit, 0))}</th></tr>
+        {[...page.deals].reverse().map(d => <DealRow key={d.id} d={d} cell={cell} />)}
+      </tbody>)}
     </table>
     {tab === 'history' && snap?.state.archived && snap.state.archived.deals > 0 && <p data-testid="history-archived" className="border-t px-4 py-2 text-xs text-muted-foreground">
       Showing the latest {snap.state.history.length} closed trade{snap.state.history.length === 1 ? '' : 's'}. {snap.state.archived.deals} older trade{snap.state.archived.deals === 1 ? '' : 's'} ({time(snap.state.archived.firstClosedAt)} – {time(snap.state.archived.lastClosedAt)}, net {money(snap.state.archived.netProfit)}) {snap.state.archived.deals === 1 ? 'is' : 'are'} kept in the account archive and still count toward your balance, best day and progress.
+      <span className="mt-1.5 flex flex-wrap items-center gap-2">
+        {archive.next !== null
+          ? <button type="button" data-testid="archive-more" disabled={archive.loading} onClick={() => void archive.loadMore()} className="rounded border px-2 py-1 font-medium text-foreground hover:bg-secondary disabled:opacity-50">{archive.loading ? 'Loading…' : archive.pages.length ? 'Show earlier trades' : 'Show older trades'}</button>
+          : <span role="status">All {snap.state.archived.deals} archived trade{snap.state.archived.deals === 1 ? '' : 's'} shown.</span>}
+        {archive.pages.length > 0 && <span>{archive.shown} of {snap.state.archived.deals} archived shown</span>}
+      </span>
+      {archive.error && <span role="alert" className="mt-1 block text-red-500">{archive.error}</span>}
     </p>}
     {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : snap?.state.archived?.deals ? null : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
     {tab === 'orders' && notice && !editingOpen && <p role="status" data-testid="order-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {tab === 'positions' && notice && !editingOpen && <p role="status" data-testid="position-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {engine.error && <p role="alert" className="px-4 pb-3 text-xs text-red-500">{engine.error}</p>}
   </div>;
+}
+
+function DealRow({ d, cell }: { d: Deal; cell: string }) {
+  return <tr className="border-b border-border/60">
+    <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td><td className={cell}>{money(d.swap ?? 0)}</td>
+    <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
+  </tr>;
+}
+
+/**
+ * Pages through the account archive newest page first (the highest chunk
+ * index), one page per click. Starts over when the account changes or the
+ * server archives more trades while the list is open.
+ */
+function useArchivePages(engine: EngineHandle, accountId: string | undefined, chunks: number) {
+  const [pages, setPages] = useState<HistoryPage[]>([]);
+  const [loading, setLoading] = useState(false), [error, setError] = useState('');
+  const key = `${accountId}:${chunks}`, keyRef = useRef(key);
+  useEffect(() => { keyRef.current = key; setPages([]); setError(''); setLoading(false); }, [key]);
+  const next = chunks - 1 - pages.length >= 0 ? chunks - 1 - pages.length : null;
+  const loadMore = async () => {
+    if (!accountId || next === null || loading) return;
+    const asked = key;
+    setLoading(true); setError('');
+    try {
+      const page = await engine.gateway.archivedDeals(accountId, next);
+      if (keyRef.current === asked) setPages(p => p.some(x => x.index === page.index) ? p : [...p, page]);
+    } catch (e) {
+      if (keyRef.current === asked) setError(e instanceof Error ? e.message : 'Could not load older trades.');
+    } finally { if (keyRef.current === asked) setLoading(false); }
+  };
+  return { pages, next, loading, error, loadMore, shown: pages.reduce((t, p) => t + p.deals.length, 0) };
 }
 
 /** Target, minimum days and 40% best-day progress from the engine (shown only when the engine sends a report). */

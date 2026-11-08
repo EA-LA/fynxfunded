@@ -6,7 +6,10 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { watchCurrentUserKyc } from "@/services/kyc";
 import { canRequestPayout, getUserPayouts, requestPayout } from "@/services/payouts";
-import type { PayoutRequest } from "@/services/types";
+import type { Challenge, PayoutRequest } from "@/services/types";
+import { dataService } from "@/services/database";
+import { fundedSplits } from "@/lib/fundedSplit";
+import FundedSplitCard from "@/components/FundedSplitCard";
 
 export default function DashboardPayouts() {
   const { hasAccount, payout } = useTradingData();
@@ -17,6 +20,7 @@ export default function DashboardPayouts() {
   const [payoutAmount, setPayoutAmount] = useState("");
   const [payoutMethod, setPayoutMethod] = useState("Bank Card");
   const [submitting, setSubmitting] = useState(false);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
 
   useEffect(() => {
     if (user?.userId) {
@@ -26,6 +30,7 @@ export default function DashboardPayouts() {
       }).catch(console.error);
 
       getUserPayouts(user.userId).then(setPayoutHistory).catch(console.error);
+      dataService.getChallenges(user.userId).then(setChallenges).catch(() => setChallenges([]));
       return watchCurrentUserKyc(user.userId, (record) => {
         const verified = record.kycStatus === "verified";
         setKycAllowed(verified && user.emailVerified);
@@ -34,6 +39,7 @@ export default function DashboardPayouts() {
     }
   }, [user?.userId, user?.emailVerified]);
 
+  const split = fundedSplits(challenges);
   const isVerified = user?.kycStatus === "verified" && kycAllowed;
 
   const handleRequestPayout = async () => {
@@ -87,12 +93,14 @@ export default function DashboardPayouts() {
             <Link to="/payouts#readiness" className="ml-auto text-xs font-medium underline-offset-4 hover:underline">Am I ready to request?</Link>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
-            <RuleBox label="Profit Split" value="Up to 90%" desc="Based on your challenge tier" />
+            <RuleBox label={split.personal ? "Your Profit Split" : "Profit Split"} value={split.value} desc={split.desc} />
             <RuleBox label="Payout Schedule" value="Twice a month" desc="Requests open the 1st–3rd and 16th–18th (UTC)" />
             <RuleBox label="Min Trading Days" value="5 days" desc="Must be met before first payout" />
             <RuleBox label="KYC Required" value="Yes" desc="Identity verification mandatory" />
           </div>
         </div>
+
+        <FundedSplitCard rows={split.rows} />
 
         <EmptyState
           icon={<Wallet size={24} />}
@@ -171,12 +179,14 @@ export default function DashboardPayouts() {
           <Link to="/payouts#readiness" className="ml-auto text-xs font-medium underline-offset-4 hover:underline">Am I ready to request?</Link>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <RuleBox label="Profit Split" value="Up to 90%" desc="Based on your challenge tier" />
+          <RuleBox label={split.personal ? "Your Profit Split" : "Profit Split"} value={split.value} desc={split.desc} />
           <RuleBox label="Schedule" value="Twice a month" desc="Requests open the 1st–3rd and 16th–18th (UTC)" />
           <RuleBox label="Min Days" value="5 days" desc="Before first payout" />
           <RuleBox label="KYC" value={isVerified ? "Verified" : "Required"} desc={isVerified ? "You're eligible" : "Complete in Settings"} />
         </div>
       </div>
+
+      <FundedSplitCard rows={split.rows} />
 
       {/* Request form */}
       <div className="premium-card">

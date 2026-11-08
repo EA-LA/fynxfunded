@@ -1,5 +1,5 @@
 import type { AccountStore } from "./venue";
-import type { AccountState, ArchivedHistory, Deal } from "./types";
+import type { AccountState, ArchiveChunk, ArchivedHistory, Deal } from "./types";
 import { EngineError } from "./types";
 import { archiveHistory } from "./core";
 
@@ -63,7 +63,7 @@ export interface FirestoreStoreOptions {
 /** Archive document id for a chunk index: zero-padded so ids sort in order. */
 export const archiveChunkId = (index: number) => String(index).padStart(6, "0");
 
-export interface ArchiveChunk { accountId: string; index: number; firstClosedAt: number; lastClosedAt: number; deals: Deal[] }
+export type { ArchiveChunk } from "./types";
 
 /** Firestore refuses `undefined` values; drop them (and copy) before writing. */
 export function toFirestoreData(state: AccountState): Record<string, unknown> {

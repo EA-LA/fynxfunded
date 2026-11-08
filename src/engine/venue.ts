@@ -1,5 +1,5 @@
-import { cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type Step } from "./core";
-import type { AccountMetrics, AccountState, EngineEvent, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
+import { archiveHistory, cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type Step } from "./core";
+import type { AccountMetrics, AccountState, ArchiveChunk, EngineEvent, HistoryPage, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
 import { FOREX_HOURS, marketState, type MarketState, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 
@@ -22,6 +22,13 @@ export interface AccountStore {
   load(accountId: string): Promise<AccountState | null>;
   /** Saves only if the stored sequence still equals expectedSequence (optimistic locking). */
   save(state: AccountState, expectedSequence: number): Promise<void>;
+  /**
+   * Optional: one chunk of deals the store moved out of the account (oldest
+   * chunk is 0), or null when it does not exist. Stores that archive old
+   * history (FirestoreAccountStore) implement it so the terminal can page
+   * through old trades with `GET /v1/accounts/{id}/history?chunk=n`.
+   */
+  archivedDeals?(accountId: string, index: number): Promise<ArchiveChunk | null>;
 }
 
 export interface AccountRecord {
@@ -113,14 +120,37 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
   };
 }
 
+export interface MemoryArchiveOptions {
+  /** Archive when the account holds more than this many deals. */
+  aboveDeals: number;
+  /** Newest deals kept in the account. */
+  keepRecentDeals: number;
+  chunkSize?: number;
+  resetHourUtc: number;
+}
+
+/**
+ * In-memory AccountStore for tests and demos. With `archive` it moves old
+ * deals into chunks the same way FirestoreAccountStore does (by deal count
+ * instead of document size), so archive paging can be tested end to end.
+ */
 export class MemoryStore implements AccountStore {
   private data = new Map<string, AccountState>();
+  private chunks = new Map<string, ArchiveChunk>();
+  constructor(private opts: { archive?: MemoryArchiveOptions } = {}) {}
   async load(id: string) { return this.data.get(id) ?? null; }
   async save(state: AccountState, expected: number) {
     const current = this.data.get(state.accountId);
     if (current && current.sequence !== expected) throw new EngineError("conflict", "The account changed; retry.");
+    const a = this.opts.archive;
+    if (a && state.history.length > a.aboveDeals && state.history.length > a.keepRecentDeals) {
+      const moved = archiveHistory(state, { keep: a.keepRecentDeals, resetHourUtc: a.resetHourUtc, chunkSize: a.chunkSize });
+      for (const c of moved.chunks) this.chunks.set(`${state.accountId}/${c.index}`, { accountId: state.accountId, index: c.index, firstClosedAt: c.deals[0].closedAt, lastClosedAt: c.deals[c.deals.length - 1].closedAt, deals: c.deals });
+      state = moved.state;
+    }
     this.data.set(state.accountId, state);
   }
+  async archivedDeals(accountId: string, index: number) { return this.chunks.get(`${accountId}/${index}`) ?? null; }
 }
 
 export interface Snapshot {
@@ -189,6 +219,23 @@ export class LocalVenue {
   modify(accountId: string, positionId: string, p: { stopLoss?: number | null; takeProfit?: number | null }) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c)); }
   modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c)); }
   cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId)); }
+
+  /**
+   * One page of archived (older) deals: chunk `index`, 0 being the oldest.
+   * Read-only; it never ticks or saves the account.
+   */
+  async history(accountId: string, index: number): Promise<HistoryPage> {
+    if (!Number.isInteger(index) || index < 0) throw new EngineError("bad_request", "chunk must be a whole number from 0.");
+    const state = await this.store.load(accountId);
+    if (!state) throw new EngineError("no_account", "Account not found.");
+    const chunks = state.archived?.chunks ?? 0;
+    if (index >= chunks) throw new EngineError("no_chunk", chunks ? `This account has ${chunks} archive page${chunks === 1 ? "" : "s"} (0 to ${chunks - 1}).` : "This account has no archived trades.");
+    if (!this.store.archivedDeals) throw new EngineError("no_archive", "This server cannot read archived trades yet.");
+    const chunk = await this.store.archivedDeals(accountId, index);
+    if (!chunk) throw new EngineError("no_chunk", "That archive page could not be found.");
+    if (chunk.accountId !== accountId || chunk.index !== index) throw new EngineError("bad_state", "The archive page belongs to another account.");
+    return { ...chunk, chunks };
+  }
 }
 
 /** Fixed prices, for tests and demos. Never use for real accounts. */

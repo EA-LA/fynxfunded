@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-08 08:18 UTC — [autopilot] FYNX Trade: browse every archived trade; Payouts shows your own profit split
+
+- Trading terminal (https://www.fynxfunded.com/trade/access), History tab: when older trades have been moved to the account archive, a "Show older trades" button now loads them right into the list, one page at a time (newest first). Each page has a heading with its dates, number of trades and net result; at the end it says "All … archived trades shown". If a page can't be loaded you see a plain message and can try again.
+- Ready for when the trading server is connected: the server address that hands out these archive pages is built, checks who is asking and which account it is, and is tested end to end with the real account storage. The terminal refuses a page that doesn't belong to the account instead of showing it.
+- Dashboard → Payouts (https://www.fynxfunded.com/dashboard/payouts): funded traders now see their own profit split (for example "85% · Your $50,000 2 phase plan") instead of "Up to 90%", plus a "Your profit split" table with every funded account, its split and a worked example of what you and FYNX each get from $1,000 of approved profit (clearly marked as an example). Traders without a funded account still see the general "Up to 90%".
+- Nothing was switched on; trading stays off until the owner connects it.
+
 ## 2026-11-08 04:16 UTC — [autopilot] FYNX Trade: accounts can trade for years without hitting a storage limit
 
 - Ready for when the trading server is connected: each trading account is saved as one record, and records have a size limit. Before, an account with thousands of closed trades would eventually have been refused. Now the oldest closed trades are moved, automatically and safely in the same save, into numbered archive pages next to the account, and the newest 300 stay on the account.

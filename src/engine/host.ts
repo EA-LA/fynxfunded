@@ -19,8 +19,13 @@ import { EngineError } from "./types";
 
 export interface HostRequest {
   method: string;
-  /** Path without the host, e.g. "/v1/accounts/acc_1/orders". A query string is ignored. */
+  /**
+   * Path without the host, e.g. "/v1/accounts/acc_1/orders". A query string
+   * on the path is read only by the history endpoint (`?chunk=n`).
+   */
   path: string;
+  /** Already-parsed query parameters (used instead of the path's query string when given). */
+  query?: Record<string, string | undefined>;
   headers: Record<string, string | undefined>;
   /** Parsed JSON body (undefined when there is none). */
   body?: unknown;
@@ -45,7 +50,7 @@ export interface HostOptions {
 
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
-  not_found: 404, no_account: 404, no_position: 404, no_order: 404,
+  not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404,
   method_not_allowed: 405, conflict: 409, bad_request: 400,
 };
 
@@ -93,6 +98,13 @@ function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit"
   return out;
 }
 
+/** Reads `chunk` (a whole number from 0) for GET /v1/accounts/{id}/history. */
+export function parseChunk(req: Pick<HostRequest, "path" | "query">): number {
+  const raw = req.query ? req.query.chunk : new URLSearchParams(req.path.split("?")[1] ?? "").get("chunk") ?? undefined;
+  if (raw === undefined || !/^\d{1,6}$/.test(raw)) throw new EngineError("bad_request", "Add ?chunk=n (a whole number from 0, 0 is the oldest page).");
+  return Number(raw);
+}
+
 const header = (h: HostRequest["headers"], name: string) => {
   const key = Object.keys(h).find(k => k.toLowerCase() === name.toLowerCase());
   return key ? h[key] : undefined;
@@ -111,7 +123,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
 
     if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets() } } : fail("method_not_allowed", "Use GET.");
 
-    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
+    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
     if (!m) return fail("not_found", "Unknown address.");
     const [, rawAccount, collection, rawItem, action] = m;
     const accountId = decodeURIComponent(rawAccount), itemId = rawItem === undefined ? undefined : decodeURIComponent(rawItem);
@@ -120,6 +132,11 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     const needsTrading = async () => { if (!(await opts.tradingEnabled(accountId))) throw new EngineError("trading_disabled", "Trading isn't switched on for this account yet, so no order was sent."); };
 
     if (!collection) return method === "GET" ? ok(await opts.venue.snapshot(accountId)) : fail("method_not_allowed", "Use GET.");
+    if (collection === "history") {
+      if (itemId) return fail("not_found", "Unknown address.");
+      if (method !== "GET") return fail("method_not_allowed", "Use GET.");
+      return { status: 200, body: await opts.venue.history(accountId, parseChunk(req)) };
+    }
     if (collection === "orders" && !itemId) {
       if (method !== "POST") return fail("method_not_allowed", "Use POST.");
       const order = parseOrderRequest(req.body, header(req.headers, "idempotency-key"));

@@ -384,3 +384,65 @@ describe("terminal history with archived trades", () => {
     expect(within(history).getByTestId("history-archived")).toHaveTextContent(/Showing the latest 1 closed trade\. 2 older trades .*net -\$\d+\.\d{2}\) are kept in the account archive/);
   });
 });
+
+describe("terminal paging through archived trades", () => {
+  afterEach(cleanup);
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-04T10:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  async function archivedVenue() {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const store = new MemoryStore({ archive: { aboveDeals: 3, keepRecentDeals: 1, chunkSize: 2, resetHourUtc: 22 } });
+    const rules = { startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 };
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), store, async () => rules, { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: Date.now() });
+    await venue.open(live.accountId);
+    for (const lots of [0.1, 0.2, 0.3, 0.4, 0.5]) {
+      const s = await venue.place(live.accountId, { symbol: "EURUSD", side: "buy", type: "market", lots });
+      await venue.close(live.accountId, s.state.positions[0].id);
+    }
+    return { venue, live };
+  }
+
+  it("loads older trades page by page, newest page first, until all are shown", async () => {
+    const { venue, live } = await archivedVenue();
+    const state = (await venue.snapshot(live.accountId)).state;
+    expect(state.archived).toMatchObject({ deals: 3, chunks: 2 });
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    await screen.findByTestId("engine-positions");
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    const history = await screen.findByTestId("engine-history");
+    expect(within(history).getAllByText("manual")).toHaveLength(2); // the newest trades kept in the account
+    await act(async () => { fireEvent.click(within(history).getByRole("button", { name: "Show older trades" })); });
+    expect(await within(history).findByTestId("archive-page-1")).toHaveTextContent(/Archived · .* 1 trade · net/);
+    expect(within(history).getByTestId("archive-page-1")).toHaveTextContent("0.30");
+    expect(within(history).getByText("1 of 3 archived shown")).toBeInTheDocument();
+    await act(async () => { fireEvent.click(within(history).getByRole("button", { name: "Show earlier trades" })); });
+    const oldest = await within(history).findByTestId("archive-page-0");
+    expect(oldest).toHaveTextContent(/2 trades/);
+    // Newest first inside the page too: 0.20 lots before 0.10 lots.
+    expect(within(oldest).getAllByRole("row").slice(1).map(r => r.textContent?.match(/0\.\d0/)?.[0])).toEqual(["0.20", "0.10"]);
+    expect(within(history).getAllByText("manual")).toHaveLength(5);
+    expect(within(history).getByRole("status")).toHaveTextContent("All 3 archived trades shown.");
+    expect(within(history).queryByTestId("archive-more")).toBeNull();
+  });
+
+  it("shows a plain error when a page cannot be loaded and lets the trader try again", async () => {
+    const { venue } = await archivedVenue();
+    const gateway = new LocalGatewayAdapter(venue);
+    const real = gateway.archivedDeals.bind(gateway);
+    let fail = true;
+    gateway.archivedDeals = async (id, i) => { if (fail) { fail = false; throw new Error("Could not reach the trading server."); } return real(id, i); };
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={gateway} />} /></Routes></MemoryRouter>);
+    await screen.findByTestId("engine-positions");
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    const history = await screen.findByTestId("engine-history");
+    await act(async () => { fireEvent.click(within(history).getByRole("button", { name: "Show older trades" })); });
+    expect(within(history).getByRole("alert")).toHaveTextContent("Could not reach the trading server.");
+    await act(async () => { fireEvent.click(within(history).getByRole("button", { name: "Show older trades" })); });
+    expect(await within(history).findByTestId("archive-page-1")).toBeInTheDocument();
+    expect(within(history).queryByRole("alert")).toBeNull();
+  });
+});
