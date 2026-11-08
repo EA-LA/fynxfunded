@@ -13,7 +13,7 @@ import {
   loadFavorites, normalizeLots, pairLabel, pairName, saveFavorites, searchPairs, type ForexGroup, type ForexPair,
 } from './instruments';
 import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
-import { useEngine, type EngineHandle } from './useEngine';
+import { engineLabel, useEngine, type EngineHandle } from './useEngine';
 import type { TradingGateway } from '@/engine/gateway';
 import type { Snapshot } from '@/engine/venue';
 import { profitUsd } from '@/engine/core';
@@ -108,7 +108,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
             </select></label>}
         </div>
         <div className="flex items-center gap-1 text-sm sm:gap-3">
-          <span data-testid="engine-status" title={engine.status?.message} className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${engine.status?.execution ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${engine.status?.execution ? 'bg-emerald-500' : engine.status?.connected ? 'bg-amber-500' : 'bg-muted-foreground'}`} />{engine.status?.execution ? 'Trading engine live' : engine.status?.connected ? 'Engine connected · waiting for prices' : 'Engine not connected'}</span>
+          <span data-testid="engine-status" title={engine.status?.message} className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${engine.status?.execution ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}><span className={`h-1.5 w-1.5 rounded-full ${engine.status?.execution ? 'bg-emerald-500' : engine.status?.connected ? 'bg-amber-500' : 'bg-muted-foreground'}`} />{engineLabel(engine.status)}</span>
           <span className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs md:inline-flex ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`} title={`Forex week: Sunday 17:00 to Friday 17:00 New York time (22:00 UTC, 21:00 in US summer). ${market.nextChange ? `${marketOpen ? 'Closes' : 'Opens'} ${localAt(market.nextChange)} your time.` : ''} Broker hours can differ.`}><span className={`h-1.5 w-1.5 rounded-full ${marketOpen ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />Forex {marketOpen ? 'open' : 'closed'}</span>
           <span className="hidden items-center gap-1.5 text-xs text-muted-foreground xl:inline-flex" title="The daily loss limit restarts from the balance at 22:00 UTC"><Clock size={13} aria-hidden="true" />Daily reset in {formatCountdown(day.msUntilReset)}</span>
           <button disabled={loading} onClick={reload} aria-label="Refresh accounts" className="rounded-md p-2 hover:bg-secondary disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /></button>
@@ -233,7 +233,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
   const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
-  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : '';
+  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
     if (!review || !lots || !account || !quote) return;
     const entryPrice = type === 'market' ? (review === 'buy' ? quote.ask : quote.bid) : Number(entry.replace(',', '.'));

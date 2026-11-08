@@ -138,6 +138,7 @@ import { LocalVenue, MemoryStore, StaticQuoteFeed, buildSpecs } from "@/engine/v
 import { LocalGatewayAdapter } from "@/engine/gateway";
 import { FOREX_HOURS } from "@/engine/hours";
 import { archiveHistory } from "@/engine/core";
+import { engineLabel } from "@/trade-access/useEngine";
 
 describe("terminal connected to the engine", () => {
   afterEach(cleanup);
@@ -173,6 +174,36 @@ describe("terminal connected to the engine", () => {
     await act(async () => { fireEvent.click(within(positions).getByRole("button", { name: /Close EURUSD position/ })); });
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(within(await screen.findByTestId("engine-history")).getByText("manual")).toBeInTheDocument();
+  });
+
+  it("explains why an order can't be sent when prices are live but the server's order checks are paused", async () => {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), new MemoryStore(),
+      async () => ({ startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 }), { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: Date.now() });
+    await venue.open(live.accountId);
+    const gateway = new LocalGatewayAdapter(venue);
+    const message = "Order checks are delayed on the server; pending orders and stops may fill late.";
+    gateway.status = async () => ({ connected: true, priceFeed: true, execution: false, message, markets: venue.markets() });
+    const place = vi.spyOn(gateway, "placeOrder");
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={gateway} />} /></Routes></MemoryRouter>);
+    const pill = await screen.findByText("Engine connected · order checks paused");
+    expect(pill.closest("[data-testid=engine-status]")).toHaveAttribute("title", message);
+    const ticket = screen.getByTestId("order-ticket");
+    await waitFor(() => expect(within(ticket).getByTestId("buy-button")).toHaveTextContent("1.08010"));
+    fireEvent.click(within(ticket).getByTestId("buy-button"));
+    expect(await within(ticket).findByText(`${message} This order was not sent.`)).toBeInTheDocument();
+    expect(screen.queryByTestId("confirm-order")).toBeNull();
+    expect(place).not.toHaveBeenCalled();
+  });
+
+  it("labels each engine state for the status pill", () => {
+    expect(engineLabel(null)).toBe("Engine not connected");
+    expect(engineLabel({ connected: true, priceFeed: false, execution: false, message: "" })).toBe("Engine connected · waiting for prices");
+    expect(engineLabel({ connected: true, priceFeed: true, execution: false, message: "" })).toBe("Engine connected · order checks paused");
+    expect(engineLabel({ connected: true, priceFeed: true, execution: true, message: "" })).toBe("Trading engine live");
   });
 
   it("edits stop loss and take profit, closes part of a position and shows target progress", async () => {

@@ -164,6 +164,7 @@ export interface Snapshot {
 export class LocalVenue {
   readonly quotes: QuoteBook = {};
   private listeners = new Set<(accountId: string, events: EngineEvent[]) => void>();
+  private quoteListeners = new Set<(q: Quote) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   constructor(
     private specs: Record<string, InstrumentSpec>,
@@ -176,8 +177,15 @@ export class LocalVenue {
 
   /** Connects a price feed. Every quote is stored and open accounts can be ticked by the host. */
   connect(feed: QuoteFeed): () => void {
-    return feed.subscribe(Object.keys(this.specs), q => { if (this.specs[q.symbol]) this.quotes[q.symbol] = q; });
+    return feed.subscribe(Object.keys(this.specs), q => {
+      if (!this.specs[q.symbol]) return;
+      this.quotes[q.symbol] = q;
+      this.quoteListeners.forEach(l => l(q));
+    });
   }
+
+  /** Called after every stored quote, e.g. to nudge the EngineRunner (runner.ts) so stops are checked on new prices. */
+  onQuote(listener: (q: Quote) => void) { this.quoteListeners.add(listener); return () => this.quoteListeners.delete(listener); }
 
   /** Open/closed, reason and next change for every symbol (or the given ones), for `/v1/status`. */
   markets(symbols: string[] = Object.keys(this.specs)): Record<string, MarketState> {

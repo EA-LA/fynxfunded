@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-08 12:20 UTC — [autopilot] FYNX Trade: the server now watches every account by itself
+- Stop losses, take profits, pending orders and the loss limits are now checked by the trading server every second and the moment a new price arrives, even when nobody has the terminal open. Before, this only happened when someone was clicking. It switches on together with the price feed; nothing is live yet.
+- Everything the trading server needs (prices, accounts, the automatic checks and the address the terminal talks to) now starts with one call, so connecting it is a short job once the price feed and server are chosen. The exact steps are in docs/ENGINE-READINESS.md.
+- The terminal's status badge now has a fourth state, "order checks paused", for when prices arrive but the server's automatic checks are behind. If you try to place an order then, the review explains why it wasn't sent. It used to show an empty line. See https://www.fynxfunded.com/trade/access
+
 ## 2026-11-08 08:18 UTC — [autopilot] FYNX Trade: browse every archived trade; Payouts shows your own profit split
 
 - Trading terminal (https://www.fynxfunded.com/trade/access), History tab: when older trades have been moved to the account archive, a "Show older trades" button now loads them right into the list, one page at a time (newest first). Each page has a heading with its dates, number of trades and net result; at the end it says "All … archived trades shown". If a page can't be loaded you see a plain message and can try again.
