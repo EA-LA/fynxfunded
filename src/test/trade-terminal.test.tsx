@@ -136,6 +136,7 @@ describe("FYNX Trade terminal", () => {
 import { act, waitFor } from "@testing-library/react";
 import { LocalVenue, MemoryStore, StaticQuoteFeed, buildSpecs } from "@/engine/venue";
 import { LocalGatewayAdapter } from "@/engine/gateway";
+import { FOREX_HOURS } from "@/engine/hours";
 
 describe("terminal connected to the engine", () => {
   afterEach(cleanup);
@@ -279,7 +280,7 @@ describe("terminal: market hours", () => {
     expect(note).toHaveTextContent("in 1d 10h 00m");
     fireEvent.click(within(ticket).getByTestId("buy-button"));
     expect(screen.queryByTestId("confirm-order")).not.toBeInTheDocument();
-    expect(screen.getByTestId("order-review")).toHaveTextContent("The forex market is closed until");
+    expect(screen.getByTestId("order-review")).toHaveTextContent("The EURUSD market is closed. It opens");
     await expect(venue.place(live.accountId, { symbol: "EURUSD", side: "buy", type: "market", lots: 0.1 })).rejects.toMatchObject({ code: "market_closed" });
   });
 });
@@ -302,3 +303,53 @@ describe("position protection helpers", () => {
     expect(parseCloseLots("0.25", 1)).toEqual({ ok: true, value: 0.25 });
   });
 });
+
+describe("terminal: holiday closure from the trading server", () => {
+  afterEach(cleanup);
+  afterEach(() => { vi.useRealTimers(); });
+  it("marks the closed pair in Market Watch and explains it in the editors before anything is sent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-04T10:00:00Z"));
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const closure = { from: Date.parse("2026-11-04T10:30:00Z"), to: Date.parse("2026-11-05T00:00:00Z"), reason: "Tokyo holiday" };
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50, hoursBySymbol: { USDJPY: { ...FOREX_HOURS, closures: [closure] } } }), new MemoryStore(),
+      async () => ({ startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 }), { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "USDJPY", bid: 150, ask: 150.02, time: Date.now() });
+    await venue.open(live.accountId);
+    await venue.place(live.accountId, { symbol: "USDJPY", side: "buy", type: "market", lots: 0.5 });
+    await venue.place(live.accountId, { symbol: "USDJPY", side: "buy", type: "limit", lots: 0.5, price: 149.5 });
+    vi.setSystemTime(new Date("2026-11-04T11:00:00Z"));
+    feed.push({ symbol: "USDJPY", bid: 150.1, ask: 150.12, time: Date.now() });
+    render(<MemoryRouter initialEntries={["/trade?symbol=USDJPY"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Trading engine live")).toBeInTheDocument();
+    const watch = screen.getByTestId("market-watch");
+    expect(await within(watch).findByTestId("closed-USDJPY")).toHaveTextContent("Tokyo holiday");
+    expect(within(watch).queryByTestId("closed-EURUSD")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("order-ticket")).getByTestId("market-closed")).toHaveTextContent("USDJPY market closed · Tokyo holiday");
+
+    const positions = await screen.findByTestId("engine-positions");
+    expect(await within(positions).findByRole("button", { name: /Close USDJPY position .* \(market closed\)/ })).toBeDisabled();
+    fireEvent.click(within(positions).getByRole("button", { name: /Edit stop loss, take profit or volume of USDJPY/ }));
+    const editor = screen.getByTestId("position-editor");
+    expect(within(editor).getByTestId("editor-market-closed")).toHaveTextContent("The USDJPY market is closed (Tokyo holiday). It opens");
+    expect(within(editor).getByTestId("editor-market-closed")).toHaveTextContent("in 13h 00m");
+    fireEvent.change(within(editor).getByLabelText("Stop loss (price)"), { target: { value: "149.800" } });
+    expect(within(editor).getByRole("button", { name: "Save levels" })).toBeDisabled();
+    expect(within(editor).getByRole("button", { name: "Close part" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Pending orders" }));
+    const orders = await screen.findByTestId("engine-orders");
+    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss or take profit of USDJPY order/ }));
+    const orderEditor = screen.getByTestId("order-editor");
+    expect(within(orderEditor).getByTestId("editor-market-closed")).toHaveTextContent("Cancelling the order works at any time.");
+    fireEvent.change(within(orderEditor).getByLabelText("Buy limit price"), { target: { value: "149.400" } });
+    expect(within(orderEditor).getByRole("button", { name: "Save order" })).toBeDisabled();
+    const cancel = within(orders).getByRole("button", { name: /Cancel USDJPY order/ });
+    expect(cancel).toBeEnabled();
+    await act(async () => { fireEvent.click(cancel); });
+    expect((await venue.snapshot(live.accountId)).state.orders).toEqual([]);
+    expect((await venue.snapshot(live.accountId)).state.positions[0].stopLoss).toBeUndefined();
+  });
+});
+

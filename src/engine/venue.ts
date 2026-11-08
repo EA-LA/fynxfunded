@@ -149,6 +149,12 @@ export class LocalVenue {
     return feed.subscribe(Object.keys(this.specs), q => { if (this.specs[q.symbol]) this.quotes[q.symbol] = q; });
   }
 
+  /** Open/closed, reason and next change for every symbol (or the given ones), for `/v1/status`. */
+  markets(symbols: string[] = Object.keys(this.specs)): Record<string, MarketState> {
+    const now = this.clock();
+    return Object.fromEntries(symbols.filter(s => this.specs[s]).map(s => [s, marketState(this.specs[s].hours, now)]));
+  }
+
   onEvents(listener: (accountId: string, events: EngineEvent[]) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
 
   private async context(accountId: string): Promise<EngineContext> {

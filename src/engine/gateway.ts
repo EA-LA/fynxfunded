@@ -2,6 +2,7 @@ import type { LocalVenue, Snapshot } from "./venue";
 import type { OrderRequest } from "./types";
 import type { OrderChange } from "./core";
 import { EngineError } from "./types";
+import type { MarketState } from "./hours";
 
 /**
  * What the FYNX Trade terminal talks to. Three implementations:
@@ -19,6 +20,27 @@ export interface GatewayStatus {
   /** Orders can be executed. */
   execution: boolean;
   message: string;
+  /**
+   * Open/closed per symbol from the server's trading hours (including the
+   * provider's holiday closures). Optional: without it the terminal uses the
+   * standard forex week.
+   */
+  markets?: Record<string, MarketState>;
+}
+
+/** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
+export function parseMarkets(raw: unknown): Record<string, MarketState> | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const out: Record<string, MarketState> = {};
+  for (const [symbol, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[A-Z]{6}$/.test(symbol) || typeof v !== "object" || v === null) continue;
+    const { open, nextChange, reason } = v as Record<string, unknown>;
+    if (typeof open !== "boolean") continue;
+    if (!(nextChange === null || nextChange === undefined || (typeof nextChange === "number" && Number.isFinite(nextChange) && nextChange > 0))) continue;
+    if (!(reason === null || reason === undefined || (typeof reason === "string" && reason.length <= 120))) continue;
+    out[symbol] = { open, nextChange: (nextChange as number | null | undefined) ?? null, reason: open ? null : ((reason as string | null | undefined) || "Outside trading hours") };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface TradingGateway {
@@ -80,8 +102,9 @@ export class HttpGateway implements TradingGateway {
 
   async status(): Promise<GatewayStatus> {
     try {
-      const s = await this.call<Partial<GatewayStatus>>("GET", "/v1/status");
-      return { connected: true, priceFeed: !!s.priceFeed, execution: !!s.execution, message: s.message || "Connected." };
+      const s = await this.call<Partial<GatewayStatus> & { markets?: unknown }>("GET", "/v1/status");
+      const markets = parseMarkets(s?.markets);
+      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}) };
     } catch (e) {
       return { connected: false, priceFeed: false, execution: false, message: e instanceof Error ? e.message : "Not connected." };
     }
@@ -97,7 +120,7 @@ export class HttpGateway implements TradingGateway {
 export class LocalGatewayAdapter implements TradingGateway {
   readonly mode = "local" as const;
   constructor(private venue: LocalVenue) {}
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices." }; }
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets() }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
   placeOrder(id: string, order: OrderRequest) { return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }

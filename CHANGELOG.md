@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-08 00:20 UTC — [autopilot] FYNX Trade: each pair shows when its market is closed, and edits explain it before you save
+
+- Trading terminal (https://www.fynxfunded.com/trade/access): when a pair's market is closed, Market Watch shows a small lock next to it, with the reason when there is a special one (for example a holiday). Hover or tap it to read when it opens in your own time.
+- The order panel now follows the pair you have selected, so a pair closed for a holiday says so ("USDJPY market closed · Tokyo holiday") even when the rest of the forex market is open.
+- When you edit a position or a pending order while its market is closed, the editor now tells you straight away that it is closed, why, and when it opens (your time, with a countdown). Saving, closing part of a position and the Close button wait until the market opens, instead of sending and getting refused. Cancelling a pending order still works at any time.
+- Ready for when the trading server is connected: it now reports, for every pair, whether its market is open, why not, and when that changes. Holiday and maintenance closures from the price provider only need to be entered once and they appear in the terminal. The terminal checks this every minute. Nothing was switched on.
+
 ## 2026-11-07 20:30 UTC — [autopilot] FYNX Trade knows when the market is open; overnight swap is ready
 
 - FYNX Trade terminal (https://www.fynxfunded.com/trade/access): when the forex market is closed (like this weekend) the order panel now says so clearly, shows when it opens in your own time zone and in UTC, and counts down to it ("in 1d 10h 00m"). No order can be confirmed while the market is closed.

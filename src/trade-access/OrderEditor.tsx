@@ -4,6 +4,7 @@ import type { Snapshot } from '@/engine/venue';
 import { findPair } from './instruments';
 import { levelOutcome, openSidePrice, orderChange, parseLevel, pendingErrors, pipsAway } from './protection';
 import type { EngineHandle } from './useEngine';
+import { closedSentence, type PairMarket } from './market-hours';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 
@@ -12,7 +13,8 @@ const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency',
  * the order sits from the market and the dollar result at each level if the
  * order fills at its price. The engine validates again on send.
  */
-export default function OrderEditor({ order: o, snapshot, engine, onDone }: { order: PendingOrder; snapshot: Snapshot; engine: EngineHandle; onDone: (message: string) => void }) {
+export default function OrderEditor({ order: o, snapshot, engine, onDone, hours, now = Date.now() }: { order: PendingOrder; snapshot: Snapshot; engine: EngineHandle; onDone: (message: string) => void; hours?: PairMarket; now?: number }) {
+  const closed = !!hours && !hours.open;
   const pair = findPair(o.symbol);
   const digits = pair?.digits ?? 5;
   const [priceText, setPrice] = useState(o.price.toFixed(digits));
@@ -36,7 +38,7 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone }: { or
   const id = `edit-${o.id}`;
 
   const save = async () => {
-    if (errors.length || !changed || price === null) return;
+    if (errors.length || !changed || price === null || closed) return;
     const ok = await engine.run(g => g.modifyOrder(snapshot.state.accountId, o.id, change));
     if (ok) onDone(`${o.symbol} ${o.side} ${o.type} ${o.id}: price ${price.toFixed(digits)}, stop loss ${slValue === null ? 'none' : slValue.toFixed(digits)}, take profit ${tpValue === null ? 'none' : tpValue.toFixed(digits)}.`);
   };
@@ -62,10 +64,11 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone }: { or
       {tpText && <button type="button" onClick={() => setTp('')} className="mt-1 rounded border px-2 py-0.5 hover:bg-secondary">Remove target</button>}
     </div>
     <div className="flex flex-col gap-2 md:w-40">
-      <button type="submit" disabled={engine.busy || !changed || errors.length > 0} className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">Save order</button>
+      <button type="submit" disabled={engine.busy || closed || !changed || errors.length > 0} className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">Save order</button>
       <button type="button" onClick={() => onDone('')} className="rounded-md border px-3 py-1 hover:bg-secondary">Cancel</button>
     </div>
     <div className="space-y-1 md:col-span-4" aria-live="polite">
+      {closed && hours && <p data-testid="editor-market-closed" role="note" className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-foreground">{closedSentence(o.symbol, hours, now)} You can prepare the change now; saving unlocks when the market opens. Cancelling the order works at any time.</p>}
       <p className="text-muted-foreground">{o.lots.toFixed(2)} lots · fills at the order price or the next available price. Volume and direction can't change: cancel and place a new order for that.</p>
       {atStop?.dollars != null && atStop.dollars < 0 && -atStop.dollars > room && <p data-testid="order-stop-vs-room" className="text-red-500">This stop would lose {money(-atStop.dollars)}, more than the {money(room)} left before the loss limit: the account would be stopped out first.</p>}
       {errors.map(e => <p key={e} role="alert" className="text-red-500">{e}</p>)}

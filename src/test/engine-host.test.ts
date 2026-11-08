@@ -33,7 +33,8 @@ async function setup(enabled = true) {
 describe("engine host (HTTP contract skeleton)", () => {
   it("serves every endpoint of the contract to HttpGateway", async () => {
     const { gw } = await setup();
-    expect(await gw.status()).toEqual({ connected: true, priceFeed: true, execution: true, message: "ok" });
+    expect(await gw.status()).toMatchObject({ connected: true, priceFeed: true, execution: true, message: "ok" });
+    expect((await gw.status()).markets?.EURUSD).toEqual({ open: true, nextChange: Date.parse("2026-11-06T22:00:00Z"), reason: null });
     expect((await gw.snapshot("acc_1")).state.accountId).toBe("acc_1");
     const placed = await gw.placeOrder("acc_1", { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "c-1" });
     const pos = placed.state.positions[0];

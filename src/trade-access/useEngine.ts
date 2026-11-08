@@ -25,8 +25,11 @@ export function useEngine(accountId: string | null, gatewayOverride?: TradingGat
 
   useEffect(() => {
     let active = true;
-    gateway.status().then(s => { if (active) setStatus(s); });
-    return () => { active = false; };
+    const load = () => gateway.status().then(s => { if (active) setStatus(s); });
+    void load();
+    // Market hours and feed health come from status; refresh it so a reopen or holiday is picked up.
+    const t = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 60_000);
+    return () => { active = false; window.clearInterval(t); };
   }, [gateway]);
 
   const connected = !!status?.connected;
