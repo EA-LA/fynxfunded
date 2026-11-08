@@ -393,7 +393,10 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
         </tr>)}
       </tbody>
     </table>
-    {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
+    {tab === 'history' && snap?.state.archived && snap.state.archived.deals > 0 && <p data-testid="history-archived" className="border-t px-4 py-2 text-xs text-muted-foreground">
+      Showing the latest {snap.state.history.length} closed trade{snap.state.history.length === 1 ? '' : 's'}. {snap.state.archived.deals} older trade{snap.state.archived.deals === 1 ? '' : 's'} ({time(snap.state.archived.firstClosedAt)} – {time(snap.state.archived.lastClosedAt)}, net {money(snap.state.archived.netProfit)}) {snap.state.archived.deals === 1 ? 'is' : 'are'} kept in the account archive and still count toward your balance, best day and progress.
+    </p>}
+    {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : snap?.state.archived?.deals ? null : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
     {tab === 'orders' && notice && !editingOpen && <p role="status" data-testid="order-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {tab === 'positions' && notice && !editingOpen && <p role="status" data-testid="position-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {engine.error && <p role="alert" className="px-4 pb-3 text-xs text-red-500">{engine.error}</p>}

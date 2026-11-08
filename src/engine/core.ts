@@ -157,7 +157,7 @@ function open(state: AccountState, ctx: EngineContext, req: { symbol: string; si
 /** Validates and executes an order request. Market orders fill at the current bid/ask. */
 export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineContext): Step {
   assertActive(state);
-  if (req.clientId && (state.positions.some(p => p.clientId === req.clientId) || state.orders.some(o => o.clientId === req.clientId) || state.history.some(d => d.clientId === req.clientId))) {
+  if (req.clientId && (state.positions.some(p => p.clientId === req.clientId) || state.orders.some(o => o.clientId === req.clientId) || state.history.some(d => d.clientId === req.clientId) || !!state.archived?.clientIds.includes(req.clientId))) {
     return { state, events: [] }; // idempotent replay
   }
   const s = spec(ctx, req.symbol);
@@ -191,7 +191,7 @@ function closeAt(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes
   const fee = commission(s, lots);
   const openFee = cash(new Decimal(p.commission).times(lots).div(p.lots));
   const swap = p.swap ? cash(new Decimal(p.swap).times(lots).div(p.lots)) : 0;
-  const deal: Deal = { id: `${p.id}:${state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), ...(swap ? { swap } : {}), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee).plus(swap)), reason, ...(p.clientId ? { clientId: p.clientId } : {}) };
+  const deal: Deal = { id: `${p.id}:${(state.archived?.deals ?? 0) + state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), ...(swap ? { swap } : {}), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee).plus(swap)), reason, ...(p.clientId ? { clientId: p.clientId } : {}) };
   const remaining = new Decimal(p.lots).minus(lots).toNumber();
   const positions = remaining > 0 ? state.positions.map(x => (x.id === p.id ? { ...x, lots: remaining, commission: cash(new Decimal(x.commission).minus(openFee)), ...(x.swap ? { swap: cash(new Decimal(x.swap).minus(swap)) } : {}) } : x)) : state.positions.filter(x => x.id !== p.id);
   return { state: { ...state, balance: cash(new Decimal(state.balance).plus(gross).minus(fee).plus(swap)), positions, history: [...state.history, deal], sequence: state.sequence + 1 }, events: [{ type: "position_closed", deal }] };
@@ -365,14 +365,66 @@ function applySwaps(state: AccountState, ctx: Pick<EngineContext, "specs" | "rul
   return { state: events.length ? { ...state, positions } : state, events };
 }
 
-/** Closed results per trading day (22:00 UTC days by default), from the account's deals. */
-export function dailyResults(state: Pick<AccountState, "history">, resetHourUtc: number): Record<string, number> {
+/**
+ * Closed results per trading day (22:00 UTC days by default), from the account's
+ * deals, including the daily results of deals already moved to the archive.
+ */
+export function dailyResults(state: Pick<AccountState, "history" | "archived">, resetHourUtc: number): Record<string, number> {
   const days: Record<string, Decimal> = {};
+  const a = state.archived;
+  if (a) {
+    if (a.resetHourUtc !== resetHourUtc) throw new EngineError("bad_state", "Archived daily results use a different reset hour than the account rules.");
+    for (const [k, v] of Object.entries(a.dailyResults)) days[k] = new Decimal(v);
+  }
   for (const d of state.history) {
     const key = tradingDayKey(d.closedAt, resetHourUtc);
     days[key] = (days[key] ?? new Decimal(0)).plus(d.netProfit);
   }
   return Object.fromEntries(Object.entries(days).map(([k, v]) => [k, cash(v)]));
+}
+
+export interface ArchiveOptions {
+  /** Most recent deals kept in `history`. */
+  keep: number;
+  /** The account's daily reset hour (UTC), used to key the archived daily results. */
+  resetHourUtc: number;
+  /** Deals per archive chunk. Default 250. */
+  chunkSize?: number;
+  /** How many recent client order ids of moved deals are remembered. Default 1000. */
+  maxClientIds?: number;
+}
+
+/**
+ * Moves the oldest deals out of `history`, keeping the newest `keep`, and folds
+ * them into `archived` (count, net profit, daily results, client ids) so the
+ * best-day rule, idempotent replays and deal numbering keep working. Returns the
+ * moved deals as numbered chunks for the store to write elsewhere. Balance,
+ * trading days, positions, orders and `sequence` are untouched: this is storage
+ * housekeeping, not a trading change.
+ */
+export function archiveHistory(state: AccountState, opts: ArchiveOptions): { state: AccountState; chunks: { index: number; deals: Deal[] }[] } {
+  const keep = Math.max(0, Math.floor(opts.keep));
+  const size = Math.max(1, Math.floor(opts.chunkSize ?? 250));
+  const maxIds = Math.max(0, Math.floor(opts.maxClientIds ?? 1000));
+  if (state.history.length <= keep) return { state, chunks: [] };
+  const cut = state.history.length - keep;
+  const moved = state.history.slice(0, cut);
+  const prev = state.archived;
+  const days = dailyResults({ history: moved, archived: prev }, opts.resetHourUtc);
+  const first = prev?.chunks ?? 0;
+  const chunks = Array.from({ length: Math.ceil(moved.length / size) }, (_, i) => ({ index: first + i, deals: moved.slice(i * size, (i + 1) * size) }));
+  const ids = [...(prev?.clientIds ?? []), ...moved.flatMap(d => (d.clientId ? [d.clientId] : []))];
+  const archived = {
+    deals: (prev?.deals ?? 0) + moved.length,
+    chunks: first + chunks.length,
+    netProfit: cash(moved.reduce((t, d) => t.plus(d.netProfit), new Decimal(prev?.netProfit ?? 0))),
+    dailyResults: days,
+    resetHourUtc: opts.resetHourUtc,
+    clientIds: maxIds ? ids.slice(-maxIds) : [],
+    firstClosedAt: prev ? Math.min(prev.firstClosedAt, moved[0].closedAt) : moved[0].closedAt,
+    lastClosedAt: moved.reduce((m, d) => Math.max(m, d.closedAt), prev?.lastClosedAt ?? 0),
+  };
+  return { state: { ...state, history: state.history.slice(cut), archived }, chunks };
 }
 
 /**

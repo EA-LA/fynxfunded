@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-08 04:16 UTC — [autopilot] FYNX Trade: accounts can trade for years without hitting a storage limit
+
+- Ready for when the trading server is connected: each trading account is saved as one record, and records have a size limit. Before, an account with thousands of closed trades would eventually have been refused. Now the oldest closed trades are moved, automatically and safely in the same save, into numbered archive pages next to the account, and the newest 300 stay on the account.
+- Nothing is lost: the balance, trading days, the 40% best-day rule and the "Progress on this account" card give exactly the same answers after older trades are archived, a repeated order from a dropped connection is still recognised, and every archived trade can be read back.
+- Trading terminal (https://www.fynxfunded.com/trade/access), History tab: when older trades are archived it now says how many, between which dates, and their net result, and that they still count toward your balance and progress.
+- Nothing was switched on; the setting and its defaults are written down in the engine guide for the owner.
+
 ## 2026-11-08 00:20 UTC — [autopilot] FYNX Trade: each pair shows when its market is closed, and edits explain it before you save
 
 - Trading terminal (https://www.fynxfunded.com/trade/access): when a pair's market is closed, Market Watch shows a small lock next to it, with the reason when there is a special one (for example a holiday). Hover or tap it to read when it opens in your own time.

@@ -167,6 +167,24 @@ export interface TargetReport {
   missing: string[];
 }
 
+/** What the engine still needs to know about deals that were moved out of `history`. */
+export interface ArchivedHistory {
+  /** Number of deals moved out. */
+  deals: number;
+  /** Number of archive chunks written (chunk indexes 0 … chunks − 1). */
+  chunks: number;
+  /** Sum of the moved deals' net profit (USD). */
+  netProfit: number;
+  /** Closed result per trading day of the moved deals, for the best-day (consistency) rule. */
+  dailyResults: Record<string, number>;
+  /** Reset hour the daily results were keyed with; must stay the account's reset hour. */
+  resetHourUtc: number;
+  /** Most recent client order ids of moved deals, so a retried request is still recognised. */
+  clientIds: string[];
+  firstClosedAt: number;
+  lastClosedAt: number;
+}
+
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";
 
 export interface AccountState {
@@ -183,6 +201,11 @@ export interface AccountState {
   positions: Position[];
   orders: PendingOrder[];
   history: Deal[];
+  /**
+   * Summary of older deals moved out of `history` to keep the stored account
+   * small (see `archiveHistory`). Absent until the first archive.
+   */
+  archived?: ArchivedHistory;
   breachReason?: CloseReason;
   /** When the profit target was first met with the minimum trading days (pending official review). */
   targetReachedAt?: number;

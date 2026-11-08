@@ -137,6 +137,7 @@ import { act, waitFor } from "@testing-library/react";
 import { LocalVenue, MemoryStore, StaticQuoteFeed, buildSpecs } from "@/engine/venue";
 import { LocalGatewayAdapter } from "@/engine/gateway";
 import { FOREX_HOURS } from "@/engine/hours";
+import { archiveHistory } from "@/engine/core";
 
 describe("terminal connected to the engine", () => {
   afterEach(cleanup);
@@ -353,3 +354,33 @@ describe("terminal: holiday closure from the trading server", () => {
   });
 });
 
+
+describe("terminal history with archived trades", () => {
+  afterEach(cleanup);
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-04T10:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("says how many older trades are in the archive and their net result", async () => {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const now = Date.now();
+    const store = new MemoryStore();
+    const rules = { startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 };
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), store, async () => rules, { maxQuoteAgeMs: 60_000 });
+    const feed = new StaticQuoteFeed(); venue.connect(feed);
+    feed.push({ symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: now });
+    await venue.open(live.accountId);
+    for (let i = 0; i < 3; i++) {
+      const s = await venue.place(live.accountId, { symbol: "EURUSD", side: "buy", type: "market", lots: 0.1 });
+      await venue.close(live.accountId, s.state.positions[0].id);
+    }
+    const before = (await store.load(live.accountId))!;
+    await store.save(archiveHistory(before, { keep: 1, resetHourUtc: 22 }).state, before.sequence);
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    await screen.findByTestId("engine-positions");
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
+    const history = await screen.findByTestId("engine-history");
+    expect(within(history).getAllByText("manual")).toHaveLength(1);
+    expect(within(history).getByTestId("history-archived")).toHaveTextContent(/Showing the latest 1 closed trade\. 2 older trades .*net -\$\d+\.\d{2}\) are kept in the account archive/);
+  });
+});
