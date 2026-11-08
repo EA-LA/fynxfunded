@@ -40,6 +40,8 @@ export interface EngineServerOptions {
   verifyToken: (token: string) => Promise<string | null>;
   canAccess: (userId: string, accountId: string) => Promise<boolean>;
   tradingEnabled: (accountId: string) => Promise<boolean>;
+  /** Open an account on its owner's first visit (default true; see HostOptions.openOnFirstVisit). */
+  openOnFirstVisit?: boolean;
   /** Fills, stop-outs, locks, targets…: e.g. write an audit log or send an email. */
   onEvents?: (accountId: string, events: EngineEvent[]) => void;
   /** Timer step tuning and error reporting (intervalMs, idleEveryMs, onError…). */
@@ -89,7 +91,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
     venue, runner, status,
     async handle(request) {
       const response = await handleEngineRequest(request, {
-        venue, verifyToken: o.verifyToken, canAccess: o.canAccess, tradingEnabled: o.tradingEnabled,
+        venue, verifyToken: o.verifyToken, canAccess: o.canAccess, tradingEnabled: o.tradingEnabled, openOnFirstVisit: o.openOnFirstVisit,
         status: () => { const s = status(); return { priceFeed: s.priceFeed, execution: s.execution, message: s.message }; },
       });
       // An account that just placed or changed something is checked every round from now on.

@@ -46,6 +46,13 @@ export interface HostOptions {
   tradingEnabled: (accountId: string) => Promise<boolean>;
   /** What GET /v1/status reports. `markets` (open/closed per symbol) is added from the venue's trading hours. */
   status: () => { priceFeed: boolean; execution: boolean; message: string };
+  /**
+   * Opens the engine account the first time its owner loads it (GET
+   * /v1/accounts/{id}), with the balance and rules from `rulesFor`. Default
+   * true: a purchased account works in the terminal without a separate setup
+   * step. Opening places no order. Set false if accounts are created elsewhere.
+   */
+  openOnFirstVisit?: boolean;
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
@@ -110,6 +117,22 @@ const header = (h: HostRequest["headers"], name: string) => {
   return key ? h[key] : undefined;
 };
 
+/** The account's snapshot; on the owner's first visit the account is opened (see openOnFirstVisit). */
+async function snapshotOrOpen(opts: HostOptions, accountId: string): Promise<Snapshot> {
+  try {
+    return await opts.venue.snapshot(accountId);
+  } catch (e) {
+    if (!(e instanceof EngineError) || e.code !== "no_account" || opts.openOnFirstVisit === false) throw e;
+    try {
+      return await opts.venue.open(accountId);
+    } catch (again) {
+      // Two first visits at once: the other one created it, so just read it.
+      if (again instanceof EngineError && again.code === "conflict") return opts.venue.snapshot(accountId);
+      throw again;
+    }
+  }
+}
+
 /** Handles one request of the HTTP contract. Never throws: errors come back as { error: { code, message } }. */
 export async function handleEngineRequest(req: HostRequest, opts: HostOptions): Promise<HostResponse> {
   try {
@@ -131,7 +154,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     const ok = (s: Snapshot): HostResponse => ({ status: 200, body: s });
     const needsTrading = async () => { if (!(await opts.tradingEnabled(accountId))) throw new EngineError("trading_disabled", "Trading isn't switched on for this account yet, so no order was sent."); };
 
-    if (!collection) return method === "GET" ? ok(await opts.venue.snapshot(accountId)) : fail("method_not_allowed", "Use GET.");
+    if (!collection) return method === "GET" ? ok(await snapshotOrOpen(opts, accountId)) : fail("method_not_allowed", "Use GET.");
     if (collection === "history") {
       if (itemId) return fail("not_found", "Unknown address.");
       if (method !== "GET") return fail("method_not_allowed", "Use GET.");

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-08 16:30 UTC — [autopilot] FYNX Trade: the engine can now go on a real web server as-is
+
+- The trading engine now comes with its own web-server plug: whoever hosts it (Cloud Run, a Node server or a Firebase function) only adds one line, and the terminal on www.fynxfunded.com can talk to it straight away. Before this, a browser would have refused to connect to a separate engine address.
+- Only the FYNX websites you list may use the engine from a browser; any other website is turned away before anything runs. Oversized or malformed requests are refused with a clear message.
+- All engine settings (leverage, commission, maximum lots, allowed websites, overnight swap rates, holiday closures) are now filled in as settings on the host instead of in code. If anything is missing, the engine refuses to start and lists every missing item in one message.
+- A purchased account now opens in the engine by itself the first time its owner loads it in the terminal, with the right balance and rules (no extra setup step).
+- A health address for uptime monitoring shows only whether prices and order checks are live.
+- The exact host file to run is written out in the engine readiness guide. Nothing was switched on: trading stays off and the terminal at https://www.fynxfunded.com/trade/access still says "Engine not connected" until you connect it.
+
 ## 2026-11-08 12:20 UTC — [autopilot] FYNX Trade: the server now watches every account by itself
 - Stop losses, take profits, pending orders and the loss limits are now checked by the trading server every second and the moment a new price arrives, even when nobody has the terminal open. Before, this only happened when someone was clicking. It switches on together with the price feed; nothing is live yet.
 - Everything the trading server needs (prices, accounts, the automatic checks and the address the terminal talks to) now starts with one call, so connecting it is a short job once the price feed and server are chosen. The exact steps are in docs/ENGINE-READINESS.md.
