@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-08 20:40 UTC — [autopilot] FYNX Trade trades now flow into the FYNX Funded dashboard
+
+- When the trading engine is switched on, every trade closed on FYNX Trade (https://www.fynxfunded.com/trade/access) is saved straight into the trader's FYNX Funded trade journal, so it appears on https://www.fynxfunded.com/dashboard/trades, in Analytics and in the account workspace with no extra building.
+- Each trade is saved exactly once, even if the server restarts or the save has to be retried; if saving fails, the trade is kept aside and can be sent again later.
+- The trade journal now says which trades came from FYNX Trade and how each one was closed (stop loss, take profit, closed by you, loss limit); the CSV export includes both.
+- Nothing is switched on: this is ready for when the price feed and server are connected (steps in docs/ENGINE-READINESS.md).
+
 ## 2026-11-08 16:30 UTC — [autopilot] FYNX Trade: the engine can now go on a real web server as-is
 
 - The trading engine now comes with its own web-server plug: whoever hosts it (Cloud Run, a Node server or a Firebase function) only adds one line, and the terminal on www.fynxfunded.com can talk to it straight away. Before this, a browser would have refused to connect to a separate engine address.

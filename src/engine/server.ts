@@ -2,6 +2,7 @@ import { buildSpecs, LocalVenue, type AccountStore, type PairLike, type QuoteFee
 import { handleEngineRequest, type HostRequest, type HostResponse } from "./host";
 import { EngineRunner, executionMessage, type RunnerHealth, type RunnerOptions } from "./runner";
 import type { EngineEvent, RuleSet } from "./types";
+import type { EngineLedger, LedgerHealth } from "./ledger";
 
 /**
  * Everything a trading server needs, wired in one call ("add gas and it runs").
@@ -44,6 +45,8 @@ export interface EngineServerOptions {
   openOnFirstVisit?: boolean;
   /** Fills, stop-outs, locks, targets…: e.g. write an audit log or send an email. */
   onEvents?: (accountId: string, events: EngineEvent[]) => void;
+  /** Writes every closed deal to the FYNX Funded `trades` collection (src/engine/ledger.ts), so it shows on the dashboard. */
+  ledger?: EngineLedger;
   /** Timer step tuning and error reporting (intervalMs, idleEveryMs, onError…). */
   runner?: Omit<RunnerOptions, "venue" | "accounts" | "ready" | "clock">;
   clock?: () => number;
@@ -55,6 +58,8 @@ export interface EngineServerStatus {
   execution: boolean;
   message: string;
   runner: RunnerHealth;
+  /** Trade ledger health when a ledger is connected (pending, written, failed…). */
+  ledger?: LedgerHealth;
 }
 
 export interface EngineServer {
@@ -79,12 +84,14 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
   const priceFeedLive = () => (o.feed.health ? o.feed.health().live : lastQuoteAt !== null && clock() - lastQuoteAt <= o.settings.maxQuoteAgeMs);
   const runner = new EngineRunner({ ...o.runner, venue, accounts: o.accounts, ready: priceFeedLive, clock });
   if (o.onEvents) venue.onEvents(o.onEvents);
+  if (o.ledger) venue.onEvents(o.ledger.listener);
   let disconnect: (() => void) | null = null, offQuote: (() => void) | null = null;
 
   const status = (): EngineServerStatus => {
     const priceFeed = priceFeedLive();
     const health = runner.health();
-    return { priceFeed, execution: priceFeed && health.healthy, message: executionMessage(priceFeed, health), runner: health };
+    const base = { priceFeed, execution: priceFeed && health.healthy, message: executionMessage(priceFeed, health), runner: health };
+    return o.ledger ? { ...base, ledger: o.ledger.health() } : base;
   };
 
   return {
@@ -109,6 +116,8 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
       disconnect?.(); offQuote?.();
       disconnect = offQuote = null;
       await runner.stop();
+      // Trades closed in the last round still reach the dashboard before the process exits.
+      await o.ledger?.flush();
     },
   };
 }

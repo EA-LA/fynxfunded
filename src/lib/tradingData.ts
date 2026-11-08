@@ -1,7 +1,7 @@
 import type { DocumentData } from "firebase/firestore";
 import { journalSessionForUtcHour } from "@/lib/tradingDayClock";
 
-export interface Trade { id:string; accountId:string; challengeId:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss"|"Breakeven" }
+export interface Trade { id:string; accountId:string; challengeId:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss"|"Breakeven"; closedBy?:string; platform?:"FYNX Trade" }
 export interface AccountObjectives { profitTarget:{current:number;target:number}; dailyLoss:{current:number;limit:number}; maxLoss:{current:number;limit:number}; minTradingDays:{current:number;target:number}; consistency:{largestWinDay:number;threshold:number}|null }
 export interface PayoutInfo { availableBalance:number; eligibleAmount:number; nextWindow:string; method:string; isEligible:boolean; ineligibleReason:string; history:PayoutRecord[] }
 export interface PayoutRecord { id:string; date:string; amount:number; status:"Pending"|"Approved"|"Paid"|"Rejected"; method:string }
@@ -20,6 +20,12 @@ export function timestamp(value: unknown): string {
     return date && Number.isFinite(date.getTime()) ? date.toISOString() : "";
   } catch { return ""; }
 }
+
+/** Plain words for how a position was closed (records from the FYNX Trade engine carry `closeReason`). */
+export const CLOSE_REASON_LABELS: Record<string, string> = {
+  manual: "Closed by you", stop_loss: "Stop loss", take_profit: "Take profit",
+  daily_loss_limit: "Daily loss limit", maximum_loss_limit: "Maximum loss limit", target_reached: "Target reached",
+};
 
 export function mapClosedTrade(id: string, data: DocumentData): Trade | null {
   // updatedAt is not evidence that an open position has closed.
@@ -46,6 +52,8 @@ export function mapClosedTrade(id: string, data: DocumentData): Trade | null {
     riskPercent: numeric(data.riskPercent ?? data.riskPct) ?? 0, rr: numeric(data.rr ?? data.riskReward) ?? 0,
     session: ["Asia", "London", "New York"].includes(data.session) ? data.session : inferredSession,
     result: pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "Breakeven",
+    ...(typeof data.closeReason === "string" && CLOSE_REASON_LABELS[data.closeReason] ? { closedBy: CLOSE_REASON_LABELS[data.closeReason] } : {}),
+    ...(data.source === "fynx-trade-engine" ? { platform: "FYNX Trade" as const } : {}),
   };
 }
 

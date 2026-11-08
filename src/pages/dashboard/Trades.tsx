@@ -22,7 +22,7 @@ export default function Trades() {
   const filtering = hasActiveFilters(filters);
   const filtered = useMemo(() => sortTrades(filterTrades(trades, filters), sort), [trades, filters, sort]);
   const summary = useMemo(() => summarizeTrades(filtered), [filtered]);
-  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open (UTC)","Close (UTC)","Lots","P/L","Pips","Risk %","R:R","Session","Result"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session,t.result])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filtering?"fynx-trades-filtered.csv":"fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
+  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open (UTC)","Close (UTC)","Lots","P/L","Pips","Risk %","R:R","Session","Result","Closed by","Platform"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session,t.result,t.closedBy??"",t.platform??""])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filtering?"fynx-trades-filtered.csv":"fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
 
   const sortHeader = (k: SortKey, label: string, align: "left" | "right" = "left") => {
     const active = sort.key === k;
@@ -114,7 +114,7 @@ export default function Trades() {
               <tbody className="divide-y divide-border">
                 {filtered.map((t) => (
                   <tr key={t.id} className="hover:bg-secondary/50 transition-colors">
-                    <td className="py-3 px-2 text-xs text-muted-foreground font-mono">{t.id}</td>
+                    <td className="py-3 px-2 text-xs text-muted-foreground font-mono">{t.id}{t.platform && <span className="mt-0.5 block font-sans text-[10px] uppercase tracking-wide">{t.platform}</span>}</td>
                     <td className="py-3 px-2 font-medium">{t.symbol}</td>
                     <td className="py-3 px-2">
                       <span className={`text-xs px-2 py-0.5 rounded font-medium ${t.type === "Buy" ? "bg-secondary" : "bg-secondary text-muted-foreground"}`}>
@@ -136,6 +136,7 @@ export default function Trades() {
                       <span className={`text-xs px-2 py-0.5 rounded font-medium ${t.result === "Win" ? "bg-secondary" : "bg-secondary text-muted-foreground"}`}>
                         {t.result}
                       </span>
+                      {t.closedBy && <span className="mt-1 block whitespace-nowrap text-[10px] text-muted-foreground">{t.closedBy}</span>}
                     </td>
                   </tr>
                 ))}
