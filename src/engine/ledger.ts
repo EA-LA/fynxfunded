@@ -63,6 +63,18 @@ export interface TradeRecord {
   netProfit: number;
   pnlBasis: "net";
   closeReason: Deal["reason"];
+  /**
+   * Risk fields, only on trades that opened with a stop loss (left out
+   * otherwise, never written as 0): the entry stop loss, the dollars it put at
+   * risk for these lots, that as % of the balance the trade opened on, the
+   * planned reward:risk when a take profit was set at entry, and the result in
+   * R (net profit ÷ dollars at risk).
+   */
+  stopLossAtEntry?: number;
+  riskAmount?: number;
+  riskPercent?: number;
+  rr?: number;
+  rMultiple?: number;
   status: "closed";
   source: "fynx-trade-engine";
   recordedAt: string;
@@ -84,6 +96,26 @@ export function dealPips(deal: Pick<Deal, "side" | "entryPrice" | "exitPrice">, 
   if (!(pipSize > 0)) throw new Error("pipSize must be a positive number");
   const move = deal.side === "buy" ? deal.exitPrice - deal.entryPrice : deal.entryPrice - deal.exitPrice;
   return Math.round((move / pipSize) * 10) / 10;
+}
+
+const hundredths = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Risk % of balance, planned reward:risk and the result in R for a deal that
+ * opened with a stop loss; {} without entry risk (old deals, no stop loss).
+ */
+export function dealRiskFields(deal: Pick<Deal, "side" | "entryPrice" | "netProfit" | "entryRisk">): Pick<TradeRecord, "stopLossAtEntry" | "riskAmount" | "riskPercent" | "rr" | "rMultiple"> {
+  const r = deal.entryRisk;
+  if (!r || !(r.amount > 0) || !(r.balance > 0) || !Number.isFinite(r.stopLoss)) return {};
+  const stopDistance = Math.abs(deal.entryPrice - r.stopLoss);
+  const targetOk = r.takeProfit !== undefined && stopDistance > 0 && (deal.side === "buy" ? r.takeProfit > deal.entryPrice : r.takeProfit < deal.entryPrice);
+  return {
+    stopLossAtEntry: r.stopLoss,
+    riskAmount: cents(r.amount),
+    riskPercent: hundredths((r.amount / r.balance) * 100),
+    ...(targetOk ? { rr: hundredths(Math.abs(r.takeProfit! - deal.entryPrice) / stopDistance) } : {}),
+    rMultiple: hundredths(deal.netProfit / r.amount),
+  };
 }
 
 /** Turns one closed engine deal into the record the FYNX Funded dashboard reads. */
@@ -114,6 +146,7 @@ export function dealToTradeRecord(engineAccountId: string, deal: Deal, owner: Tr
     netProfit: cents(deal.netProfit),
     pnlBasis: "net",
     closeReason: deal.reason,
+    ...dealRiskFields(deal),
     status: "closed",
     source: "fynx-trade-engine",
     recordedAt: new Date(recordedAt).toISOString(),

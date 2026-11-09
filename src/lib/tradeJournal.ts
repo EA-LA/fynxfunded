@@ -31,6 +31,8 @@ export function sortTrades(trades: Trade[], sort: JournalSort): Trade[] {
   const value = (t: Trade) => (sort.key === "closeTime" ? Date.parse(t.closeTime) || 0 : t[sort.key]);
   return trades.slice().sort((a, b) => {
     const va = value(a), vb = value(b);
+    // Trades without a recorded value (risk %, R:R) go last in either direction.
+    if (va === null || vb === null) return va === vb ? (Date.parse(b.closeTime) || 0) - (Date.parse(a.closeTime) || 0) : va === null ? 1 : -1;
     const cmp = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : Number(va) - Number(vb);
     return cmp !== 0 ? cmp * sign : (Date.parse(b.closeTime) || 0) - (Date.parse(a.closeTime) || 0);
   });

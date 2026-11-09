@@ -374,7 +374,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   const empty = (what: string) => <p className="p-4 text-sm text-muted-foreground">{what} {!engine.status?.connected && hasAccount ? 'They will appear here once trading opens on this account.' : ''}</p>;
   const headers = tab === 'positions' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Current', 'Swap', 'Profit', '']
     : tab === 'orders' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', '']
-    : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Swap', 'Profit', 'Reason'];
+    : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Swap', 'Profit', 'Result (R)', 'Reason'];
   const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
     <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
@@ -412,10 +412,17 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   </div>;
 }
 
+/** Result of a closed trade in R (net ÷ dollars the entry stop loss risked); "—" without an entry stop. */
+export function dealR(d: Pick<Deal, 'netProfit' | 'entryRisk'>): string {
+  if (!d.entryRisk || !(d.entryRisk.amount > 0)) return '—';
+  const r = Math.round((d.netProfit / d.entryRisk.amount) * 100) / 100;
+  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(2)}R`;
+}
+
 function DealRow({ d, cell }: { d: Deal; cell: string }) {
   return <tr className="border-b border-border/60">
     <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td><td className={cell}>{money(d.swap ?? 0)}</td>
-    <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
+    <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className={cell} title={d.entryRisk ? `1R = ${money(d.entryRisk.amount)} at risk from the entry stop loss` : 'Opened without a stop loss: no R'}>{dealR(d)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
   </tr>;
 }
 

@@ -6,6 +6,7 @@ import TimeZoneToggle from "@/components/analytics/TimeZoneToggle";
 import GlossaryTip from "@/components/GlossaryTip";
 import { DEFAULT_SORT, EMPTY_FILTERS, filterTrades, hasActiveFilters, nextSort, sortTrades, summarizeTrades, type JournalFilters, type JournalSort, type SortKey } from "@/lib/tradeJournal";
 
+const formatR = (r: number) => `${r > 0 ? "+" : r < 0 ? "-" : ""}${Math.abs(r).toFixed(2)}R`;
 const signedUsd = (n: number) => `${n >= 0 ? "+" : "-"}$${Math.abs(n).toFixed(2)}`;
 /** Glossary entry behind column headers and summary labels ("?" button beside them). */
 const COLUMN_TERMS: Record<string, string> = { Lots: "lot", Pips: "pip", "Risk %": "risk-per-trade", "R:R": "risk-reward", Session: "sessions", "Win rate": "win-rate", Volume: "lot" };
@@ -22,7 +23,7 @@ export default function Trades() {
   const filtering = hasActiveFilters(filters);
   const filtered = useMemo(() => sortTrades(filterTrades(trades, filters), sort), [trades, filters, sort]);
   const summary = useMemo(() => summarizeTrades(filtered), [filtered]);
-  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open (UTC)","Close (UTC)","Lots","P/L","Pips","Risk %","R:R","Session","Result","Closed by","Platform"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent,t.rr,t.session,t.result,t.closedBy??"",t.platform??""])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filtering?"fynx-trades-filtered.csv":"fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
+  const exportCsv=()=>{if(!filtered.length)return;const rows=[["Trade ID","Symbol","Side","Open (UTC)","Close (UTC)","Lots","P/L","Pips","Risk %","R:R","Result (R)","Session","Result","Closed by","Platform"],...filtered.map(t=>[t.id,t.symbol,t.type,t.openTime,t.closeTime,t.lots,t.pnl,t.pips,t.riskPercent??"",t.rr??"",t.rMultiple??"",t.session,t.result,t.closedBy??"",t.platform??""])];const blob=new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filtering?"fynx-trades-filtered.csv":"fynx-trades.csv";a.click();URL.revokeObjectURL(a.href)};
 
   const sortHeader = (k: SortKey, label: string, align: "left" | "right" = "left") => {
     const active = sort.key === k;
@@ -129,8 +130,8 @@ export default function Trades() {
                       {signedUsd(t.pnl)}
                     </td>
                     <td className="py-3 px-2 text-center text-xs text-muted-foreground">{t.duration}</td>
-                    <td className="py-3 px-2 text-right text-xs">{t.riskPercent.toFixed(1)}%</td>
-                    <td className="py-3 px-2 text-right text-xs">{t.rr.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-right text-xs">{t.riskPercent === null ? <span className="text-muted-foreground" title="Not recorded for this trade">—</span> : `${t.riskPercent.toFixed(1)}%`}</td>
+                    <td className="py-3 px-2 text-right text-xs">{t.rr === null ? <span className="text-muted-foreground" title="Not recorded for this trade">—</span> : t.rr.toFixed(1)}{t.rMultiple != null && <span className="mt-0.5 block whitespace-nowrap text-[10px] text-muted-foreground">result {formatR(t.rMultiple)}</span>}</td>
                     <td className="py-3 px-2 text-center text-xs text-muted-foreground">{t.session}</td>
                     <td className="py-3 px-2 text-center">
                       <span className={`text-xs px-2 py-0.5 rounded font-medium ${t.result === "Win" ? "bg-secondary" : "bg-secondary text-muted-foreground"}`}>

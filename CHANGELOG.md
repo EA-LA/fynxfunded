@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 00:30 UTC — [autopilot] FYNX Trade + Dashboard: risk and results in R
+
+- Fixed: the trade journal (https://www.fynxfunded.com/dashboard/trades) showed "0.0%" risk and "0.0" R:R for trades where that was never recorded, which read as "no risk taken". It now shows "—", and the account's "Avg. R:R" (https://www.fynxfunded.com/dashboard/accounts) only averages trades that really recorded it.
+- New "Results in R" card on https://www.fynxfunded.com/dashboard/analytics and on each account's Analysis tab: how many times their risk each trade won or lost (average, median, best, worst, total), a chart from −2R to +3R, how many losses went past the stop, and a plain reading once there are 5 trades. It says how many trades it is based on and stays empty rather than guess.
+- FYNX Trade now remembers the risk every trade opened with (its stop loss in dollars and as % of the balance), even if the stop is moved later. When the engine is switched on, every trade closed on https://www.fynxfunded.com/trade/access arrives in the journal with its risk %, planned R:R and result in R filled in, and the terminal's History tab shows each trade's result in R.
+- Nothing is switched on; this is ready for when the price feed and server are connected (docs/ENGINE-READINESS.md).
+
 ## 2026-11-08 20:40 UTC — [autopilot] FYNX Trade trades now flow into the FYNX Funded dashboard
 
 - When the trading engine is switched on, every trade closed on FYNX Trade (https://www.fynxfunded.com/trade/access) is saved straight into the trader's FYNX Funded trade journal, so it appears on https://www.fynxfunded.com/dashboard/trades, in Analytics and in the account workspace with no extra building.

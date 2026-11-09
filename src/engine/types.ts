@@ -85,6 +85,26 @@ export interface Position {
   /** Swap accumulated while open (USD, negative = charged). Settled into the balance on close. */
   swap?: number;
   clientId?: string;
+  /**
+   * Risk as it stood when the position opened (kept when the stop loss is
+   * moved later), so the ledger can report risk % and R-multiples. Missing
+   * when the position opened without a stop loss.
+   */
+  entryRisk?: EntryRisk;
+}
+
+/**
+ * The trade's risk at entry: the stop loss and take profit it opened with,
+ * the dollars that stop loss put at risk for the position's current lots
+ * (before commission and swap) and the balance it opened on.
+ */
+export interface EntryRisk {
+  stopLoss: number;
+  takeProfit?: number;
+  /** USD lost if the entry stop loss is hit, for the current lots (scaled on partial closes). */
+  amount: number;
+  /** Account balance just before the position opened (USD). */
+  balance: number;
 }
 
 export interface PendingOrder {
@@ -117,6 +137,8 @@ export interface Deal {
   netProfit: number;
   reason: CloseReason;
   clientId?: string;
+  /** Risk at entry for the lots of this deal (see Position.entryRisk). Missing without an entry stop loss. */
+  entryRisk?: EntryRisk;
 }
 
 export interface RuleSet {

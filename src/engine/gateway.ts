@@ -68,7 +68,16 @@ function validDeal(d: unknown): d is Deal {
   return typeof x.id === "string" && typeof x.positionId === "string" && typeof x.symbol === "string" && /^[A-Z]{6}$/.test(x.symbol)
     && (x.side === "buy" || x.side === "sell") && finite(x.lots) && x.lots > 0 && finite(x.entryPrice) && finite(x.exitPrice)
     && finite(x.openedAt) && finite(x.closedAt) && finite(x.grossProfit) && finite(x.commission) && finite(x.netProfit)
-    && (x.swap === undefined || finite(x.swap)) && typeof x.reason === "string" && CLOSE_REASONS.has(x.reason);
+    && (x.swap === undefined || finite(x.swap)) && typeof x.reason === "string" && CLOSE_REASONS.has(x.reason)
+    && (x.entryRisk === undefined || validEntryRisk(x.entryRisk));
+}
+
+/** Entry risk on a deal or position: stop loss, optional take profit, dollars at risk and the opening balance. */
+export function validEntryRisk(r: unknown): boolean {
+  if (typeof r !== "object" || r === null) return false;
+  const x = r as Record<string, unknown>;
+  return finite(x.stopLoss) && x.stopLoss > 0 && (x.takeProfit === undefined || (finite(x.takeProfit) && x.takeProfit > 0))
+    && finite(x.amount) && x.amount > 0 && finite(x.balance) && x.balance > 0;
 }
 
 /**

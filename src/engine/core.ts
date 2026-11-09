@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
+  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, EntryRisk, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -139,10 +139,30 @@ function assertActive(state: AccountState) {
   if (state.status !== "active") throw new EngineError("account_closed", state.status === "breached" ? "This account broke a loss limit; trading is closed." : state.status === "passed" ? "This phase is passed; trading is closed on this account." : "Trading is disabled on this account.");
 }
 
+/**
+ * Dollars the stop loss puts at risk from the fill price (before costs), with
+ * the balance the trade opens on. null without a stop loss, when the stop is
+ * not on the losing side of the fill, or when no conversion price exists.
+ */
+export function entryRiskFor(s: InstrumentSpec, side: Side, lots: number, price: number, stopLoss: number | undefined, takeProfit: number | undefined, balance: number, quotes: QuoteBook): EntryRisk | null {
+  if (stopLoss === undefined || !(balance > 0)) return null;
+  let loss: number;
+  try { loss = profitUsd(s, side, lots, price, stopLoss, quotes); } catch { return null; }
+  if (!(loss < 0)) return null;
+  return { stopLoss, ...(takeProfit !== undefined ? { takeProfit } : {}), amount: -loss, balance };
+}
+
+/** Entry risk for `part` of `whole` lots; null if it rounds to nothing (a sliver of a lot). */
+const scaleRisk = (r: EntryRisk, part: number, whole: number): EntryRisk | null => {
+  const amount = cash(new Decimal(r.amount).times(part).div(whole));
+  return amount > 0 ? { ...r, amount } : null;
+};
+
 function open(state: AccountState, ctx: EngineContext, req: { symbol: string; side: Side; lots: number; stopLoss?: number; takeProfit?: number; clientId?: string }, price: number): Step {
   const s = spec(ctx, req.symbol);
   const fee = commission(s, req.lots);
-  const position: Position = { id: ctx.newId("pos"), symbol: req.symbol, side: req.side, lots: req.lots, entryPrice: price, openedAt: ctx.now, stopLoss: req.stopLoss, takeProfit: req.takeProfit, commission: fee, ...(req.clientId ? { clientId: req.clientId } : {}) };
+  const risk = entryRiskFor(s, req.side, req.lots, price, req.stopLoss, req.takeProfit, state.balance, ctx.quotes);
+  const position: Position = { id: ctx.newId("pos"), symbol: req.symbol, side: req.side, lots: req.lots, entryPrice: price, openedAt: ctx.now, stopLoss: req.stopLoss, takeProfit: req.takeProfit, commission: fee, ...(req.clientId ? { clientId: req.clientId } : {}), ...(risk ? { entryRisk: risk } : {}) };
   const day = tradingDayKey(ctx.now, ctx.rules.resetHourUtc);
   const next: AccountState = {
     ...state,
@@ -191,9 +211,13 @@ function closeAt(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes
   const fee = commission(s, lots);
   const openFee = cash(new Decimal(p.commission).times(lots).div(p.lots));
   const swap = p.swap ? cash(new Decimal(p.swap).times(lots).div(p.lots)) : 0;
-  const deal: Deal = { id: `${p.id}:${(state.archived?.deals ?? 0) + state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), ...(swap ? { swap } : {}), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee).plus(swap)), reason, ...(p.clientId ? { clientId: p.clientId } : {}) };
+  const dealRisk = p.entryRisk ? (lots === p.lots ? p.entryRisk : scaleRisk(p.entryRisk, lots, p.lots)) : null;
+  const deal: Deal = { id: `${p.id}:${(state.archived?.deals ?? 0) + state.history.length + 1}`, positionId: p.id, symbol: p.symbol, side: p.side, lots, entryPrice: p.entryPrice, exitPrice: price, openedAt: p.openedAt, closedAt: ctx.now, grossProfit: gross, commission: cash(new Decimal(fee).plus(openFee)), ...(swap ? { swap } : {}), netProfit: cash(new Decimal(gross).minus(fee).minus(openFee).plus(swap)), reason, ...(p.clientId ? { clientId: p.clientId } : {}), ...(dealRisk ? { entryRisk: dealRisk } : {}) };
   const remaining = new Decimal(p.lots).minus(lots).toNumber();
-  const positions = remaining > 0 ? state.positions.map(x => (x.id === p.id ? { ...x, lots: remaining, commission: cash(new Decimal(x.commission).minus(openFee)), ...(x.swap ? { swap: cash(new Decimal(x.swap).minus(swap)) } : {}) } : x)) : state.positions.filter(x => x.id !== p.id);
+  // The lots left keep the rest of the entry risk (or lose it if nothing meaningful is left).
+  const rest = p.entryRisk && remaining > 0 ? scaleRisk(p.entryRisk, remaining, p.lots) : null;
+  const keptRisk = { entryRisk: rest ?? undefined };
+  const positions = remaining > 0 ? state.positions.map(x => (x.id === p.id ? { ...x, lots: remaining, commission: cash(new Decimal(x.commission).minus(openFee)), ...(x.swap ? { swap: cash(new Decimal(x.swap).minus(swap)) } : {}), ...keptRisk } : x)) : state.positions.filter(x => x.id !== p.id);
   return { state: { ...state, balance: cash(new Decimal(state.balance).plus(gross).minus(fee).plus(swap)), positions, history: [...state.history, deal], sequence: state.sequence + 1 }, events: [{ type: "position_closed", deal }] };
 }
 

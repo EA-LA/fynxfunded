@@ -198,8 +198,15 @@ const terms: GlossaryTerm[] = [
     id: "risk-reward",
     term: "Risk-reward ratio",
     group: "trading",
-    aliases: ["R:R", "reward", "RR", "R multiple"],
+    aliases: ["R:R", "reward", "RR"],
     definition: "The planned profit of a trade compared with its planned loss. Risking $100 to make $200 is 1:2. Results are often counted in R: a 1:2 winner is +2R and a full loss is −1R.",
+  },
+  {
+    id: "r-multiple",
+    term: "R-multiple",
+    group: "trading",
+    aliases: ["R multiple", "1R", "result in R"],
+    definition: "A trade's result divided by the amount its stop loss put at risk when it opened. Risking $100 and making $250 is +2.5R; a full stop is −1R. Losses beyond −1R mean the price gapped past the stop or costs added to it. Averaging R across trades shows your edge independent of lot size.",
   },
   {
     id: "win-rate",
