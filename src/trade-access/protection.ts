@@ -126,11 +126,13 @@ export const pipsAway = (price: number, market: number, pipSize: number) => Math
 
 /**
  * Request body for a pending-order change; unchanged fields are left out.
- * `trailingPips` is only compared when given (null = switch it off).
+ * `trailingPips` and `expiresAt` are only compared when given (null = switch
+ * the trailing stop off / make the order good till cancelled).
  */
-export function orderChange(current: { price: number; stopLoss?: number; takeProfit?: number; trailingPips?: number }, next: { price: number; stopLoss: number | null; takeProfit: number | null; trailingPips?: number | null }) {
-  const out: { price?: number; stopLoss?: number | null; takeProfit?: number | null; trailingPips?: number | null } = protectionChange(current, next);
+export function orderChange(current: { price: number; stopLoss?: number; takeProfit?: number; trailingPips?: number; expiresAt?: number }, next: { price: number; stopLoss: number | null; takeProfit: number | null; trailingPips?: number | null; expiresAt?: number | null }) {
+  const out: { price?: number; stopLoss?: number | null; takeProfit?: number | null; trailingPips?: number | null; expiresAt?: number | null } = protectionChange(current, next);
   if (next.price !== current.price) out.price = next.price;
   if (next.trailingPips !== undefined && (current.trailingPips ?? null) !== next.trailingPips) out.trailingPips = next.trailingPips;
+  if (next.expiresAt !== undefined && (current.expiresAt ?? null) !== next.expiresAt) out.expiresAt = next.expiresAt;
   return out;
 }

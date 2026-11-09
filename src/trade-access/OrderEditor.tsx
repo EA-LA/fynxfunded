@@ -5,12 +5,14 @@ import { findPair } from './instruments';
 import { levelOutcome, openSidePrice, orderChange, parseLevel, parseTrailing, pendingErrors, pipsAway, trailingPreview } from './protection';
 import type { EngineHandle } from './useEngine';
 import { closedSentence, type PairMarket } from './market-hours';
+import ExpiryPicker from './ExpiryPicker';
+import { choiceFor, expiryAt, expiryValue, toLocalInput, type ExpiryChoice } from './expiry';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 
 /**
- * Change the price, stop loss, take profit or trailing stop of a pending
- * order. Shows how far the order sits from the market, the dollar result at
+ * Change the price, stop loss, take profit, trailing stop or expiry of a
+ * pending order. Shows how far the order sits from the market, the dollar result at
  * each level if the order fills at its price, and where a trailing stop would
  * start after the fill. The engine validates again on send.
  */
@@ -22,6 +24,8 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
   const [slText, setSl] = useState(o.stopLoss === undefined ? '' : o.stopLoss.toFixed(digits));
   const [tpText, setTp] = useState(o.takeProfit === undefined ? '' : o.takeProfit.toFixed(digits));
   const [trailText, setTrail] = useState(o.trailingPips === undefined ? '' : String(o.trailingPips));
+  const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>(() => choiceFor(o.expiresAt, now));
+  const [expiryText, setExpiryText] = useState(o.expiresAt === undefined ? '' : toLocalInput(o.expiresAt));
   const quote = snapshot.quotes[o.symbol];
   const market = quote ? openSidePrice(o.side, quote) : undefined;
   const pr = parseLevel(priceText, digits, 'Order price'), sl = parseLevel(slText, digits, 'Stop loss'), tp = parseLevel(tpText, digits, 'Take profit');
@@ -29,12 +33,16 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
   const slValue = sl.ok ? sl.value : null, tpValue = tp.ok ? tp.value : null;
   const trail = parseTrailing(trailText);
   const trailValue = trail.ok ? trail.value : null;
-  const fieldErrors = [pr, sl, tp, trail].flatMap(f => ('error' in f ? [f.error] : []));
+  // A date kept as it was stays exact to the millisecond (the picker works in minutes).
+  const keptDate = expiryChoice === 'date' && o.expiresAt !== undefined && expiryText === toLocalInput(o.expiresAt);
+  const expiry = keptDate ? { ok: true as const, value: o.expiresAt! } : expiryValue(expiryChoice, expiryText, now);
+  const expiryValueOrNull = expiry.ok ? expiry.value : null;
+  const fieldErrors = [pr, sl, tp, trail, expiry].flatMap(f => ('error' in f ? [f.error] : []));
   if (pr.ok && price === null) fieldErrors.push('Order price is required. To remove the order, cancel it.');
   const priceMoved = price !== null && price !== o.price;
   // The side-of-market rule only applies when the price changes (the engine checks the same way).
   const errors = fieldErrors.length || price === null ? fieldErrors : pendingErrors(o.side, o.type, priceMoved ? market : undefined, price, slValue, tpValue, digits);
-  const change = !fieldErrors.length && price !== null ? orderChange(o, { price, stopLoss: slValue, takeProfit: tpValue, trailingPips: trailValue }) : {};
+  const change = !fieldErrors.length && price !== null ? orderChange(o, { price, stopLoss: slValue, takeProfit: tpValue, trailingPips: trailValue, expiresAt: expiryValueOrNull }) : {};
   // After the fill the position starts trailing once the price is the distance beyond the fill (about the order price).
   const trailStart = pair && price !== null && trailValue !== null ? trailingPreview(pair, o.side, price, undefined, trailValue, null).startsAt : null;
   const changed = Object.keys(change).length > 0;
@@ -46,7 +54,7 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
   const save = async () => {
     if (errors.length || !changed || price === null || closed) return;
     const ok = await engine.run(g => g.modifyOrder(snapshot.state.accountId, o.id, change));
-    if (ok) onDone(`${o.symbol} ${o.side} ${o.type} ${o.id}: price ${price.toFixed(digits)}, stop loss ${slValue === null ? 'none' : slValue.toFixed(digits)}, take profit ${tpValue === null ? 'none' : tpValue.toFixed(digits)}, trailing stop ${trailValue === null ? 'off' : `${trailValue} pips`}.`);
+    if (ok) onDone(`${o.symbol} ${o.side} ${o.type} ${o.id}: price ${price.toFixed(digits)}, stop loss ${slValue === null ? 'none' : slValue.toFixed(digits)}, take profit ${tpValue === null ? 'none' : tpValue.toFixed(digits)}, ${expiryValueOrNull === null ? 'good till cancelled' : `expires ${expiryAt(expiryValueOrNull)}`}, trailing stop ${trailValue === null ? 'off' : `${trailValue} pips`}.`);
   };
 
   const input = 'mt-1 w-full min-w-0 rounded-md border bg-background px-2 py-1.5 font-mono text-sm';
@@ -82,7 +90,8 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
         {trailText && <button type="button" onClick={() => setTrail('')} className="rounded border px-2 py-0.5 hover:bg-secondary">Trailing off</button>}
       </div>
     </div>
-    <div className="flex flex-col gap-2 md:col-start-4 md:row-start-1 md:row-span-2 md:w-40">
+    <ExpiryPicker id={id} choice={expiryChoice} onChoice={setExpiryChoice} dateText={expiryText} onDateText={setExpiryText} now={now} className="md:col-span-3 md:col-start-1 md:max-w-md" />
+    <div className="flex flex-col gap-2 md:col-start-4 md:row-start-1 md:row-span-3 md:w-40">
       <button type="submit" disabled={engine.busy || closed || !changed || errors.length > 0} className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">Save order</button>
       <button type="button" onClick={() => onDone('')} className="rounded-md border px-3 py-1 hover:bg-secondary">Cancel</button>
     </div>

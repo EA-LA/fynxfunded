@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 20:35 UTC — [autopilot] FYNX Trade: waiting orders can expire on their own
+
+- FYNX Trade terminal (https://www.fynxfunded.com/trade/access), New order panel: limit and stop orders now have an "Expiry" choice: "Good till cancelled", "End of today's trading day" (the 22:00 UTC daily reset) or a date and time in your own time zone. Under it, a plain sentence says exactly when the order would be cancelled and how long that is from now; a time in the past or more than a year away is flagged and the order can't be sent until it is fixed. The order review shows the expiry too.
+- Pending orders tab: new "Expires" column with the time and a countdown (or "GTC"). The pencil editor can change the expiry or make the order good till cancelled again.
+- Orders that reach their expiry without filling are cancelled by the trading server, even with the page closed, and listed under "Expired orders" with a note that nothing was bought or sold.
+- Ready for the API: the trading engine and its connection contract handle expiry (checked on time alone, also while the market is closed, before any fill). docs/ENGINE-READINESS.md updated. Nothing is sent until the owner connects the trading server and switches trading on.
+
 ## 2026-11-09 16:40 UTC — [autopilot] FYNX Trade: change the trailing stop on a waiting order; cleaner certificate check
 
 - FYNX Trade terminal (https://www.fynxfunded.com/trade/access), Pending orders tab → pencil: the order editor now has a "Trailing stop after the fill" field. You can add one to a waiting order, change the distance (15/30 pip shortcuts) or switch it off with "Trailing off". It tells you, in plain words, the price at which the trailing stop will start after the order fills, and says clearly when saving will switch off a trailing stop you set earlier. Before, the distance chosen when placing the order could not be changed without cancelling the order.

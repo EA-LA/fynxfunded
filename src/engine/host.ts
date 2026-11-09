@@ -74,7 +74,7 @@ const level = (v: unknown, name: string): number | null | undefined => (v === nu
 /** Strictly reads an order request body; unknown fields are refused so typos never pass silently. */
 export function parseOrderRequest(body: unknown, idempotencyKey?: string): OrderRequest {
   if (!isObject(body)) throw new EngineError("bad_request", "The order must be a JSON object.");
-  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "clientId"]);
+  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "expiresAt", "clientId"]);
   const extra = Object.keys(body).filter(k => !allowed.has(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
   const { symbol, side, type, clientId } = body;
@@ -91,11 +91,13 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   if (tp !== undefined) req.takeProfit = tp;
   const trail = num(body.trailingPips, "trailingPips");
   if (trail !== undefined) req.trailingPips = trail;
+  const expires = num(body.expiresAt, "expiresAt");
+  if (expires !== undefined) req.expiresAt = expires;
   if (key) req.clientId = key;
   return req;
 }
 
-function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit" | "trailingPips")[]): OrderChange & PositionChange {
+function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit" | "trailingPips" | "expiresAt")[]): OrderChange & PositionChange {
   if (!isObject(body)) throw new EngineError("bad_request", "The change must be a JSON object.");
   const extra = Object.keys(body).filter(k => !(fields as string[]).includes(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
@@ -104,6 +106,7 @@ function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit"
   if ("stopLoss" in body) out.stopLoss = level(body.stopLoss, "stopLoss");
   if ("takeProfit" in body) out.takeProfit = level(body.takeProfit, "takeProfit");
   if ("trailingPips" in body) out.trailingPips = level(body.trailingPips, "trailingPips");
+  if ("expiresAt" in body) out.expiresAt = level(body.expiresAt, "expiresAt");
   if (!Object.keys(out).length) throw new EngineError("bad_request", "Nothing to change.");
   return out;
 }
@@ -171,7 +174,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     }
     if (collection === "orders" && itemId && !action) {
       if (method === "DELETE") return ok(await opts.venue.cancel(accountId, itemId));
-      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit", "trailingPips"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
+      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit", "trailingPips", "expiresAt"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
       return fail("method_not_allowed", "Use PATCH or DELETE.");
     }
     if (collection === "positions" && itemId && action === "close") {

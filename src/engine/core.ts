@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, EntryRisk, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
+  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -186,6 +186,8 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   checkPrice(s, req.stopLoss, "Stop loss");
   checkPrice(s, req.takeProfit, "Take profit");
   checkTrailing(req.trailingPips);
+  if (req.expiresAt !== undefined && req.type === "market") throw new EngineError("bad_expiry", "Only pending orders can have an expiry time.");
+  checkExpiry(req.expiresAt, ctx.now);
   const q = executableQuote(ctx, req.symbol);
   const m = metrics(state, ctx);
   const required = marginUsd(s, req.lots, ctx.quotes);
@@ -199,7 +201,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   if (req.price === undefined) throw new EngineError("bad_price", "Pending orders need a price.");
   checkPendingSide(req.side, req.type, req.price, openingPrice(req.side, q));
   checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
-  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
+  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), ...(req.expiresAt !== undefined ? { expiresAt: req.expiresAt } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
   return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
 }
 
@@ -229,6 +231,29 @@ export function closePosition(state: AccountState, positionId: string, lots: num
   assertMarketOpen(spec(ctx, p.symbol), ctx.now);
   const q = executableQuote(ctx, p.symbol);
   return closeAt(state, ctx, positionId, lots ?? p.lots, closingPrice(p.side, q), "manual");
+}
+
+/** Earliest and latest expiry the engine accepts for a pending order, counted from now. */
+export const EXPIRY_MIN_MS = 60_000;
+export const EXPIRY_MAX_MS = 366 * 86_400_000;
+/** How many expired orders the account keeps for the terminal (newest first). */
+export const EXPIRED_ORDERS_KEPT = 20;
+
+function checkExpiry(at: number | undefined, now: number) {
+  if (at === undefined) return;
+  if (!Number.isInteger(at)) throw new EngineError("bad_expiry", "The expiry must be a time in whole milliseconds.");
+  if (at < now + EXPIRY_MIN_MS) throw new EngineError("bad_expiry", "The expiry must be at least one minute from now.");
+  if (at > now + EXPIRY_MAX_MS) throw new EngineError("bad_expiry", "The expiry can be at most 366 days from now.");
+}
+
+/**
+ * End of the trading day that contains `now`: the next daily reset
+ * (resetHourUtc, 22:00 UTC on FYNX accounts), strictly after `now`. This is
+ * the "Today" expiry of a pending order.
+ */
+export function tradingDayEnd(now: number, resetHourUtc: number): number {
+  const shifted = now - resetHourUtc * 3_600_000;
+  return Math.floor(shifted / 86_400_000) * 86_400_000 + 86_400_000 + resetHourUtc * 3_600_000;
 }
 
 /** Shortest and longest trailing-stop distance the engine accepts, in pips. */
@@ -299,6 +324,8 @@ export interface OrderChange {
    * null removes it, leaving it out keeps it.
    */
   trailingPips?: number | null;
+  /** Expiry time (ms since epoch); null makes the order good till cancelled, leaving it out keeps it. */
+  expiresAt?: number | null;
 }
 
 /**
@@ -318,12 +345,14 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   const sl = change.stopLoss === null ? undefined : change.stopLoss ?? o.stopLoss;
   const tp = change.takeProfit === null ? undefined : change.takeProfit ?? o.takeProfit;
   const trail = change.trailingPips === null ? undefined : change.trailingPips ?? o.trailingPips;
+  const expires = change.expiresAt === null ? undefined : change.expiresAt ?? o.expiresAt;
   checkPrice(s, price, "Order price"); checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit"); checkTrailing(trail);
+  if (change.expiresAt != null && change.expiresAt !== o.expiresAt) checkExpiry(change.expiresAt, ctx.now);
   if (change.price !== undefined) checkPendingSide(o.side, o.type, price, openingPrice(o.side, executableQuote(ctx, o.symbol)));
   checkProtection(o.side, price, sl, tp);
-  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit && trail === o.trailingPips) return { state, events: [] };
-  const { trailingPips: _oldTrail, ...rest } = o;
-  const next: PendingOrder = { ...rest, price, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingPips: trail } : {}) };
+  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit && trail === o.trailingPips && expires === o.expiresAt) return { state, events: [] };
+  const { trailingPips: _oldTrail, expiresAt: _oldExpiry, ...rest } = o;
+  const next: PendingOrder = { ...rest, price, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingPips: trail } : {}), ...(expires !== undefined ? { expiresAt: expires } : {}) };
   return { state: { ...state, orders: state.orders.map(x => (x.id === o.id ? next : x)), sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }] };
 }
 
@@ -333,8 +362,8 @@ export function cancelOrder(state: AccountState, orderId: string): Step {
 }
 
 /**
- * Runs on every price update and on a timer: rolls the trading day, fills
- * pending orders, closes positions at stop loss / take profit, enforces the
+ * Runs on every price update and on a timer: rolls the trading day, removes
+ * pending orders past their expiry (order_expired), fills pending orders, closes positions at stop loss / take profit, enforces the
  * daily and maximum loss limits (closing everything on a breach) and marks a
  * reached profit target once the minimum trading days are met.
  */
@@ -349,6 +378,14 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     events.push(...swaps.events, { type: "day_reset", tradingDay: day, dayStartBalance: current.balance });
   }
   if (current.status !== "active") return { state: current, events };
+  // Expiry is by time only: an order past its expiry is removed before it can
+  // fill, also while its market is closed or without a fresh price.
+  const expired: ExpiredOrder[] = current.orders.filter(o => o.expiresAt !== undefined && o.expiresAt <= ctx.now).map(o => ({ ...o, expiresAt: o.expiresAt!, expiredAt: ctx.now }));
+  if (expired.length) {
+    const gone = new Set(expired.map(o => o.id));
+    current = { ...current, orders: current.orders.filter(o => !gone.has(o.id)), expiredOrders: [...[...expired].reverse(), ...(current.expiredOrders ?? [])].slice(0, EXPIRED_ORDERS_KEPT), sequence: current.sequence + 1 };
+    events.push(...expired.map(order => ({ type: "order_expired" as const, order })));
+  }
   // Closed markets do not fill or stop out. When they reopen, the first fresh
   // price decides: a stop or stop order beyond a weekend gap fills at that
   // price (not at the level), a limit fills at its price or better.

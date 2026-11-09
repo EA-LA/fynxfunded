@@ -74,6 +74,12 @@ export interface OrderRequest {
    * `modifyPosition`: TRAILING_MIN_PIPS–TRAILING_MAX_PIPS in 0.1 pip steps.
    */
   trailingPips?: number;
+  /**
+   * Pending orders only: when the order is cancelled by the engine if it has
+   * not filled (milliseconds since epoch, "good till date"). Missing = good
+   * till cancelled. At least EXPIRY_MIN_MS ahead and at most EXPIRY_MAX_MS.
+   */
+  expiresAt?: number;
   /** Client idempotency key: the same key never opens two positions. */
   clientId?: string;
 }
@@ -143,8 +149,17 @@ export interface PendingOrder {
   takeProfit?: number;
   /** Trailing stop distance in pips the position gets when this order fills. */
   trailingPips?: number;
+  /** Expiry time (ms since epoch); missing = good till cancelled. See OrderRequest.expiresAt. */
+  expiresAt?: number;
   createdAt: number;
   clientId?: string;
+}
+
+/** A pending order that reached its expiry time without filling. */
+export interface ExpiredOrder extends PendingOrder {
+  expiresAt: number;
+  /** When the engine removed it (its first check at or after expiresAt). */
+  expiredAt: number;
 }
 
 export interface Deal {
@@ -260,6 +275,12 @@ export interface AccountState {
   orders: PendingOrder[];
   history: Deal[];
   /**
+   * Pending orders the engine removed at their expiry time, newest first
+   * (at most EXPIRED_ORDERS_KEPT), so the terminal can say what happened to
+   * them. Missing until the first expiry.
+   */
+  expiredOrders?: ExpiredOrder[];
+  /**
    * Summary of older deals moved out of `history` to keep the stored account
    * small (see `archiveHistory`). Absent until the first archive.
    */
@@ -291,6 +312,7 @@ export type EngineEvent =
   | { type: "order_triggered"; orderId: string; positionId: string }
   | { type: "order_cancelled"; orderId: string }
   | { type: "order_modified"; order: PendingOrder }
+  | { type: "order_expired"; order: ExpiredOrder }
   | { type: "position_modified"; positionId: string }
   | { type: "stop_trailed"; positionId: string; stopLoss: number; previousStopLoss?: number }
   | { type: "position_closed"; deal: Deal }

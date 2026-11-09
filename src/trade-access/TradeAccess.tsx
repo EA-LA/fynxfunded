@@ -23,6 +23,8 @@ import PositionEditor from './PositionEditor';
 import OrderEditor from './OrderEditor';
 import BulkClose from './BulkClose';
 import { parseTrailing, trailingPreview } from './protection';
+import ExpiryPicker from './ExpiryPicker';
+import { expiryAt, expiryLabel, expiryValue, type ExpiryChoice } from './expiry';
 import TargetProgress from './TargetProgress';
 import { FOREX_HOURS, marketState } from '@/engine/hours';
 import { closedSentence, localAt, pairMarket, untilLabel, useNow, type PairMarket } from './market-hours';
@@ -248,10 +250,13 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const [lotsText, setLotsText] = useState('0.10'), [type, setType] = useState<'market' | 'limit' | 'stop'>('market');
   const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState(''), [trailText, setTrailText] = useState('');
   const [review, setReview] = useState<Side | null>(null), [sent, setSent] = useState('');
+  const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>('gtc'), [expiryText, setExpiryText] = useState('');
   const lots = normalizeLots(lotsText);
   const step = (dir: 1 | -1) => setLotsText(((normalizeLots((lots ?? LOT_MIN) + dir * LOT_STEP) ?? LOT_MIN)).toFixed(2));
   const sl = parsePips(slText), tp = parsePips(tpText);
   const trail = parseTrailing(trailText), trailPips = trail.ok ? trail.value : null;
+  // Expiry only applies to pending orders; market orders fill at once.
+  const expiry = type === 'market' ? { ok: true as const, value: null } : expiryValue(expiryChoice, expiryText, now);
   const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance: account?.balance, dailyLossAmount });
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
@@ -259,12 +264,15 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
   const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
-    if (!review || !lots || !account || !quote || !trail.ok) return;
+    if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok) return;
+    // "End of today" is worked out at the moment of sending.
+    const exp = type === 'market' ? { ok: true as const, value: null } : expiryValue(expiryChoice, expiryText, Date.now());
+    if (!exp.ok) return;
     const entryPrice = type === 'market' ? (review === 'buy' ? quote.ask : quote.bid) : Number(entry.replace(',', '.'));
     if (!Number.isFinite(entryPrice) || entryPrice <= 0) { setSent(''); return; }
     const p = protectionPrices(review, entryPrice, sl, tp, pair.pipSize, pair.digits);
-    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, ...(trailPips !== null ? { trailingPips: trailPips } : {}), clientId: crypto.randomUUID() }));
-    if (ok) { setSent(`${review === 'buy' ? 'Bought' : 'Sold'} ${lots.toFixed(2)} ${pair.symbol}${type === 'market' ? '' : ` (${type} order placed)`}.`); setReview(null); }
+    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, ...(trailPips !== null ? { trailingPips: trailPips } : {}), ...(exp.value !== null ? { expiresAt: exp.value } : {}), clientId: crypto.randomUUID() }));
+    if (ok) { setSent(`${review === 'buy' ? 'Bought' : 'Sold'} ${lots.toFixed(2)} ${pair.symbol}${type === 'market' ? '' : ` (${type} order placed${exp.value !== null ? `, expires ${expiryAt(exp.value)}` : ''})`}.`); setReview(null); }
   };
   const field = 'w-full rounded-md border bg-background px-2.5 py-2 font-mono text-sm tabular-nums outline-none focus:ring-2 focus:ring-ring';
   return <div className="flex flex-col gap-4 overflow-y-auto p-4" data-testid="order-ticket">
@@ -298,6 +306,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       <label className="text-xs text-muted-foreground">Take profit (pips)<input inputMode="decimal" value={tpText} onChange={e => setTpText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
     </div>
     <TicketTrailing pair={pair} text={trailText} onText={setTrailText} type={type} entry={entry} quote={quote} />
+    {type !== 'market' && <ExpiryPicker id="ticket" choice={expiryChoice} onChoice={setExpiryChoice} dateText={expiryText} onDateText={setExpiryText} now={now} />}
 
     <div className="grid grid-cols-2 gap-2">
       <button type="button" onClick={() => { setSent(''); setReview('sell'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.bid.toFixed(pair.digits) : 'at bid') : `${type} order`}</span></button>
@@ -306,10 +315,11 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
 
     {review && lots && <div role="status" className={`rounded-lg border p-3 text-sm ${review === 'buy' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`} data-testid="order-review">
       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{review === 'buy' ? 'Buy' : 'Sell'} {lots.toFixed(2)} {pair.symbol} {type === 'market' ? 'at market' : `${type} at ${entry || '—'}`}</p><button type="button" aria-label="Close order review" onClick={() => setReview(null)}><X size={14} /></button></div>
-      <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{trailPips !== null ? ` · trailing stop ${trailPips} pips` : ''}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{trailPips !== null ? ` · trailing stop ${trailPips} pips` : ''}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}{type !== 'market' && expiry.ok ? ` · ${expiry.value === null ? 'good till cancelled' : `expires ${expiryAt(expiry.value)}`}` : ''}</p>
       {trail.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{trail.error} Fix it or clear the field to send.</p>}
+      {'error' in expiry && <p role="alert" className="mt-2 text-xs text-red-500">{expiry.error} Fix it to send.</p>}
       {canSend
-        ? <button type="button" disabled={engine.busy || !trail.ok} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
+        ? <button type="button" disabled={engine.busy || !trail.ok || !expiry.ok} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
         : <p className="mt-2 flex items-start gap-1.5 text-xs"><LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />{holdReason} This order was not sent.</p>}
       {engine.error && <p role="alert" className="mt-2 text-xs text-red-500">{engine.error}</p>}
     </div>}
@@ -399,7 +409,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   const cell = 'whitespace-nowrap px-3 py-1.5 font-mono';
   const empty = (what: string) => <p className="p-4 text-sm text-muted-foreground">{what} {!engine.status?.connected && hasAccount ? 'They will appear here once trading opens on this account.' : ''}</p>;
   const headers = tab === 'positions' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Current', 'Swap', 'Profit', '']
-    : tab === 'orders' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', '']
+    : tab === 'orders' ? ['Symbol', 'Ticket', 'Time', 'Type', 'Volume', 'Price', 'S/L', 'T/P', 'Expires', '']
     : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Swap', 'Profit', 'Result (R)', 'Reason'];
   const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
@@ -412,8 +422,8 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} /></button>{(() => { const m = pairMarket(engine.status, p.symbol, now); return <button type="button" disabled={engine.busy || !m.open} title={m.open ? undefined : closedSentence(p.symbol, m, now)} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary disabled:opacity-40" aria-label={m.open ? `Close ${p.symbol} position ${p.id}` : `Close ${p.symbol} position ${p.id} (market closed)`}><X size={12} /></button>; })()}</td>
         </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><PositionEditor position={p} snapshot={snap} engine={engine} hours={pairMarket(engine.status, p.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
         {tab === 'orders' && snap?.state.orders.map(o => <Fragment key={o.id}><tr className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}{o.trailingPips !== undefined && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`The position gets a ${o.trailingPips}-pip trailing stop when this order fills`}>trail {o.trailingPips}p</span>}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
-          <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss, take profit or trailing stop of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
+          <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}{o.trailingPips !== undefined && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`The position gets a ${o.trailingPips}-pip trailing stop when this order fills`}>trail {o.trailingPips}p</span>}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td><td className={`${cell} font-sans`} data-testid={`expires-${o.id}`}>{o.expiresAt === undefined ? <span className="text-muted-foreground" title="Good till cancelled">GTC</span> : <span title={expiryLabel(o.expiresAt, now)}>{time(o.expiresAt)} <span className="text-muted-foreground">{o.expiresAt > now ? `in ${untilLabel(o.expiresAt - now)}` : 'due now'}</span></span>}</td>
+          <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss, take profit, trailing stop or expiry of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
         </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><OrderEditor order={o} snapshot={snap} engine={engine} hours={pairMarket(engine.status, o.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
         {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <DealRow key={d.id} d={d} cell={cell} />)}
       </tbody>
@@ -433,6 +443,12 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
       {archive.error && <span role="alert" className="mt-1 block text-red-500">{archive.error}</span>}
     </p>}
     {!rows.length && (tab === 'positions' ? empty('No open positions.') : tab === 'orders' ? empty('No pending orders.') : snap?.state.archived?.deals ? null : <div className="p-4 text-sm"><p className="text-muted-foreground">No closed trades on this account yet.</p><Link className="mt-2 inline-block text-sm underline" to="/dashboard/trades">Open your full trade journal</Link></div>)}
+    {tab === 'orders' && !!snap?.state.expiredOrders?.length && <section data-testid="expired-orders" aria-labelledby="expired-orders-title" className="border-t px-4 py-3 text-xs">
+      <h3 id="expired-orders-title" className="font-medium">Expired orders</h3>
+      <p className="mt-0.5 text-muted-foreground">These pending orders reached their expiry time without filling, so the trading server cancelled them. Nothing was bought or sold and no money changed.</p>
+      <ul className="mt-2 space-y-1">{snap.state.expiredOrders.slice(0, 5).map(o => <li key={o.id} className="font-mono">{o.symbol} {o.side} {o.type} {o.lots.toFixed(2)} at {px(o.symbol, o.price)} <span className="font-sans text-muted-foreground">· {o.id} · expired {expiryAt(o.expiresAt)}</span></li>)}</ul>
+      {snap.state.expiredOrders.length > 5 && <p className="mt-1 text-muted-foreground">and {snap.state.expiredOrders.length - 5} earlier.</p>}
+    </section>}
     {tab === 'orders' && notice && !editingOpen && <p role="status" data-testid="order-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {tab === 'positions' && notice && !editingOpen && <p role="status" data-testid="position-notice" className="px-4 py-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {engine.error && <p role="alert" className="px-4 pb-3 text-xs text-red-500">{engine.error}</p>}

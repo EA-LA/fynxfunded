@@ -115,7 +115,7 @@ describe("terminal: Pending orders editor trailing stop", () => {
     expect(await screen.findByText("Trading engine live")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("tab", { name: "Pending orders" }));
     const orders = await screen.findByTestId("engine-orders");
-    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss, take profit or trailing stop of EURUSD order/ }));
+    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss, take profit, trailing stop or expiry of EURUSD order/ }));
     return { venue, editor: screen.getByTestId("order-editor") };
   }
 
