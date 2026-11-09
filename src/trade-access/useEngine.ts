@@ -17,31 +17,41 @@ export interface EngineHandle {
  * Connects the terminal to the trading engine. Without VITE_FYNX_TRADE_API_URL
  * the gateway is "disconnected" and nothing is sent anywhere.
  */
-export function useEngine(accountId: string | null, gatewayOverride?: TradingGateway): EngineHandle {
+export interface EngineOptions {
+  /** How often the account snapshot is refreshed while the page is visible (ms). The terminal uses 2 s. */
+  pollMs?: number;
+  /** false: no status or account calls at all (e.g. the account is not on FYNX Trade). */
+  enabled?: boolean;
+}
+
+export function useEngine(accountId: string | null, gatewayOverride?: TradingGateway, options: EngineOptions = {}): EngineHandle {
+  const { pollMs = 2000, enabled = true } = options;
   const gateway = useMemo(() => gatewayOverride ?? createGateway(import.meta.env.VITE_FYNX_TRADE_API_URL, async () => (await auth?.currentUser?.getIdToken()) ?? null), [gatewayOverride]);
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setStatus(null);
+    if (!enabled) return;
     let active = true;
     const load = () => gateway.status().then(s => { if (active) setStatus(s); });
     void load();
     // Market hours and feed health come from status; refresh it so a reopen or holiday is picked up.
     const t = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 60_000);
     return () => { active = false; window.clearInterval(t); };
-  }, [gateway]);
+  }, [gateway, enabled]);
 
-  const connected = !!status?.connected;
+  const connected = enabled && !!status?.connected;
   useEffect(() => {
-    setSnapshot(null);
+    setSnapshot(null); setError("");
     if (!connected || !accountId) return;
     let active = true;
     const load = () => gateway.snapshot(accountId).then(s => { if (active) setSnapshot(s); }).catch(e => { if (active) setError(e instanceof Error ? e.message : "Could not load the account."); });
     void load();
-    const t = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, 2000);
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, pollMs);
     return () => { active = false; window.clearInterval(t); };
-  }, [gateway, connected, accountId]);
+  }, [gateway, connected, accountId, pollMs]);
 
   const run = useCallback(async (fn: (g: TradingGateway) => Promise<Snapshot>) => {
     setBusy(true); setError("");

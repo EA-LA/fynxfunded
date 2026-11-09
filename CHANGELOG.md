@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 04:30 UTC — [autopilot] Dashboard: see your FYNX Trade account live
+
+- New "Live on FYNX Trade" card on the Overview tab of each FYNX Trade account in the dashboard (open it from https://www.fynxfunded.com/dashboard/accounts). Once the trading engine is connected it shows, refreshed every few seconds: the account's state (active, target met and waiting for review, or closed by a loss limit), balance, equity, open profit/loss, open and pending trades, how many dollars are left before the daily loss limit and the maximum loss (with the equity level that would close the account, how much of the allowance is used, and which limit is closer), a table of the open trades with their stop loss, take profit and current result, and the same "Progress on this account" checklist as the terminal.
+- The Balance and Equity boxes at the top of the account page switch to the live figures and say "live" while the engine is connected.
+- Today the engine is not connected, so the card says that plainly and shows no numbers; nothing is estimated. Accounts on other platforms are unchanged.
+- Nothing to build when you switch on: it turns on with the same setting as the terminal (docs/ENGINE-READINESS.md).
+
 ## 2026-11-09 00:30 UTC — [autopilot] FYNX Trade + Dashboard: risk and results in R
 
 - Fixed: the trade journal (https://www.fynxfunded.com/dashboard/trades) showed "0.0%" risk and "0.0" R:R for trades where that was never recorded, which read as "no risk taken". It now shows "—", and the account's "Avg. R:R" (https://www.fynxfunded.com/dashboard/accounts) only averages trades that really recorded it.
