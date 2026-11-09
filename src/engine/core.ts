@@ -158,11 +158,11 @@ const scaleRisk = (r: EntryRisk, part: number, whole: number): EntryRisk | null 
   return amount > 0 ? { ...r, amount } : null;
 };
 
-function open(state: AccountState, ctx: EngineContext, req: { symbol: string; side: Side; lots: number; stopLoss?: number; takeProfit?: number; clientId?: string }, price: number): Step {
+function open(state: AccountState, ctx: EngineContext, req: { symbol: string; side: Side; lots: number; stopLoss?: number; takeProfit?: number; trailingPips?: number; clientId?: string }, price: number): Step {
   const s = spec(ctx, req.symbol);
   const fee = commission(s, req.lots);
   const risk = entryRiskFor(s, req.side, req.lots, price, req.stopLoss, req.takeProfit, state.balance, ctx.quotes);
-  const position: Position = { id: ctx.newId("pos"), symbol: req.symbol, side: req.side, lots: req.lots, entryPrice: price, openedAt: ctx.now, stopLoss: req.stopLoss, takeProfit: req.takeProfit, commission: fee, ...(req.clientId ? { clientId: req.clientId } : {}), ...(risk ? { entryRisk: risk } : {}) };
+  const position: Position = { id: ctx.newId("pos"), symbol: req.symbol, side: req.side, lots: req.lots, entryPrice: price, openedAt: ctx.now, stopLoss: req.stopLoss, takeProfit: req.takeProfit, commission: fee, ...(req.trailingPips !== undefined ? { trailingStop: { pips: req.trailingPips } } : {}), ...(req.clientId ? { clientId: req.clientId } : {}), ...(risk ? { entryRisk: risk } : {}) };
   const day = tradingDayKey(ctx.now, ctx.rules.resetHourUtc);
   const next: AccountState = {
     ...state,
@@ -185,6 +185,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   checkLots(s, req.lots);
   checkPrice(s, req.stopLoss, "Stop loss");
   checkPrice(s, req.takeProfit, "Take profit");
+  checkTrailing(req.trailingPips);
   const q = executableQuote(ctx, req.symbol);
   const m = metrics(state, ctx);
   const required = marginUsd(s, req.lots, ctx.quotes);
@@ -198,7 +199,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   if (req.price === undefined) throw new EngineError("bad_price", "Pending orders need a price.");
   checkPendingSide(req.side, req.type, req.price, openingPrice(req.side, q));
   checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
-  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
+  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
   return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
 }
 

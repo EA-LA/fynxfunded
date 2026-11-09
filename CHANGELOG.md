@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-09 12:45 UTC — [autopilot] FYNX Trade: close several positions at once, trailing stop in the order ticket
+- Positions tab (https://www.fynxfunded.com/trade/access): new "Close all", "Close winning" and "Close losing" buttons with how many positions each one closes. One confirmation shows which pairs and their combined result at today's prices; positions whose market is closed stay open and are named; afterwards a plain line says how many closed, the net result, and anything that could not be closed and why.
+- New order ticket: optional "Trailing stop (pips)" with 15 / 30 shortcuts. It shows where the trailing stop would start for a buy and for a sell, appears in the order review, and blocks sending while the value is wrong. Market orders open with it; limit/stop orders keep it and apply it when they fill ("trail Np" tag on pending orders).
+- Ready for the API: the trading engine and its server contract accept the trailing distance on new orders; docs/ENGINE-READINESS.md updated. Nothing is sent until the owner connects the trading server and switches trading on.
+
 ## 2026-11-09 08:40 UTC — [autopilot] FYNX Trade: trailing stop
 
 - New in the trading terminal (https://www.fynxfunded.com/trade/access), Positions tab: open the pencil on a trade and type a "Trailing stop" distance in pips (or tap 10, 20 or 50 pips). Once the trade is that far in profit, the stop loss jumps to break-even and then follows the price at that distance; it never moves back. The trading server does this by itself, so it keeps working with the page closed.

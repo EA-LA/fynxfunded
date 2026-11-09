@@ -68,6 +68,12 @@ export interface OrderRequest {
   price?: number;
   stopLoss?: number;
   takeProfit?: number;
+  /**
+   * Trailing stop distance in pips, set on the position the moment it opens
+   * (market orders at once, pending orders when they fill). Same limits as
+   * `modifyPosition`: TRAILING_MIN_PIPS–TRAILING_MAX_PIPS in 0.1 pip steps.
+   */
+  trailingPips?: number;
   /** Client idempotency key: the same key never opens two positions. */
   clientId?: string;
 }
@@ -135,6 +141,8 @@ export interface PendingOrder {
   price: number;
   stopLoss?: number;
   takeProfit?: number;
+  /** Trailing stop distance in pips the position gets when this order fills. */
+  trailingPips?: number;
   createdAt: number;
   clientId?: string;
 }

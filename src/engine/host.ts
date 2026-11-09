@@ -74,7 +74,7 @@ const level = (v: unknown, name: string): number | null | undefined => (v === nu
 /** Strictly reads an order request body; unknown fields are refused so typos never pass silently. */
 export function parseOrderRequest(body: unknown, idempotencyKey?: string): OrderRequest {
   if (!isObject(body)) throw new EngineError("bad_request", "The order must be a JSON object.");
-  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "clientId"]);
+  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "clientId"]);
   const extra = Object.keys(body).filter(k => !allowed.has(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
   const { symbol, side, type, clientId } = body;
@@ -89,6 +89,8 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   if (price !== undefined) req.price = price;
   if (sl !== undefined) req.stopLoss = sl;
   if (tp !== undefined) req.takeProfit = tp;
+  const trail = num(body.trailingPips, "trailingPips");
+  if (trail !== undefined) req.trailingPips = trail;
   if (key) req.clientId = key;
   return req;
 }

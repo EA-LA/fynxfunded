@@ -21,6 +21,8 @@ import type { Deal, HistoryPage, InstrumentSpec, QuoteBook } from '@/engine/type
 import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
 import PositionEditor from './PositionEditor';
 import OrderEditor from './OrderEditor';
+import BulkClose from './BulkClose';
+import { parseTrailing, trailingPreview } from './protection';
 import TargetProgress from './TargetProgress';
 import { FOREX_HOURS, marketState } from '@/engine/hours';
 import { closedSentence, localAt, pairMarket, untilLabel, useNow, type PairMarket } from './market-hours';
@@ -220,14 +222,36 @@ function MarketWatch({ selected, onSelect, status, now }: { selected: ForexPair;
   </>;
 }
 
+/** Optional trailing stop in the order ticket, with where it starts for this entry. */
+function TicketTrailing({ pair, text, onText, type, entry, quote }: { pair: ForexPair; text: string; onText: (v: string) => void; type: 'market' | 'limit' | 'stop'; entry: string; quote?: { bid: number; ask: number } }) {
+  const t = parseTrailing(text);
+  const ref = type === 'market' ? null : Number(entry.replace(',', '.'));
+  const fmt = (v: number) => v.toFixed(pair.digits);
+  const pre = (side: Side, at: number | undefined) => t.ok && t.value !== null && at !== undefined && Number.isFinite(at) && at > 0 ? fmt(trailingPreview(pair, side, at, undefined, t.value, null).startsAt) : null;
+  const buyAt = pre('buy', type === 'market' ? quote?.ask : ref ?? undefined), sellAt = pre('sell', type === 'market' ? quote?.bid : ref ?? undefined);
+  return <div>
+    <label htmlFor="ticket-trailing" className="text-xs text-muted-foreground">Trailing stop (pips)</label>
+    <div className="mt-1 flex items-stretch gap-1">
+      <input id="ticket-trailing" inputMode="decimal" value={text} onChange={e => onText(e.target.value)} placeholder="Off" aria-invalid={!t.ok} aria-describedby="ticket-trailing-help" className="w-full rounded-md border bg-background px-2.5 py-2 font-mono text-sm tabular-nums outline-none focus:ring-2 focus:ring-ring" />
+      {['15', '30'].map(v => <button key={v} type="button" onClick={() => onText(text === v ? '' : v)} aria-pressed={text === v} aria-label={`Trailing stop ${v} pips`} className={`rounded border px-2 font-mono text-xs ${text === v ? 'border-primary bg-primary/10' : 'hover:bg-secondary'}`}>{v}</button>)}
+    </div>
+    <p id="ticket-trailing-help" data-testid="ticket-trailing-help" className={`mt-1 text-[11px] ${t.ok ? 'text-muted-foreground' : 'text-red-500'}`}>
+      {t.ok === false ? t.error
+        : t.value === null ? 'Off. With a distance, the trading server moves your stop behind the price once the trade is that far in profit, even with this page closed.'
+        : `Starts ${t.value} pips in profit with the stop at break-even, then follows the price and never moves back.${buyAt && sellAt ? ` From ${type === 'market' ? 'the current price' : 'this order price'} it starts at ${buyAt} on a buy, ${sellAt} on a sell.` : ''}${type !== 'market' ? ' Applied when the order fills.' : ''}`}
+    </p>
+  </div>;
+}
+
 function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; market: PairMarket; now: number; engine: EngineHandle }) {
   const marketOpen = market.open;
   const [lotsText, setLotsText] = useState('0.10'), [type, setType] = useState<'market' | 'limit' | 'stop'>('market');
-  const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState('');
+  const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState(''), [trailText, setTrailText] = useState('');
   const [review, setReview] = useState<Side | null>(null), [sent, setSent] = useState('');
   const lots = normalizeLots(lotsText);
   const step = (dir: 1 | -1) => setLotsText(((normalizeLots((lots ?? LOT_MIN) + dir * LOT_STEP) ?? LOT_MIN)).toFixed(2));
   const sl = parsePips(slText), tp = parsePips(tpText);
+  const trail = parseTrailing(trailText), trailPips = trail.ok ? trail.value : null;
   const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance: account?.balance, dailyLossAmount });
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
@@ -235,11 +259,11 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
   const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
-    if (!review || !lots || !account || !quote) return;
+    if (!review || !lots || !account || !quote || !trail.ok) return;
     const entryPrice = type === 'market' ? (review === 'buy' ? quote.ask : quote.bid) : Number(entry.replace(',', '.'));
     if (!Number.isFinite(entryPrice) || entryPrice <= 0) { setSent(''); return; }
     const p = protectionPrices(review, entryPrice, sl, tp, pair.pipSize, pair.digits);
-    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, clientId: crypto.randomUUID() }));
+    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, ...(trailPips !== null ? { trailingPips: trailPips } : {}), clientId: crypto.randomUUID() }));
     if (ok) { setSent(`${review === 'buy' ? 'Bought' : 'Sold'} ${lots.toFixed(2)} ${pair.symbol}${type === 'market' ? '' : ` (${type} order placed)`}.`); setReview(null); }
   };
   const field = 'w-full rounded-md border bg-background px-2.5 py-2 font-mono text-sm tabular-nums outline-none focus:ring-2 focus:ring-ring';
@@ -273,6 +297,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       <label className="text-xs text-muted-foreground">Stop loss (pips)<input inputMode="decimal" value={slText} onChange={e => setSlText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
       <label className="text-xs text-muted-foreground">Take profit (pips)<input inputMode="decimal" value={tpText} onChange={e => setTpText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
     </div>
+    <TicketTrailing pair={pair} text={trailText} onText={setTrailText} type={type} entry={entry} quote={quote} />
 
     <div className="grid grid-cols-2 gap-2">
       <button type="button" onClick={() => { setSent(''); setReview('sell'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.bid.toFixed(pair.digits) : 'at bid') : `${type} order`}</span></button>
@@ -281,9 +306,10 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
 
     {review && lots && <div role="status" className={`rounded-lg border p-3 text-sm ${review === 'buy' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`} data-testid="order-review">
       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{review === 'buy' ? 'Buy' : 'Sell'} {lots.toFixed(2)} {pair.symbol} {type === 'market' ? 'at market' : `${type} at ${entry || '—'}`}</p><button type="button" aria-label="Close order review" onClick={() => setReview(null)}><X size={14} /></button></div>
-      <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{trailPips !== null ? ` · trailing stop ${trailPips} pips` : ''}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}</p>
+      {trail.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{trail.error} Fix it or clear the field to send.</p>}
       {canSend
-        ? <button type="button" disabled={engine.busy} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
+        ? <button type="button" disabled={engine.busy || !trail.ok} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
         : <p className="mt-2 flex items-start gap-1.5 text-xs"><LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />{holdReason} This order was not sent.</p>}
       {engine.error && <p role="alert" className="mt-2 text-xs text-red-500">{engine.error}</p>}
     </div>}
@@ -377,6 +403,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
     : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Swap', 'Profit', 'Result (R)', 'Reason'];
   const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
+    {tab === 'positions' && snap && <BulkClose snapshot={snap} engine={engine} now={now} />}
     <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
       <tbody>
         {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes) + (p.swap ?? 0); return <Fragment key={p.id}><tr className="border-b border-border/60">
@@ -385,7 +412,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} /></button>{(() => { const m = pairMarket(engine.status, p.symbol, now); return <button type="button" disabled={engine.busy || !m.open} title={m.open ? undefined : closedSentence(p.symbol, m, now)} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary disabled:opacity-40" aria-label={m.open ? `Close ${p.symbol} position ${p.id}` : `Close ${p.symbol} position ${p.id} (market closed)`}><X size={12} /></button>; })()}</td>
         </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><PositionEditor position={p} snapshot={snap} engine={engine} hours={pairMarket(engine.status, p.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
         {tab === 'orders' && snap?.state.orders.map(o => <Fragment key={o.id}><tr className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
+          <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}{o.trailingPips !== undefined && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`The position gets a ${o.trailingPips}-pip trailing stop when this order fills`}>trail {o.trailingPips}p</span>}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td>
           <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss or take profit of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
         </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><OrderEditor order={o} snapshot={snap} engine={engine} hours={pairMarket(engine.status, o.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
         {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <DealRow key={d.id} d={d} cell={cell} />)}
