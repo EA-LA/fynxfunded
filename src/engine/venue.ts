@@ -1,4 +1,4 @@
-import { archiveHistory, cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type Step } from "./core";
+import { archiveHistory, cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
 import type { AccountMetrics, AccountState, ArchiveChunk, EngineEvent, HistoryPage, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
 import { FOREX_HOURS, marketState, type MarketState, type TradingHours } from "./hours";
 import { EngineError } from "./types";
@@ -224,7 +224,7 @@ export class LocalVenue {
   snapshot(accountId: string) { return this.run(accountId, s => ({ state: s, events: [] })); }
   place(accountId: string, req: OrderRequest) { return this.run(accountId, (s, c) => placeOrder(s, req, c)); }
   close(accountId: string, positionId: string, lots?: number) { return this.run(accountId, (s, c) => closePosition(s, positionId, lots, c)); }
-  modify(accountId: string, positionId: string, p: { stopLoss?: number | null; takeProfit?: number | null }) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c)); }
+  modify(accountId: string, positionId: string, p: PositionChange) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c)); }
   modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c)); }
   cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId)); }
 

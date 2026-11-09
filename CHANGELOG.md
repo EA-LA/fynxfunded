@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-09 08:40 UTC — [autopilot] FYNX Trade: trailing stop
+
+- New in the trading terminal (https://www.fynxfunded.com/trade/access), Positions tab: open the pencil on a trade and type a "Trailing stop" distance in pips (or tap 10, 20 or 50 pips). Once the trade is that far in profit, the stop loss jumps to break-even and then follows the price at that distance; it never moves back. The trading server does this by itself, so it keeps working with the page closed.
+- Before saving, the editor tells you in plain words where the trailing stop will start, or, if the trade is already far enough in profit, exactly where the stop will move to. Distances under 5 or over 5000 pips are explained and refused.
+- Trades with a trailing stop show a small "trail 20p" tag next to their stop loss, and the "Live on FYNX Trade" card in the dashboard (https://www.fynxfunded.com/dashboard/accounts) says "(trailing 20 pips)".
+- When a trailed stop is hit the trade closes as a stop loss; its risk and result in R in the journal still use the stop it opened with.
+- Nothing is switched on: this works as soon as the price feed and trading server are connected (docs/ENGINE-READINESS.md).
+
 ## 2026-11-09 04:30 UTC — [autopilot] Dashboard: see your FYNX Trade account live
 
 - New "Live on FYNX Trade" card on the Overview tab of each FYNX Trade account in the dashboard (open it from https://www.fynxfunded.com/dashboard/accounts). Once the trading engine is connected it shows, refreshed every few seconds: the account's state (active, target met and waiting for review, or closed by a loss limit), balance, equity, open profit/loss, open and pending trades, how many dollars are left before the daily loss limit and the maximum loss (with the equity level that would close the account, how much of the allowance is used, and which limit is closer), a table of the open trades with their stop loss, take profit and current result, and the same "Progress on this account" checklist as the terminal.

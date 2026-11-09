@@ -1,5 +1,5 @@
 import type { LocalVenue, Snapshot } from "./venue";
-import type { OrderChange } from "./core";
+import type { OrderChange, PositionChange } from "./core";
 import type { OrderRequest } from "./types";
 import { EngineError } from "./types";
 
@@ -93,14 +93,15 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   return req;
 }
 
-function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit")[]): OrderChange {
+function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit" | "trailingPips")[]): OrderChange & PositionChange {
   if (!isObject(body)) throw new EngineError("bad_request", "The change must be a JSON object.");
   const extra = Object.keys(body).filter(k => !(fields as string[]).includes(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
-  const out: OrderChange = {};
+  const out: OrderChange & PositionChange = {};
   if ("price" in body) { const p = num(body.price, "price", false); if (p !== undefined) out.price = p; }
   if ("stopLoss" in body) out.stopLoss = level(body.stopLoss, "stopLoss");
   if ("takeProfit" in body) out.takeProfit = level(body.takeProfit, "takeProfit");
+  if ("trailingPips" in body) out.trailingPips = level(body.trailingPips, "trailingPips");
   if (!Object.keys(out).length) throw new EngineError("bad_request", "Nothing to change.");
   return out;
 }
@@ -179,9 +180,10 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     }
     if (collection === "positions" && itemId && !action) {
       if (method !== "PATCH") return fail("method_not_allowed", "Use PATCH.");
-      const change = parseChange(req.body, ["stopLoss", "takeProfit"]);
+      const change = parseChange(req.body, ["stopLoss", "takeProfit", "trailingPips"]);
       await needsTrading();
-      return ok(await opts.venue.modify(accountId, itemId, { stopLoss: change.stopLoss, takeProfit: change.takeProfit }));
+      const { stopLoss, takeProfit, trailingPips } = change;
+      return ok(await opts.venue.modify(accountId, itemId, { ...("stopLoss" in change ? { stopLoss } : {}), ...("takeProfit" in change ? { takeProfit } : {}), ...("trailingPips" in change ? { trailingPips } : {}) }));
     }
     return fail("not_found", "Unknown address.");
   } catch (e) {

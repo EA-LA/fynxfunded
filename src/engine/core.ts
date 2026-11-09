@@ -230,7 +230,28 @@ export function closePosition(state: AccountState, positionId: string, lots: num
   return closeAt(state, ctx, positionId, lots ?? p.lots, closingPrice(p.side, q), "manual");
 }
 
-export function modifyPosition(state: AccountState, positionId: string, protection: { stopLoss?: number | null; takeProfit?: number | null }, ctx: EngineContext): Step {
+/** Shortest and longest trailing-stop distance the engine accepts, in pips. */
+export const TRAILING_MIN_PIPS = 5;
+export const TRAILING_MAX_PIPS = 5000;
+
+/**
+ * A change to an open position. A number sets the level (trailing distance in
+ * pips), null removes it, leaving a field out keeps it.
+ */
+export interface PositionChange {
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  /** Trailing stop distance in pips; null switches the trailing stop off. */
+  trailingPips?: number | null;
+}
+
+function checkTrailing(pips: number | undefined) {
+  if (pips === undefined) return;
+  if (!Number.isFinite(pips) || pips < TRAILING_MIN_PIPS || pips > TRAILING_MAX_PIPS) throw new EngineError("bad_trailing", `Trailing stop must be between ${TRAILING_MIN_PIPS} and ${TRAILING_MAX_PIPS} pips.`);
+  if (!new Decimal(pips).times(10).isInteger()) throw new EngineError("bad_trailing", "Trailing stop goes in steps of 0.1 pips.");
+}
+
+export function modifyPosition(state: AccountState, positionId: string, protection: PositionChange, ctx: EngineContext): Step {
   assertActive(state);
   const p = state.positions.find(x => x.id === positionId);
   if (!p) throw new EngineError("no_position", "That position is not open.");
@@ -238,9 +259,32 @@ export function modifyPosition(state: AccountState, positionId: string, protecti
   assertMarketOpen(s, ctx.now);
   const sl = protection.stopLoss === null ? undefined : protection.stopLoss ?? p.stopLoss;
   const tp = protection.takeProfit === null ? undefined : protection.takeProfit ?? p.takeProfit;
-  checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit");
+  const trail = protection.trailingPips === null ? undefined : protection.trailingPips ?? p.trailingStop?.pips;
+  checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit"); checkTrailing(trail);
   checkProtection(p.side, closingPrice(p.side, executableQuote(ctx, p.symbol)), sl, tp);
-  return { state: { ...state, positions: state.positions.map(x => (x.id === p.id ? { ...x, stopLoss: sl, takeProfit: tp } : x)), sequence: state.sequence + 1 }, events: [{ type: "position_modified", positionId }] };
+  if (sl === p.stopLoss && tp === p.takeProfit && trail === p.trailingStop?.pips) return { state, events: [] };
+  const next = (x: Position): Position => {
+    const { trailingStop: _old, ...rest } = x;
+    return { ...rest, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingStop: { pips: trail } } : {}) };
+  };
+  return { state: { ...state, positions: state.positions.map(x => (x.id === p.id ? next(x) : x)), sequence: state.sequence + 1 }, events: [{ type: "position_modified", positionId }] };
+}
+
+/**
+ * Where a trailing stop would put the stop loss at `closing`, or null while it
+ * has not started (price not yet `pips` beyond the entry) or would not improve
+ * the current stop by at least one pip. Buys round down and sells round up to
+ * the tick, so the stop is never closer to the price than the distance.
+ */
+export function trailedStop(s: Pick<InstrumentSpec, "pipSize" | "tickSize">, p: Pick<Position, "side" | "entryPrice" | "stopLoss" | "trailingStop">, closing: number): number | null {
+  if (!p.trailingStop) return null;
+  const dist = new Decimal(p.trailingStop.pips).times(s.pipSize);
+  const raw = p.side === "buy" ? new Decimal(closing).minus(dist) : new Decimal(closing).plus(dist);
+  const ticks = raw.div(s.tickSize);
+  const level = (p.side === "buy" ? ticks.floor() : ticks.ceil()).times(s.tickSize).toNumber();
+  if (p.side === "buy" ? level < p.entryPrice : level > p.entryPrice) return null;
+  if (p.stopLoss !== undefined && new Decimal(level).minus(p.stopLoss).times(p.side === "buy" ? 1 : -1).lt(s.pipSize)) return null;
+  return level;
 }
 
 export interface OrderChange {
@@ -325,6 +369,18 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     const targetHit = p.takeProfit !== undefined && (p.side === "buy" ? price >= p.takeProfit : price <= p.takeProfit);
     if (stopHit) apply(closeAt(current, ctx, p.id, p.lots, price, "stop_loss"));
     else if (targetHit) apply(closeAt(current, ctx, p.id, p.lots, price, "take_profit"));
+  }
+
+  // Trailing stops follow the price that was just checked; a trailed stop is
+  // hit on a later price, like any stop loss.
+  for (const p of current.positions) {
+    if (!p.trailingStop) continue;
+    const q = ctx.quotes[p.symbol], s = ctx.specs[p.symbol];
+    if (!q || !s || ctx.now - q.time > ctx.maxQuoteAgeMs || !tradable(p.symbol)) continue;
+    const level = trailedStop(s, p, closingPrice(p.side, q));
+    if (level === null) continue;
+    current = { ...current, positions: current.positions.map(x => (x.id === p.id ? { ...x, stopLoss: level } : x)), sequence: current.sequence + 1 };
+    events.push({ type: "stop_trailed", positionId: p.id, stopLoss: level, ...(p.stopLoss !== undefined ? { previousStopLoss: p.stopLoss } : {}) });
   }
 
   // Loss limits are checked on tradable prices only: while an open position's

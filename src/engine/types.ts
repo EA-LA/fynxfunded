@@ -91,6 +91,25 @@ export interface Position {
    * when the position opened without a stop loss.
    */
   entryRisk?: EntryRisk;
+  /**
+   * Trailing stop: once the closing price is `pips` in profit, the stop loss
+   * follows the price at that distance and never moves back. Missing = off.
+   */
+  trailingStop?: TrailingStop;
+}
+
+/**
+ * Trailing stop settings of an open position (MT5 convention). It starts
+ * when the closing price (bid for buys, ask for sells) is at least `pips`
+ * beyond the entry, so the first trailed stop sits at break-even or better.
+ * From then on the stop is kept `pips` behind the best closing price, moved in
+ * steps of at least one pip, and only ever towards profit. The engine moves
+ * it on the server's timer step and on every price, so it works with the
+ * terminal closed. Hitting a trailed stop closes the position as `stop_loss`.
+ */
+export interface TrailingStop {
+  /** Distance from the closing price in pips (0.1 pip steps, between TRAILING_MIN_PIPS and TRAILING_MAX_PIPS). */
+  pips: number;
 }
 
 /**
@@ -265,6 +284,7 @@ export type EngineEvent =
   | { type: "order_cancelled"; orderId: string }
   | { type: "order_modified"; order: PendingOrder }
   | { type: "position_modified"; positionId: string }
+  | { type: "stop_trailed"; positionId: string; stopLoss: number; previousStopLoss?: number }
   | { type: "position_closed"; deal: Deal }
   | { type: "account_breached"; reason: CloseReason }
   | { type: "target_reached" }

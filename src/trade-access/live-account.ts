@@ -42,7 +42,7 @@ export interface LiveAccountSummary {
   maxLoss: LossRoom;
   /** Which limit is closer to equity right now. */
   closerLimit: "daily" | "maximum";
-  positions: { id: string; symbol: string; side: Side; lots: number; entryPrice: number; stopLoss?: number; takeProfit?: number; profit: number }[];
+  positions: { id: string; symbol: string; side: Side; lots: number; entryPrice: number; stopLoss?: number; takeProfit?: number; /** Trailing stop distance in pips, when on. */ trailingPips?: number; profit: number }[];
   pendingOrders: number;
   /** Latest price time among the account's open symbols (ms); null when no open position has a price. */
   pricesAt: number | null;
@@ -74,7 +74,7 @@ export function liveAccountSummary(snap: Snapshot, startingBalance?: number | nu
   const dailyLoss = room(m.equity, m.dailyLossFloor, state.dayStartBalance - m.dailyLossFloor);
   const start = typeof startingBalance === "number" && Number.isFinite(startingBalance) && startingBalance > 0 ? startingBalance : null;
   const maxLoss = room(m.equity, m.maxLossFloor, start === null ? null : start - m.maxLossFloor);
-  const positions = state.positions.map(p => ({ id: p.id, symbol: p.symbol, side: p.side, lots: p.lots, entryPrice: p.entryPrice, stopLoss: p.stopLoss, takeProfit: p.takeProfit, profit: positionProfitUsd(p, quotes) }));
+  const positions = state.positions.map(p => ({ id: p.id, symbol: p.symbol, side: p.side, lots: p.lots, entryPrice: p.entryPrice, stopLoss: p.stopLoss, takeProfit: p.takeProfit, ...(p.trailingStop ? { trailingPips: p.trailingStop.pips } : {}), profit: positionProfitUsd(p, quotes) }));
   const times = state.positions.map(p => quotes[p.symbol]?.time).filter((t): t is number => typeof t === "number" && Number.isFinite(t));
   return {
     status: state.status,

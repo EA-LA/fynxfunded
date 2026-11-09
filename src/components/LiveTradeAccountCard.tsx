@@ -69,7 +69,7 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
           <td className={`px-2 py-1.5 capitalize ${p.side === "buy" ? "text-blue-500" : "text-red-500"}`}>{p.side}</td>
           <td className="px-2 py-1.5 font-mono">{p.lots.toFixed(2)}</td>
           <td className="px-2 py-1.5 font-mono">{p.entryPrice.toFixed(d)}</td>
-          <td className="px-2 py-1.5 font-mono">{p.stopLoss === undefined ? "None" : p.stopLoss.toFixed(d)}</td>
+          <td className="px-2 py-1.5 font-mono">{p.stopLoss === undefined ? "None" : p.stopLoss.toFixed(d)}{p.trailingPips !== undefined && <span className="ml-1 whitespace-nowrap font-sans text-xs text-muted-foreground">(trailing {p.trailingPips} pips)</span>}</td>
           <td className="px-2 py-1.5 font-mono">{p.takeProfit === undefined ? "None" : p.takeProfit.toFixed(d)}</td>
           <td className={`px-2 py-1.5 font-mono ${Number.isFinite(p.profit) ? tone(p.profit) : ""}`}>{Number.isFinite(p.profit) ? signed(p.profit) : "No price"}</td>
         </tr>; })}</tbody>

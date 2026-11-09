@@ -1,4 +1,4 @@
-import { profitUsd } from "@/engine/core";
+import { profitUsd, trailedStop, TRAILING_MAX_PIPS, TRAILING_MIN_PIPS } from "@/engine/core";
 import type { InstrumentSpec, QuoteBook, Side } from "@/engine/types";
 import { CONTRACT_SIZE, type ForexPair } from "./instruments";
 
@@ -56,6 +56,36 @@ export function protectionChange(current: { stopLoss?: number; takeProfit?: numb
   if ((current.stopLoss ?? null) !== next.stopLoss) out.stopLoss = next.stopLoss;
   if ((current.takeProfit ?? null) !== next.takeProfit) out.takeProfit = next.takeProfit;
   return out;
+}
+
+/** Trailing stop distance typed by the trader: empty = off; otherwise pips with at most one decimal, within the engine's limits. */
+export function parseTrailing(text: string): PriceField {
+  const t = text.trim().replace(",", ".");
+  if (!t) return { ok: true, value: null };
+  if (!/^\d+(\.\d)?$/.test(t)) return { ok: false, error: "Trailing stop: type a distance in pips like 20 or 12.5." };
+  const value = Number(t);
+  if (value < TRAILING_MIN_PIPS || value > TRAILING_MAX_PIPS) return { ok: false, error: `Trailing stop must be between ${TRAILING_MIN_PIPS} and ${TRAILING_MAX_PIPS} pips.` };
+  return { ok: true, value };
+}
+
+export interface TrailingPreview {
+  /** Closing price at which the trailing stop starts (entry ± distance). */
+  startsAt: number;
+  /** True once the closing price has reached `startsAt`. */
+  started: boolean;
+  /** Where the stop would move right now, or null when it would not move. */
+  movesTo: number | null;
+}
+
+/** What a trailing stop of `pips` does from the current closing price, with the engine's own rule (`trailedStop`). */
+export function trailingPreview(pair: Pick<ForexPair, "pipSize" | "digits">, side: Side, entry: number, closing: number | undefined, pips: number, stopLoss: number | null): TrailingPreview {
+  const tickSize = Number((10 ** -pair.digits).toFixed(pair.digits));
+  const dist = pips * pair.pipSize;
+  const startsAt = Number((side === "buy" ? entry + dist : entry - dist).toFixed(pair.digits));
+  if (closing === undefined) return { startsAt, started: false, movesTo: null };
+  const started = side === "buy" ? closing >= startsAt : closing <= startsAt;
+  const movesTo = trailedStop({ pipSize: pair.pipSize, tickSize }, { side, entryPrice: entry, stopLoss: stopLoss ?? undefined, trailingStop: { pips } }, closing);
+  return { startsAt, started, movesTo };
 }
 
 /** Lots for a partial close: a multiple of 0.01 that leaves something open. */
