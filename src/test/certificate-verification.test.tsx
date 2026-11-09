@@ -20,6 +20,21 @@ describe("public certificate verification",()=>{
   it.each(["revoked","pending",undefined])("does not verify a certificate with status %s",async status=>{
     mocks.lookup.mockResolvedValue({status});show();expect(await screen.findByText("Certificate not verified")).toBeInTheDocument();expect(screen.queryByText("Verified Certificate")).not.toBeInTheDocument();
   });
+  it("shows only the details a certificate records, never a column of dashes",async()=>{
+    mocks.lookup.mockResolvedValue({...issued,passedDate:"2026-10-02T10:00:00Z",issuedAt:"2026-10-03T10:00:00Z"});show();
+    expect(await screen.findByText("Verified Certificate")).toBeInTheDocument();
+    for(const label of ["Certificate ID","Account","Challenge","Account Size","Passed Date","Issued"])expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText("Funded Date")).not.toBeInTheDocument();
+    expect(screen.queryByText("Profit Split")).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
+  it("shows course details instead of challenge rows on a learning certificate",async()=>{
+    mocks.lookup.mockResolvedValue({status:"issued",type:"learning_completion",publicVerificationId:"FYNX-CERT-0LRN001",traderName:"Sam Trader",courseName:"Risk management basics",quizAverage:92,issuedAt:"2026-10-03T10:00:00Z",accountSize:0,challengeType:""});show();
+    expect(await screen.findByText("Risk management basics")).toBeInTheDocument();
+    expect(screen.getByText("92%")).toBeInTheDocument();
+    expect(screen.getByText("FYNX Academy")).toBeInTheDocument();
+    for(const label of ["Challenge","Account Size","Passed Date","Funded Date","Profit Split"])expect(screen.queryByText(label)).not.toBeInTheDocument();
+  });
   it("retries the lookup when verification was unavailable",async()=>{
     mocks.lookup.mockRejectedValueOnce(new Error("unavailable")).mockResolvedValueOnce(issued);show();
     fireEvent.click(await screen.findByRole("button",{name:/Try again/}));

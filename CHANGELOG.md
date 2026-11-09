@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-09 16:40 UTC — [autopilot] FYNX Trade: change the trailing stop on a waiting order; cleaner certificate check
+
+- FYNX Trade terminal (https://www.fynxfunded.com/trade/access), Pending orders tab → pencil: the order editor now has a "Trailing stop after the fill" field. You can add one to a waiting order, change the distance (15/30 pip shortcuts) or switch it off with "Trailing off". It tells you, in plain words, the price at which the trailing stop will start after the order fills, and says clearly when saving will switch off a trailing stop you set earlier. Before, the distance chosen when placing the order could not be changed without cancelling the order.
+- The trading engine and its connection contract accept this change too, with the same limits as everywhere else (5 to 5,000 pips), so it works the moment the trading server is connected. The engine guide (docs/ENGINE-READINESS.md) is updated.
+- Certificate check page (https://www.fynxfunded.com/certificates/verify): a verified certificate now lists only the details it actually records, instead of rows of "—". Learning certificates show the course name and quiz average instead of empty challenge rows.
+
 ## 2026-11-09 12:45 UTC — [autopilot] FYNX Trade: close several positions at once, trailing stop in the order ticket
 - Positions tab (https://www.fynxfunded.com/trade/access): new "Close all", "Close winning" and "Close losing" buttons with how many positions each one closes. One confirmation shows which pairs and their combined result at today's prices; positions whose market is closed stay open and are named; afterwards a plain line says how many closed, the net result, and anything that could not be closed and why.
 - New order ticket: optional "Trailing stop (pips)" with 15 / 30 shortcuts. It shows where the trailing stop would start for a buy and for a sell, appears in the order review, and blocks sending while the value is wrong. Market orders open with it; limit/stop orders keep it and apply it when they fill ("trail Np" tag on pending orders).

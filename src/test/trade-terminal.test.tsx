@@ -270,7 +270,7 @@ describe("terminal: pending orders", () => {
     render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
     fireEvent.click(await screen.findByRole("tab", { name: "Pending orders" }));
     const orders = await screen.findByTestId("engine-orders");
-    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss or take profit of EURUSD order/ }));
+    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss, take profit or trailing stop of EURUSD order/ }));
     const editor = screen.getByTestId("order-editor");
     expect(within(editor).getByTestId("order-distance")).toHaveTextContent("11.0 pips below the current ask 1.08010");
     expect(within(editor).getByTestId("order-sl-outcome")).toHaveTextContent("If hit after the fill: -$200.00 (-20.0 pips)");
@@ -372,7 +372,7 @@ describe("terminal: holiday closure from the trading server", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Pending orders" }));
     const orders = await screen.findByTestId("engine-orders");
-    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss or take profit of USDJPY order/ }));
+    fireEvent.click(await within(orders).findByRole("button", { name: /Edit price, stop loss, take profit or trailing stop of USDJPY order/ }));
     const orderEditor = screen.getByTestId("order-editor");
     expect(within(orderEditor).getByTestId("editor-market-closed")).toHaveTextContent("Cancelling the order works at any time.");
     fireEvent.change(within(orderEditor).getByLabelText("Buy limit price"), { target: { value: "149.400" } });

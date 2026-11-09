@@ -124,9 +124,13 @@ export function pendingErrors(side: Side, type: "limit" | "stop", market: number
 /** Pips between the order price and the market, always positive. */
 export const pipsAway = (price: number, market: number, pipSize: number) => Math.round((Math.abs(price - market) / pipSize) * 10) / 10;
 
-/** Request body for a pending-order change; unchanged fields are left out. */
-export function orderChange(current: { price: number; stopLoss?: number; takeProfit?: number }, next: { price: number; stopLoss: number | null; takeProfit: number | null }) {
-  const out: { price?: number; stopLoss?: number | null; takeProfit?: number | null } = protectionChange(current, next);
+/**
+ * Request body for a pending-order change; unchanged fields are left out.
+ * `trailingPips` is only compared when given (null = switch it off).
+ */
+export function orderChange(current: { price: number; stopLoss?: number; takeProfit?: number; trailingPips?: number }, next: { price: number; stopLoss: number | null; takeProfit: number | null; trailingPips?: number | null }) {
+  const out: { price?: number; stopLoss?: number | null; takeProfit?: number | null; trailingPips?: number | null } = protectionChange(current, next);
   if (next.price !== current.price) out.price = next.price;
+  if (next.trailingPips !== undefined && (current.trailingPips ?? null) !== next.trailingPips) out.trailingPips = next.trailingPips;
   return out;
 }

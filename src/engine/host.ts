@@ -171,7 +171,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     }
     if (collection === "orders" && itemId && !action) {
       if (method === "DELETE") return ok(await opts.venue.cancel(accountId, itemId));
-      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
+      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit", "trailingPips"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
       return fail("method_not_allowed", "Use PATCH or DELETE.");
     }
     if (collection === "positions" && itemId && action === "close") {

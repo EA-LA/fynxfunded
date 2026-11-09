@@ -294,10 +294,15 @@ export interface OrderChange {
   /** A number sets the level, null removes it, leaving it out keeps it. */
   stopLoss?: number | null;
   takeProfit?: number | null;
+  /**
+   * Trailing stop distance in pips the position gets when the order fills;
+   * null removes it, leaving it out keeps it.
+   */
+  trailingPips?: number | null;
 }
 
 /**
- * Changes the price, stop loss or take profit of a pending order. The same
+ * Changes the price, stop loss, take profit or trailing distance of a pending order. The same
  * checks as a new order apply: the price must still be on the right side of
  * the market for its type, and stop loss / take profit on the right side of
  * the (new) order price. Volume, side and type cannot change; cancel and place
@@ -312,11 +317,13 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   const price = change.price ?? o.price;
   const sl = change.stopLoss === null ? undefined : change.stopLoss ?? o.stopLoss;
   const tp = change.takeProfit === null ? undefined : change.takeProfit ?? o.takeProfit;
-  checkPrice(s, price, "Order price"); checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit");
+  const trail = change.trailingPips === null ? undefined : change.trailingPips ?? o.trailingPips;
+  checkPrice(s, price, "Order price"); checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit"); checkTrailing(trail);
   if (change.price !== undefined) checkPendingSide(o.side, o.type, price, openingPrice(o.side, executableQuote(ctx, o.symbol)));
   checkProtection(o.side, price, sl, tp);
-  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit) return { state, events: [] };
-  const next: PendingOrder = { ...o, price, stopLoss: sl, takeProfit: tp };
+  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit && trail === o.trailingPips) return { state, events: [] };
+  const { trailingPips: _oldTrail, ...rest } = o;
+  const next: PendingOrder = { ...rest, price, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingPips: trail } : {}) };
   return { state: { ...state, orders: state.orders.map(x => (x.id === o.id ? next : x)), sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }] };
 }
 
