@@ -3,6 +3,7 @@ import type { CloseReason, Deal, HistoryPage, OrderRequest } from "./types";
 import type { OrderChange, PositionChange } from "./core";
 import { EngineError } from "./types";
 import type { MarketState } from "./hours";
+import type { TradingConditions } from "./venue";
 
 /**
  * What the FYNX Trade terminal talks to. Three implementations:
@@ -26,6 +27,12 @@ export interface GatewayStatus {
    * standard forex week.
    */
   markets?: Record<string, MarketState>;
+  /**
+   * Leverage, lot limits, commission and swap per symbol from the server's
+   * settings. Optional: without it the terminal does not show margin or
+   * commission figures (it never guesses them).
+   */
+  instruments?: Record<string, TradingConditions>;
 }
 
 /** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
@@ -39,6 +46,32 @@ export function parseMarkets(raw: unknown): Record<string, MarketState> | undefi
     if (!(nextChange === null || nextChange === undefined || (typeof nextChange === "number" && Number.isFinite(nextChange) && nextChange > 0))) continue;
     if (!(reason === null || reason === undefined || (typeof reason === "string" && reason.length <= 120))) continue;
     out[symbol] = { open, nextChange: (nextChange as number | null | undefined) ?? null, reason: open ? null : ((reason as string | null | undefined) || "Outside trading hours") };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+const num = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+
+/** Keeps only well-formed per-symbol trading conditions from a server answer; anything else is dropped. */
+export function parseInstruments(raw: unknown): Record<string, TradingConditions> | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const out: Record<string, TradingConditions> = {};
+  for (const [symbol, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[A-Z]{6}$/.test(symbol) || typeof v !== "object" || v === null) continue;
+    const c = v as Record<string, unknown>;
+    if (!num(c.contractSize, 1, 10_000_000) || !num(c.minLots, 0.0001, 1000) || !num(c.lotStep, 0.0001, 1000) || !num(c.maxLots, 0.0001, 100_000)) continue;
+    if ((c.maxLots as number) < (c.minLots as number)) continue;
+    if (!num(c.leverage, 1, 1000) || !Number.isInteger(c.leverage)) continue;
+    if (!num(c.commissionPerLotPerSide, 0, 1000)) continue;
+    let swap: TradingConditions["swap"] = null;
+    if (c.swap !== null && c.swap !== undefined) {
+      const w = c.swap as Record<string, unknown>;
+      if (typeof w !== "object" || !num(w.longPerLot, -10_000, 10_000) || !num(w.shortPerLot, -10_000, 10_000)) continue;
+      const triple = w.tripleWeekday === undefined ? 3 : w.tripleWeekday;
+      if (!(Number.isInteger(triple) && (triple as number) >= 0 && (triple as number) <= 6)) continue;
+      swap = { longPerLot: w.longPerLot as number, shortPerLot: w.shortPerLot as number, tripleWeekday: triple as number };
+    }
+    out[symbol] = { contractSize: c.contractSize as number, minLots: c.minLots as number, lotStep: c.lotStep as number, maxLots: c.maxLots as number, leverage: c.leverage as number, commissionPerLotPerSide: c.commissionPerLotPerSide as number, swap };
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -141,9 +174,9 @@ export class HttpGateway implements TradingGateway {
 
   async status(): Promise<GatewayStatus> {
     try {
-      const s = await this.call<Partial<GatewayStatus> & { markets?: unknown }>("GET", "/v1/status");
-      const markets = parseMarkets(s?.markets);
-      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}) };
+      const s = await this.call<Partial<GatewayStatus> & { markets?: unknown; instruments?: unknown }>("GET", "/v1/status");
+      const markets = parseMarkets(s?.markets), instruments = parseInstruments(s?.instruments);
+      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}) };
     } catch (e) {
       return { connected: false, priceFeed: false, execution: false, message: e instanceof Error ? e.message : "Not connected." };
     }
@@ -163,7 +196,7 @@ export class HttpGateway implements TradingGateway {
 export class LocalGatewayAdapter implements TradingGateway {
   readonly mode = "local" as const;
   constructor(private venue: LocalVenue) {}
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets() }; }
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions() }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
   placeOrder(id: string, order: OrderRequest) { return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }

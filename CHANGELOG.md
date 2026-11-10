@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-10 08:40 UTC — [autopilot] FYNX Trade: margin, commission and swap in the order panel
+
+- Trading terminal (https://www.fynxfunded.com/trade/access), New order panel: new rows for Leverage (e.g. 1:30), Margin needed for the order, Free margin after, Commission for opening and closing, and Swap per night for a buy and a sell (with the day it counts three times). The figures come from the trading server's own settings and prices; until trading is connected each row says "Shown once trading is connected" instead of guessing.
+- The order review now shows "Margin … · free margin after … · commission … round turn", and warns in plain words before you confirm an order the server would refuse (not enough free margin, or a volume outside the server's limits).
+- History tab: how each trade closed is now written in plain words ("Closed by you", "Stop loss", "Take profit", "Daily loss limit") instead of codes like "manual".
+- Ready for the API: the trading server now publishes each pair's leverage, lot limits, commission and swap with its status, and the terminal reads it safely. Nothing else to plug in (docs/ENGINE-READINESS.md updated).
+
 ## 2026-11-10 04:30 UTC — [autopilot] FYNX Trade: size a trade by risk, account statement download
 
 - Trading terminal (https://www.fynxfunded.com/trade/access), New order panel: new "Size by risk" link under the volume. Type how much the stop loss may cost, as a share of the balance (or tap 0.25%, 0.5%, 1%) or in dollars. With the stop loss in pips it tells you the volume, for example "0.33 lots · a 15-pip stop would cost $49.50 of the $50.00 you chose", and "Use 0.33 lots" puts it in the volume box. It rounds down so you never risk more than you chose, and warns when the risk would use a large part of, or reach, what is left before your loss limit.

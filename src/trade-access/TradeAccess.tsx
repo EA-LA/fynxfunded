@@ -13,6 +13,8 @@ import {
   loadFavorites, normalizeLots, pairLabel, pairName, saveFavorites, searchPairs, type ForexGroup, type ForexPair,
 } from './instruments';
 import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
+import { orderCosts, weekdayName } from './costs';
+import { reasonLabel } from './statement';
 import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
@@ -284,6 +286,10 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   // The trading server's balance and prices when connected; the account record otherwise.
   const balance = engine.snapshot?.metrics.balance ?? account?.balance;
   const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance, dailyLossAmount, quotes: engine.snapshot?.quotes });
+  // Leverage, commission and swap only from the trading server's published conditions.
+  const conditions = engine.status?.instruments?.[pair.symbol] ?? null;
+  const costs = orderCosts({ pair, lots, conditions, quotes: engine.snapshot?.quotes, freeMargin: engine.snapshot?.metrics.freeMargin });
+  const notConnected = 'Shown once trading is connected';
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
@@ -345,6 +351,9 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{review === 'buy' ? 'Buy' : 'Sell'} {lots.toFixed(2)} {pair.symbol} {type === 'market' ? 'at market' : `${type} at ${entry || '—'}`}</p><button type="button" aria-label="Close order review" onClick={() => setReview(null)}><X size={14} /></button></div>
       <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{trailPips !== null ? ` · trailing stop ${trailPips} pips` : ''}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}{type !== 'market' && expiry.ok ? ` · ${expiry.value === null ? 'good till cancelled' : `expires ${expiryAt(expiry.value)}`}` : ''}{type === 'market' && deviationPips !== null ? ` · ${deviationPips === 0 ? 'fills only at the price shown or better' : `fills only within ${deviationPips} pips of the price shown`}` : ''}</p>
       {type === 'market' && deviationPips !== null && quote && <p className="mt-1 text-xs" data-testid="review-protection">Price now {(review === 'buy' ? quote.ask : quote.bid).toFixed(pair.digits)} ({review === 'buy' ? 'ask' : 'bid'}). {review === 'buy' ? 'Highest' : 'Lowest'} fill accepted: {(review === 'buy' ? quote.ask + deviationPips * pair.pipSize : quote.bid - deviationPips * pair.pipSize).toFixed(pair.digits)}, counted from the price when you press Confirm.</p>}
+      {costs.margin !== null && <p className="mt-1 text-xs" data-testid="review-costs">Margin {money(costs.margin)}{costs.freeMarginAfter !== null ? ` · free margin after ${money(costs.freeMarginAfter)}` : ''}{costs.commissionRoundTurn !== null ? ` · commission ${money(costs.commissionRoundTurn)} round turn` : ''}</p>}
+      {costs.notEnoughMargin && <p role="alert" className="mt-2 text-xs text-red-500" data-testid="margin-warning">Not enough free margin: this order needs {money(costs.margin!)} and the account has {money(engine.snapshot!.metrics.freeMargin)} free. The trading server will refuse it; lower the volume.</p>}
+      {costs.volumeProblem && <p role="alert" className="mt-2 text-xs text-red-500" data-testid="volume-warning">{costs.volumeProblem} The trading server will refuse this volume.</p>}
       {deviation.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{deviation.error} Fix it or clear the field to send.</p>}
       {trail.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{trail.error} Fix it or clear the field to send.</p>}
       {'error' in expiry && <p role="alert" className="mt-2 text-xs text-red-500">{expiry.error} Fix it to send.</p>}
@@ -357,17 +366,22 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
 
     <dl className="space-y-1.5 rounded-lg bg-secondary/40 p-3 text-xs">
       {([
-        ['Contract size', `${CONTRACT_SIZE.toLocaleString()} ${pair.base} / lot`],
+        ['Contract size', `${(conditions?.contractSize ?? CONTRACT_SIZE).toLocaleString()} ${pair.base} / lot`],
         ['Pip size', String(pair.pipSize)],
         ['Pip value', f.pipValue !== null ? `${money(f.pipValue)} per pip${f.pipSource === 'server' ? ' at the server\u2019s price now' : ''}` : `Moves with the ${pair.quote}/USD rate`],
         ['Risk at stop loss', f.risk !== null ? `${money(f.risk)}${f.riskPercent !== null ? ` (${f.riskPercent}% of balance)` : ''}` : sl ? 'Use the lot size calculator' : 'Set a stop loss'],
         ['Profit at take profit', f.reward !== null ? money(f.reward) : tp ? 'Use the lot size calculator' : '\u2014'],
         ['Reward : risk', f.rewardRatio !== null ? `${f.rewardRatio} : 1` : '—'],
+        ['Leverage', costs.leverage !== null ? `1:${costs.leverage}` : notConnected],
+        ['Margin needed', costs.margin !== null ? `${money(costs.margin)}${costs.marginSource === 'server' ? ' at the server\u2019s price now' : ''}` : !conditions ? notConnected : lots ? `Needs a live ${pair.base}/USD price` : '\u2014'],
+        ...(costs.freeMarginAfter !== null ? [['Free margin after', money(costs.freeMarginAfter)] as const] : []),
+        ['Commission', costs.commissionRoundTurn !== null ? `${money(costs.commissionRoundTurn)} open + close (${money(conditions!.commissionPerLotPerSide)} per lot per side)` : conditions ? `${money(conditions.commissionPerLotPerSide)} per lot per side` : notConnected],
+        ['Swap per night', !conditions ? notConnected : costs.swapNone ? 'None on this pair' : costs.swapBuy !== null ? `Buy ${money(costs.swapBuy)} · Sell ${money(costs.swapSell!)} (×3 ${weekdayName(costs.tripleWeekday!)})` : '\u2014'],
       ] as const).map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right font-medium">{v}</dd></div>)}
     </dl>
     {f.riskShareOfDaily !== null && <p className={`text-xs ${f.riskShareOfDaily >= 100 ? 'text-red-500' : f.riskShareOfDaily >= 50 ? 'text-amber-600' : 'text-muted-foreground'}`} data-testid="daily-share">{f.riskShareOfDaily >= 100 ? `This stop would lose more than your whole daily loss allowance (${money(dailyLossAmount!)}).` : `This stop uses ${f.riskShareOfDaily}% of your ${money(dailyLossAmount!)} daily loss allowance.`}</p>}
     <Link to={sizeLink} className="text-xs underline underline-offset-2">Work out the exact lot size for {pairLabel(pair)}</Link>
-    <p className="text-[11px] text-muted-foreground">When trading opens, the server sets the fill price, spread and margin and checks your challenge rules before any order is accepted. Leverage and commissions are confirmed with the broker before launch.</p>
+    <p className="text-[11px] text-muted-foreground" data-testid="conditions-note">{conditions ? 'Leverage, commission and swap are the trading server\u2019s own settings for this pair; the server sets the fill price and checks margin and your challenge rules again before any order is accepted.' : 'When trading opens, the server sets the fill price, spread and margin and checks your challenge rules before any order is accepted. Leverage and commissions are confirmed with the broker before launch.'}</p>
   </div>;
 }
 
@@ -496,7 +510,7 @@ export function dealR(d: Pick<Deal, 'netProfit' | 'entryRisk'>): string {
 function DealRow({ d, cell }: { d: Deal; cell: string }) {
   return <tr className="border-b border-border/60">
     <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td><td className={cell}>{money(d.swap ?? 0)}</td>
-    <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className={cell} title={d.entryRisk ? `1R = ${money(d.entryRisk.amount)} at risk from the entry stop loss` : 'Opened without a stop loss: no R'}>{dealR(d)}</td><td className="whitespace-nowrap px-3 py-1.5">{d.reason.replace(/_/g, ' ')}</td>
+    <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className={cell} title={d.entryRisk ? `1R = ${money(d.entryRisk.amount)} at risk from the entry stop loss` : 'Opened without a stop loss: no R'}>{dealR(d)}</td><td className="whitespace-nowrap px-3 py-1.5">{reasonLabel(d.reason)}</td>
   </tr>;
 }
 

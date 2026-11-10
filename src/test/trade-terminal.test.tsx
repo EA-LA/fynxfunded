@@ -173,7 +173,7 @@ describe("terminal connected to the engine", () => {
     expect(within(positions).getByText("1.07810")).toBeInTheDocument(); // stop 20 pips under the 1.08010 entry
     await act(async () => { fireEvent.click(within(positions).getByRole("button", { name: /Close EURUSD position/ })); });
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
-    expect(within(await screen.findByTestId("engine-history")).getByText("manual")).toBeInTheDocument();
+    expect(within(await screen.findByTestId("engine-history")).getByText("Closed by you")).toBeInTheDocument();
   });
 
   it("explains why an order can't be sent when prices are live but the server's order checks are paused", async () => {
@@ -411,7 +411,7 @@ describe("terminal history with archived trades", () => {
     await screen.findByTestId("engine-positions");
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     const history = await screen.findByTestId("engine-history");
-    expect(within(history).getAllByText("manual")).toHaveLength(1);
+    expect(within(history).getAllByText("Closed by you")).toHaveLength(1);
     expect(within(history).getByTestId("history-archived")).toHaveTextContent(/Showing the latest 1 closed trade\. 2 older trades .*net -\$\d+\.\d{2}\) are kept in the account archive/);
   });
 });
@@ -445,7 +445,7 @@ describe("terminal paging through archived trades", () => {
     await screen.findByTestId("engine-positions");
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     const history = await screen.findByTestId("engine-history");
-    expect(within(history).getAllByText("manual")).toHaveLength(2); // the newest trades kept in the account
+    expect(within(history).getAllByText("Closed by you")).toHaveLength(2); // the newest trades kept in the account
     await act(async () => { fireEvent.click(within(history).getByRole("button", { name: "Show older trades" })); });
     expect(await within(history).findByTestId("archive-page-1")).toHaveTextContent(/Archived · .* 1 trade · net/);
     expect(within(history).getByTestId("archive-page-1")).toHaveTextContent("0.30");
@@ -455,7 +455,7 @@ describe("terminal paging through archived trades", () => {
     expect(oldest).toHaveTextContent(/2 trades/);
     // Newest first inside the page too: 0.20 lots before 0.10 lots.
     expect(within(oldest).getAllByRole("row").slice(1).map(r => r.textContent?.match(/0\.\d0/)?.[0])).toEqual(["0.20", "0.10"]);
-    expect(within(history).getAllByText("manual")).toHaveLength(5);
+    expect(within(history).getAllByText("Closed by you")).toHaveLength(5);
     expect(within(history).getByRole("status")).toHaveTextContent("All 3 archived trades shown.");
     expect(within(history).queryByTestId("archive-more")).toBeNull();
   });

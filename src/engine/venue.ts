@@ -74,6 +74,35 @@ export function buildSpecs(pairs: PairLike[], settings: Pick<VenueSettings, "lev
   }));
 }
 
+/**
+ * Trading conditions for one symbol, as `GET /v1/status` publishes them in
+ * `instruments`: what the terminal needs to show the margin, commission and
+ * swap of an order before it is sent. Values come from the venue settings
+ * (FYNX_ENGINE_LEVERAGE, commission, max lots, swap); nothing is invented.
+ */
+export interface TradingConditions {
+  /** Units of the base currency in 1.00 lot. */
+  contractSize: number;
+  minLots: number;
+  lotStep: number;
+  maxLots: number;
+  /** e.g. 30 for 1:30. Margin = lots × contract size × base currency in USD ÷ leverage. */
+  leverage: number;
+  /** USD per lot per side (charged on opening and again on closing). */
+  commissionPerLotPerSide: number;
+  /** USD per lot per night; null when no swap is charged. */
+  swap: { longPerLot: number; shortPerLot: number; tripleWeekday: number } | null;
+}
+
+/** The published trading conditions of one instrument spec. */
+export function tradingConditions(s: InstrumentSpec): TradingConditions {
+  return {
+    contractSize: s.contractSize, minLots: s.minLots, lotStep: s.lotStep, maxLots: s.maxLots, leverage: s.leverage,
+    commissionPerLotPerSide: s.commissionPerLotPerSide,
+    swap: s.swap ? { longPerLot: s.swap.longPerLot, shortPerLot: s.swap.shortPerLot, tripleWeekday: s.swap.tripleWeekday ?? 3 } : null,
+  };
+}
+
 /** Open/closed and next change for one symbol of a venue's specs (for /v1/status or the terminal). */
 export function symbolMarketState(specs: Record<string, InstrumentSpec | undefined>, symbol: string, now: number): MarketState {
   const s = specs[symbol];
@@ -191,6 +220,11 @@ export class LocalVenue {
   markets(symbols: string[] = Object.keys(this.specs)): Record<string, MarketState> {
     const now = this.clock();
     return Object.fromEntries(symbols.filter(s => this.specs[s]).map(s => [s, marketState(this.specs[s].hours, now)]));
+  }
+
+  /** Leverage, lot limits, commission and swap per symbol (or the given ones), for `/v1/status`. */
+  conditions(symbols: string[] = Object.keys(this.specs)): Record<string, TradingConditions> {
+    return Object.fromEntries(symbols.filter(s => this.specs[s]).map(s => [s, tradingConditions(this.specs[s])]));
   }
 
   onEvents(listener: (accountId: string, events: EngineEvent[]) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
