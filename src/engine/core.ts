@@ -188,12 +188,17 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   checkTrailing(req.trailingPips);
   if (req.expiresAt !== undefined && req.type === "market") throw new EngineError("bad_expiry", "Only pending orders can have an expiry time.");
   checkExpiry(req.expiresAt, ctx.now);
+  checkDeviation(s, req);
   const q = executableQuote(ctx, req.symbol);
   const m = metrics(state, ctx);
   const required = marginUsd(s, req.lots, ctx.quotes);
   if (required > m.freeMargin) throw new EngineError("no_margin", `Not enough free margin: this order needs ${required.toFixed(2)} USD.`);
   if (req.type === "market") {
     const price = openingPrice(req.side, q);
+    if (req.expectedPrice !== undefined && req.maxDeviationPips !== undefined) {
+      const moved = adverseMovePips(s, req.side, req.expectedPrice, price);
+      if (moved > req.maxDeviationPips) throw new EngineError("price_moved", `The ${req.symbol} price moved ${moved.toFixed(1)} pips against you (from ${req.expectedPrice.toFixed(s.digits)} to ${price.toFixed(s.digits)}), ${req.maxDeviationPips === 0 ? "and you allowed no move against you" : `more than the ${req.maxDeviationPips.toFixed(1)} pips you allowed`}. Nothing was opened.`);
+    }
     checkProtection(req.side, price, req.stopLoss, req.takeProfit);
     return open(state, ctx, req, price);
   }
@@ -275,6 +280,29 @@ function checkTrailing(pips: number | undefined) {
   if (pips === undefined) return;
   if (!Number.isFinite(pips) || pips < TRAILING_MIN_PIPS || pips > TRAILING_MAX_PIPS) throw new EngineError("bad_trailing", `Trailing stop must be between ${TRAILING_MIN_PIPS} and ${TRAILING_MAX_PIPS} pips.`);
   if (!new Decimal(pips).times(10).isInteger()) throw new EngineError("bad_trailing", "Trailing stop goes in steps of 0.1 pips.");
+}
+
+/** Largest price protection ("maximum deviation") a market order can carry, in pips. */
+export const DEVIATION_MAX_PIPS = 500;
+
+function checkDeviation(s: InstrumentSpec, req: OrderRequest) {
+  const hasExpected = req.expectedPrice !== undefined, hasMax = req.maxDeviationPips !== undefined;
+  if (!hasExpected && !hasMax) return;
+  if (req.type !== "market") throw new EngineError("bad_deviation", "Price protection is for market orders only; a limit or stop order already fills at its own price.");
+  if (!hasExpected || !hasMax) throw new EngineError("bad_deviation", "Price protection needs both the price you saw and the largest move you accept.");
+  const pips = req.maxDeviationPips!;
+  if (!Number.isFinite(pips) || pips < 0 || pips > DEVIATION_MAX_PIPS) throw new EngineError("bad_deviation", `Price protection must be between 0 and ${DEVIATION_MAX_PIPS} pips.`);
+  if (!new Decimal(pips).times(10).isInteger()) throw new EngineError("bad_deviation", "Price protection goes in steps of 0.1 pips.");
+  checkPrice(s, req.expectedPrice, "Expected price");
+}
+
+/**
+ * How many pips the fill is worse than the price the trader saw (0 when it is
+ * the same or better). Buys are worse when the fill is higher, sells when lower.
+ */
+export function adverseMovePips(s: Pick<InstrumentSpec, "pipSize">, side: Side, expected: number, fill: number): number {
+  const diff = side === "buy" ? new Decimal(fill).minus(expected) : new Decimal(expected).minus(fill);
+  return diff.lte(0) ? 0 : diff.div(s.pipSize).toDecimalPlaces(1, Decimal.ROUND_UP).toNumber();
 }
 
 export function modifyPosition(state: AccountState, positionId: string, protection: PositionChange, ctx: EngineContext): Step {

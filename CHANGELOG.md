@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-10 00:30 UTC — [autopilot] FYNX Trade: price protection for market orders
+
+- New "Price protection (pips)" box in the order panel of the trading terminal (https://www.fynxfunded.com/trade/access) for market orders. Type how far the price may move against you between pressing Confirm and the fill (or tap 0, 1 or 3). Empty means off, as before.
+- The order review now shows the price right now and the worst price you would accept (for example "Price now 1.08010 (ask). Highest fill accepted: 1.08040").
+- If the price moved further against you, the trading server opens nothing and says so in plain words ("The EURUSD price moved 1.3 pips against you … Nothing was opened."). A better price always fills.
+- Ready for when the price feed and trading server are connected: the rule is enforced on the server, is part of the documented connection contract, and is covered by tests.
+
 ## 2026-11-09 20:35 UTC — [autopilot] FYNX Trade: waiting orders can expire on their own
 
 - FYNX Trade terminal (https://www.fynxfunded.com/trade/access), New order panel: limit and stop orders now have an "Expiry" choice: "Good till cancelled", "End of today's trading day" (the 22:00 UTC daily reset) or a date and time in your own time zone. Under it, a plain sentence says exactly when the order would be cancelled and how long that is from now; a time in the past or more than a year away is flagged and the order can't be sent until it is fixed. The order review shows the expiry too.

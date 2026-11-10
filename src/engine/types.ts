@@ -80,6 +80,15 @@ export interface OrderRequest {
    * till cancelled. At least EXPIRY_MIN_MS ahead and at most EXPIRY_MAX_MS.
    */
   expiresAt?: number;
+  /**
+   * Market orders only, price protection ("maximum deviation"): the price the
+   * trader saw (ask for a buy, bid for a sell) and the most it may move against
+   * them before the fill, in pips (0–DEVIATION_MAX_PIPS, 0.1 steps). A worse
+   * fill is refused with `price_moved` and nothing opens; the same or a better
+   * price fills normally. Both fields together or neither.
+   */
+  expectedPrice?: number;
+  maxDeviationPips?: number;
   /** Client idempotency key: the same key never opens two positions. */
   clientId?: string;
 }

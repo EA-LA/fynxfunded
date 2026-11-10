@@ -1,4 +1,4 @@
-import { profitUsd, trailedStop, TRAILING_MAX_PIPS, TRAILING_MIN_PIPS } from "@/engine/core";
+import { DEVIATION_MAX_PIPS, profitUsd, trailedStop, TRAILING_MAX_PIPS, TRAILING_MIN_PIPS } from "@/engine/core";
 import type { InstrumentSpec, QuoteBook, Side } from "@/engine/types";
 import { CONTRACT_SIZE, type ForexPair } from "./instruments";
 
@@ -65,6 +65,20 @@ export function parseTrailing(text: string): PriceField {
   if (!/^\d+(\.\d)?$/.test(t)) return { ok: false, error: "Trailing stop: type a distance in pips like 20 or 12.5." };
   const value = Number(t);
   if (value < TRAILING_MIN_PIPS || value > TRAILING_MAX_PIPS) return { ok: false, error: `Trailing stop must be between ${TRAILING_MIN_PIPS} and ${TRAILING_MAX_PIPS} pips.` };
+  return { ok: true, value };
+}
+
+/**
+ * Reads the order ticket's "Price protection" field (market orders): the most
+ * the price may move against the trader between Confirm and the fill, in pips.
+ * Empty = off. 0 is allowed and means "only at this price or better".
+ */
+export function parseDeviation(text: string): PriceField {
+  const t = text.trim().replace(",", ".");
+  if (!t) return { ok: true, value: null };
+  if (!/^\d+(\.\d)?$/.test(t)) return { ok: false, error: "Price protection: type a number of pips like 2 or 0.5." };
+  const value = Number(t);
+  if (value > DEVIATION_MAX_PIPS) return { ok: false, error: `Price protection can be at most ${DEVIATION_MAX_PIPS} pips.` };
   return { ok: true, value };
 }
 

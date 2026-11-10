@@ -22,7 +22,7 @@ import TvWidget, { readLiveConsent, saveLiveConsent } from './TvWidget';
 import PositionEditor from './PositionEditor';
 import OrderEditor from './OrderEditor';
 import BulkClose from './BulkClose';
-import { parseTrailing, trailingPreview } from './protection';
+import { parseDeviation, parseTrailing, trailingPreview } from './protection';
 import ExpiryPicker from './ExpiryPicker';
 import { expiryAt, expiryLabel, expiryValue, type ExpiryChoice } from './expiry';
 import TargetProgress from './TargetProgress';
@@ -245,16 +245,38 @@ function TicketTrailing({ pair, text, onText, type, entry, quote }: { pair: Fore
   </div>;
 }
 
+/** Market orders: optional price protection (largest move against the trader between Confirm and the fill). */
+function TicketDeviation({ pair, text, onText }: { pair: ForexPair; text: string; onText: (v: string) => void }) {
+  const d = parseDeviation(text);
+  const pipText = pair.pipSize.toFixed(pair.digits - 1);
+  return <div>
+    <label htmlFor="ticket-deviation" className="text-xs text-muted-foreground">Price protection (pips)</label>
+    <div className="mt-1 flex items-stretch gap-1">
+      <input id="ticket-deviation" inputMode="decimal" value={text} onChange={e => onText(e.target.value)} placeholder="Off" aria-invalid={!d.ok} aria-describedby="ticket-deviation-help" className="w-full rounded-md border bg-background px-2.5 py-2 font-mono text-sm tabular-nums outline-none focus:ring-2 focus:ring-ring" />
+      {['0', '1', '3'].map(v => <button key={v} type="button" onClick={() => onText(text === v ? '' : v)} aria-pressed={text === v} aria-label={`Price protection ${v} pips`} className={`rounded border px-2 font-mono text-xs ${text === v ? 'border-primary bg-primary/10' : 'hover:bg-secondary'}`}>{v}</button>)}
+    </div>
+    <p id="ticket-deviation-help" data-testid="ticket-deviation-help" className={`mt-1 text-[11px] ${d.ok ? 'text-muted-foreground' : 'text-red-500'}`}>
+      {d.ok === false ? d.error
+        : d.value === null ? 'Off: the order fills at the price on the trading server when it arrives, even if it moved since you pressed Confirm.'
+        : d.value === 0 ? 'Fills only at the price you see when you press Confirm, or better. If it moved against you, nothing is opened.'
+        : `Fills only if the price moved no more than ${d.value} pips (${(d.value * pair.pipSize).toFixed(pair.digits)}) against you after Confirm; one pip is ${pipText}. A better price always fills.`}
+    </p>
+  </div>;
+}
+
 function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; market: PairMarket; now: number; engine: EngineHandle }) {
   const marketOpen = market.open;
   const [lotsText, setLotsText] = useState('0.10'), [type, setType] = useState<'market' | 'limit' | 'stop'>('market');
-  const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState(''), [trailText, setTrailText] = useState('');
+  const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState(''), [trailText, setTrailText] = useState(''), [deviationText, setDeviationText] = useState('');
   const [review, setReview] = useState<Side | null>(null), [sent, setSent] = useState('');
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>('gtc'), [expiryText, setExpiryText] = useState('');
   const lots = normalizeLots(lotsText);
   const step = (dir: 1 | -1) => setLotsText(((normalizeLots((lots ?? LOT_MIN) + dir * LOT_STEP) ?? LOT_MIN)).toFixed(2));
   const sl = parsePips(slText), tp = parsePips(tpText);
   const trail = parseTrailing(trailText), trailPips = trail.ok ? trail.value : null;
+  // Price protection only applies to market orders; pending orders fill at their own price.
+  const deviation = type === 'market' ? parseDeviation(deviationText) : { ok: true as const, value: null };
+  const deviationPips = deviation.ok ? deviation.value : null;
   // Expiry only applies to pending orders; market orders fill at once.
   const expiry = type === 'market' ? { ok: true as const, value: null } : expiryValue(expiryChoice, expiryText, now);
   const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance: account?.balance, dailyLossAmount });
@@ -264,14 +286,14 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
   const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
-    if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok) return;
+    if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok || !deviation.ok) return;
     // "End of today" is worked out at the moment of sending.
     const exp = type === 'market' ? { ok: true as const, value: null } : expiryValue(expiryChoice, expiryText, Date.now());
     if (!exp.ok) return;
     const entryPrice = type === 'market' ? (review === 'buy' ? quote.ask : quote.bid) : Number(entry.replace(',', '.'));
     if (!Number.isFinite(entryPrice) || entryPrice <= 0) { setSent(''); return; }
     const p = protectionPrices(review, entryPrice, sl, tp, pair.pipSize, pair.digits);
-    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, ...(trailPips !== null ? { trailingPips: trailPips } : {}), ...(exp.value !== null ? { expiresAt: exp.value } : {}), clientId: crypto.randomUUID() }));
+    const ok = await engine.run(g => g.placeOrder(account.accountId, { symbol: pair.symbol, side: review, type, lots, ...(type !== 'market' ? { price: entryPrice } : {}), ...p, ...(trailPips !== null ? { trailingPips: trailPips } : {}), ...(exp.value !== null ? { expiresAt: exp.value } : {}), ...(type === 'market' && deviationPips !== null ? { expectedPrice: entryPrice, maxDeviationPips: deviationPips } : {}), clientId: crypto.randomUUID() }));
     if (ok) { setSent(`${review === 'buy' ? 'Bought' : 'Sold'} ${lots.toFixed(2)} ${pair.symbol}${type === 'market' ? '' : ` (${type} order placed${exp.value !== null ? `, expires ${expiryAt(exp.value)}` : ''})`}.`); setReview(null); }
   };
   const field = 'w-full rounded-md border bg-background px-2.5 py-2 font-mono text-sm tabular-nums outline-none focus:ring-2 focus:ring-ring';
@@ -306,6 +328,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       <label className="text-xs text-muted-foreground">Take profit (pips)<input inputMode="decimal" value={tpText} onChange={e => setTpText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
     </div>
     <TicketTrailing pair={pair} text={trailText} onText={setTrailText} type={type} entry={entry} quote={quote} />
+    {type === 'market' && <TicketDeviation pair={pair} text={deviationText} onText={setDeviationText} />}
     {type !== 'market' && <ExpiryPicker id="ticket" choice={expiryChoice} onChoice={setExpiryChoice} dateText={expiryText} onDateText={setExpiryText} now={now} />}
 
     <div className="grid grid-cols-2 gap-2">
@@ -315,11 +338,13 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
 
     {review && lots && <div role="status" className={`rounded-lg border p-3 text-sm ${review === 'buy' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`} data-testid="order-review">
       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{review === 'buy' ? 'Buy' : 'Sell'} {lots.toFixed(2)} {pair.symbol} {type === 'market' ? 'at market' : `${type} at ${entry || '—'}`}</p><button type="button" aria-label="Close order review" onClick={() => setReview(null)}><X size={14} /></button></div>
-      <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{trailPips !== null ? ` · trailing stop ${trailPips} pips` : ''}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}{type !== 'market' && expiry.ok ? ` · ${expiry.value === null ? 'good till cancelled' : `expires ${expiryAt(expiry.value)}`}` : ''}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Stop loss {sl ? `${sl} pips` : 'off'} · Take profit {tp ? `${tp} pips` : 'off'}{trailPips !== null ? ` · trailing stop ${trailPips} pips` : ''}{f.risk !== null ? ` · risk ${money(f.risk)}` : ''}{type !== 'market' && expiry.ok ? ` · ${expiry.value === null ? 'good till cancelled' : `expires ${expiryAt(expiry.value)}`}` : ''}{type === 'market' && deviationPips !== null ? ` · ${deviationPips === 0 ? 'fills only at the price shown or better' : `fills only within ${deviationPips} pips of the price shown`}` : ''}</p>
+      {type === 'market' && deviationPips !== null && quote && <p className="mt-1 text-xs" data-testid="review-protection">Price now {(review === 'buy' ? quote.ask : quote.bid).toFixed(pair.digits)} ({review === 'buy' ? 'ask' : 'bid'}). {review === 'buy' ? 'Highest' : 'Lowest'} fill accepted: {(review === 'buy' ? quote.ask + deviationPips * pair.pipSize : quote.bid - deviationPips * pair.pipSize).toFixed(pair.digits)}, counted from the price when you press Confirm.</p>}
+      {deviation.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{deviation.error} Fix it or clear the field to send.</p>}
       {trail.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{trail.error} Fix it or clear the field to send.</p>}
       {'error' in expiry && <p role="alert" className="mt-2 text-xs text-red-500">{expiry.error} Fix it to send.</p>}
       {canSend
-        ? <button type="button" disabled={engine.busy || !trail.ok || !expiry.ok} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
+        ? <button type="button" disabled={engine.busy || !trail.ok || !expiry.ok || !deviation.ok} onClick={() => void send()} className={`mt-3 w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${review === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} data-testid="confirm-order">{engine.busy ? 'Sending…' : `Confirm ${review === 'buy' ? 'buy' : 'sell'}`}</button>
         : <p className="mt-2 flex items-start gap-1.5 text-xs"><LockKeyhole size={13} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />{holdReason} This order was not sent.</p>}
       {engine.error && <p role="alert" className="mt-2 text-xs text-red-500">{engine.error}</p>}
     </div>}

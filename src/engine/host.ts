@@ -58,7 +58,7 @@ export interface HostOptions {
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
   not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404,
-  method_not_allowed: 405, conflict: 409, bad_request: 400,
+  method_not_allowed: 405, conflict: 409, price_moved: 409, bad_request: 400,
 };
 
 const fail = (code: string, message: string): HostResponse => ({ status: STATUS_BY_CODE[code] ?? 422, body: { error: { code, message } } });
@@ -74,7 +74,7 @@ const level = (v: unknown, name: string): number | null | undefined => (v === nu
 /** Strictly reads an order request body; unknown fields are refused so typos never pass silently. */
 export function parseOrderRequest(body: unknown, idempotencyKey?: string): OrderRequest {
   if (!isObject(body)) throw new EngineError("bad_request", "The order must be a JSON object.");
-  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "expiresAt", "clientId"]);
+  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "expiresAt", "expectedPrice", "maxDeviationPips", "clientId"]);
   const extra = Object.keys(body).filter(k => !allowed.has(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
   const { symbol, side, type, clientId } = body;
@@ -93,6 +93,9 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   if (trail !== undefined) req.trailingPips = trail;
   const expires = num(body.expiresAt, "expiresAt");
   if (expires !== undefined) req.expiresAt = expires;
+  const expected = num(body.expectedPrice, "expectedPrice"), deviation = num(body.maxDeviationPips, "maxDeviationPips");
+  if (expected !== undefined) req.expectedPrice = expected;
+  if (deviation !== undefined) req.maxDeviationPips = deviation;
   if (key) req.clientId = key;
   return req;
 }
