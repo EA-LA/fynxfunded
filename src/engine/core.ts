@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OrderRequest, PendingOrder, Position, Quote, QuoteBook, RuleSet, Side, TargetReport,
+  AccountMetrics, AccountState, AlertRequest, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OrderRequest, PendingOrder, Position, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -384,6 +384,47 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   return { state: { ...state, orders: state.orders.map(x => (x.id === o.id ? next : x)), sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }] };
 }
 
+export const MAX_ALERTS = 50;
+export const TRIGGERED_ALERTS_KEPT = 20;
+export const ALERT_NOTE_MAX = 80;
+
+/** True when the bid meets the alert's level (at or beyond it). */
+export function alertHit(a: Pick<PriceAlert, "condition" | "price">, bid: number): boolean {
+  return a.condition === "above" ? bid >= a.price : bid <= a.price;
+}
+
+/**
+ * Sets a price alert. Alerts are checked on the bid (the price you sell at),
+ * like most trading terminals, and fire once. They never trade. An alert whose
+ * level the current fresh bid already meets is refused so it cannot fire at
+ * once by mistake. Markets may be closed: the alert waits for the next price.
+ */
+export function addAlert(state: AccountState, req: AlertRequest, ctx: EngineContext): Step {
+  assertActive(state);
+  const s = spec(ctx, req.symbol);
+  if (req.condition !== "above" && req.condition !== "below") throw new EngineError("bad_alert", "Choose whether the price should go above or below the level.");
+  if (typeof req.price !== "number") throw new EngineError("bad_price", "Alert price must be a positive price.");
+  checkPrice(s, req.price, "Alert price");
+  const note = typeof req.note === "string" ? req.note.trim() : "";
+  if (req.note !== undefined && typeof req.note !== "string") throw new EngineError("bad_alert", "The note must be text.");
+  if (note.length > ALERT_NOTE_MAX) throw new EngineError("bad_alert", `Keep the note to ${ALERT_NOTE_MAX} characters.`);
+  const alerts = state.alerts ?? [];
+  if (alerts.length >= MAX_ALERTS) throw new EngineError("too_many_alerts", `You can keep up to ${MAX_ALERTS} price alerts. Delete one first.`);
+  const q = ctx.quotes[req.symbol];
+  if (q && ctx.now - q.time <= ctx.maxQuoteAgeMs && alertHit(req, q.bid)) {
+    throw new EngineError("bad_alert", `The ${req.symbol} bid is already ${req.condition} ${req.price} (now ${q.bid.toFixed(s.digits)}). Pick a level the price has not reached yet.`);
+  }
+  if (alerts.some(a => a.symbol === req.symbol && a.condition === req.condition && a.price === req.price)) throw new EngineError("bad_alert", "You already have this alert.");
+  const alert: PriceAlert = { id: ctx.newId("alr"), symbol: req.symbol, condition: req.condition, price: req.price, createdAt: ctx.now, ...(note ? { note } : {}) };
+  return { state: { ...state, alerts: [...alerts, alert], sequence: state.sequence + 1 }, events: [{ type: "alert_added", alert }] };
+}
+
+/** Deletes a waiting price alert. Works on any account status (it only removes). */
+export function removeAlert(state: AccountState, alertId: string): Step {
+  if (!(state.alerts ?? []).some(a => a.id === alertId)) throw new EngineError("no_alert", "That alert is not waiting any more.");
+  return { state: { ...state, alerts: state.alerts!.filter(a => a.id !== alertId), sequence: state.sequence + 1 }, events: [{ type: "alert_removed", alertId }] };
+}
+
 export function cancelOrder(state: AccountState, orderId: string): Step {
   if (!state.orders.some(o => o.id === orderId)) throw new EngineError("no_order", "That order is not pending.");
   return { state: { ...state, orders: state.orders.filter(o => o.id !== orderId), sequence: state.sequence + 1 }, events: [{ type: "order_cancelled", orderId }] };
@@ -413,6 +454,19 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     const gone = new Set(expired.map(o => o.id));
     current = { ...current, orders: current.orders.filter(o => !gone.has(o.id)), expiredOrders: [...[...expired].reverse(), ...(current.expiredOrders ?? [])].slice(0, EXPIRED_ORDERS_KEPT), sequence: current.sequence + 1 };
     events.push(...expired.map(order => ({ type: "order_expired" as const, order })));
+  }
+  // Price alerts fire once on the first fresh bid at or beyond their level.
+  if (current.alerts?.length) {
+    const fired: TriggeredAlert[] = [];
+    for (const a of current.alerts) {
+      const q = ctx.quotes[a.symbol];
+      if (q && ctx.now - q.time <= ctx.maxQuoteAgeMs && alertHit(a, q.bid)) fired.push({ ...a, triggeredAt: ctx.now, triggerPrice: q.bid });
+    }
+    if (fired.length) {
+      const gone = new Set(fired.map(a => a.id));
+      current = { ...current, alerts: current.alerts.filter(a => !gone.has(a.id)), triggeredAlerts: [...[...fired].reverse(), ...(current.triggeredAlerts ?? [])].slice(0, TRIGGERED_ALERTS_KEPT), sequence: current.sequence + 1 };
+      events.push(...fired.map(alert => ({ type: "alert_triggered" as const, alert })));
+    }
   }
   // Closed markets do not fill or stop out. When they reopen, the first fresh
   // price decides: a stop or stop order beyond a weekend gap fills at that

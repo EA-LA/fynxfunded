@@ -267,6 +267,30 @@ export interface HistoryPage extends ArchiveChunk {
   chunks: number;
 }
 
+/** "above": fires when the bid reaches the price or higher; "below": when the bid reaches it or lower. */
+export type AlertCondition = "above" | "below";
+
+/** What a trader sends to set a price alert. Alerts never place, change or close an order. */
+export interface AlertRequest {
+  symbol: string;
+  condition: AlertCondition;
+  price: number;
+  /** Optional short note shown with the alert (at most ALERT_NOTE_MAX characters). */
+  note?: string;
+}
+
+/** A price alert waiting on the server; checked on every fresh bid, also with the terminal closed. */
+export interface PriceAlert extends AlertRequest {
+  id: string;
+  createdAt: number;
+}
+
+/** An alert that fired: the time and the bid that crossed the level. */
+export interface TriggeredAlert extends PriceAlert {
+  triggeredAt: number;
+  triggerPrice: number;
+}
+
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";
 
 export interface AccountState {
@@ -289,6 +313,10 @@ export interface AccountState {
    * them. Missing until the first expiry.
    */
   expiredOrders?: ExpiredOrder[];
+  /** Price alerts waiting to fire (at most MAX_ALERTS). Missing until the first alert. */
+  alerts?: PriceAlert[];
+  /** Alerts that fired, newest first (at most TRIGGERED_ALERTS_KEPT). */
+  triggeredAlerts?: TriggeredAlert[];
   /**
    * Summary of older deals moved out of `history` to keep the stored account
    * small (see `archiveHistory`). Absent until the first archive.
@@ -328,6 +356,9 @@ export type EngineEvent =
   | { type: "account_breached"; reason: CloseReason }
   | { type: "target_reached" }
   | { type: "day_reset"; tradingDay: string; dayStartBalance: number }
+  | { type: "alert_added"; alert: PriceAlert }
+  | { type: "alert_removed"; alertId: string }
+  | { type: "alert_triggered"; alert: TriggeredAlert }
   | { type: "swap_applied"; positionId: string; amount: number; nights: number; at: number };
 
 export class EngineError extends Error {

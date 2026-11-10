@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, LineChart, ListOrdered, LockKeyhole, Mail, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -31,6 +31,9 @@ import ExpiryPicker from './ExpiryPicker';
 import { expiryAt, expiryLabel, expiryValue, type ExpiryChoice } from './expiry';
 import TargetProgress from './TargetProgress';
 import ContractSpec from './ContractSpec';
+import AlertsPanel from './AlertsPanel';
+import { firedSentence, newlyFired } from './alerts';
+import { toast } from 'sonner';
 import { spreadOf } from './contract-spec';
 import { FOREX_HOURS, marketState } from '@/engine/hours';
 import { closedSentence, localAt, pairMarket, untilLabel, useNow, type PairMarket } from './market-hours';
@@ -44,7 +47,7 @@ interface Account {
 }
 type Side = 'buy' | 'sell';
 type MobileView = 'quotes' | 'chart' | 'trade' | 'history' | 'account';
-type ToolTab = 'positions' | 'orders' | 'history' | 'account';
+type ToolTab = 'positions' | 'orders' | 'history' | 'alerts' | 'account';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 const GROUPS: (ForexGroup | 'Favorites' | 'All')[] = ['All', 'Favorites', 'Majors', 'Minors', 'Exotics'];
@@ -88,6 +91,15 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
   }, [reload]);
   const visible = loadedFor === uid ? account : null;
   const engine = useEngine(visible?.accountId ?? null, gateway);
+  // Price alerts that fire while the terminal is open pop up once; ones that fired earlier are only listed in the Alerts tab.
+  const seenAlerts = useRef<{ account: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const snap = engine.snapshot;
+    if (!snap) return;
+    const fired = snap.state.triggeredAlerts;
+    if (seenAlerts.current?.account !== snap.state.accountId) { seenAlerts.current = { account: snap.state.accountId, ids: new Set((fired ?? []).map(a => a.id)) }; return; }
+    for (const a of newlyFired(fired, seenAlerts.current.ids)) toast(`Price alert: ${firedSentence(a, findPair(a.symbol)?.digits ?? 5)}`, { description: a.note });
+  }, [engine.snapshot]);
 
   // Terminal state
   const pair = findPair(params.get('symbol')) ?? findPair(DEFAULT_SYMBOL)!;
@@ -141,7 +153,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
     {/* Workspace */}
     <main className="grid flex-1 gap-px bg-border lg:grid-cols-[270px_minmax(0,1fr)_330px] lg:grid-rows-[minmax(520px,1fr)_auto]">
       <section className={`${show('quotes')} min-h-0 flex-col bg-card lg:row-span-2`} aria-label="Market watch">
-        <MarketWatch selected={pair} status={engine.status} now={now.getTime()} onSelect={p => { setSymbol(p.symbol); setView('chart'); }} />
+        <MarketWatch selected={pair} status={engine.status} quotes={engine.snapshot?.quotes} now={now.getTime()} onSelect={p => { setSymbol(p.symbol); setView('chart'); }} />
       </section>
 
       <section className={`${show('chart')} min-w-0 flex-col bg-card`} aria-label="Chart">
@@ -168,7 +180,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
       </section>
 
       <section className={`${view === 'history' || view === 'account' ? 'flex' : 'hidden'} min-w-0 flex-col bg-card lg:flex`} aria-label="Terminal">
-        <Toolbox engine={engine} tab={view === 'account' ? 'account' : tool} setTab={t => { setTool(t); if (view === 'history' && t === 'account') setView('account'); else if (view === 'account' && t !== 'account') setView('history'); }}
+        <Toolbox engine={engine} pair={pair} now={now.getTime()} tab={view === 'account' ? 'account' : tool} setTab={t => { setTool(t); if (view === 'history' && t === 'account') setView('account'); else if (view === 'account' && t !== 'account') setView('history'); }}
           account={visible} accounts={accounts} loading={loading} rules={rules} loadedFor={loadedFor === uid} requested={requested}
           onSelectAccount={id => setParams(prev => { const next = new URLSearchParams(prev); next.set('account', id); return next; })} />
       </section>
@@ -195,8 +207,9 @@ function AccountStrip({ account, loading, snapshot }: { account: Account | null;
   </dl>;
 }
 
-function MarketWatch({ selected, onSelect, status, now }: { selected: ForexPair; onSelect: (p: ForexPair) => void; status: GatewayStatus | null; now: number }) {
+function MarketWatch({ selected, onSelect, status, quotes, now }: { selected: ForexPair; onSelect: (p: ForexPair) => void; status: GatewayStatus | null; quotes?: QuoteBook | null; now: number }) {
   const [query, setQuery] = useState(''), [group, setGroup] = useState<(typeof GROUPS)[number]>('All');
+  const [specFor, setSpecFor] = useState<ForexPair | null>(null);
   const [favorites, setFavorites] = useState<string[]>(loadFavorites);
   const toggleFavorite = (symbol: string) => setFavorites(prev => { const next = prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol]; saveFavorites(next); return next; });
   const list = useMemo(() => {
@@ -211,22 +224,24 @@ function MarketWatch({ selected, onSelect, status, now }: { selected: ForexPair;
         {GROUPS.map(g => <button key={g} type="button" aria-pressed={group === g} onClick={() => setGroup(g)} className={`shrink-0 rounded px-2 py-1 text-xs ${group === g ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}>{g === 'Favorites' ? `★ ${favorites.length}` : g}</button>)}
       </div>
     </div>
-    <div className="grid grid-cols-[1fr_auto_auto] gap-2 border-b px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground"><span>Symbol</span><span>Pip</span><span className="w-6" /></div>
+    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground"><span>Symbol</span><span>Pip</span><span className="w-6" /><span className="w-6" /></div>
     <ul className="min-h-0 flex-1 overflow-y-auto lg:max-h-[calc(100vh-230px)]" data-testid="market-watch">
       {list.map(p => {
         const active = p.symbol === selected.symbol, fav = favorites.includes(p.symbol);
         const m = pairMarket(status, p.symbol, now), special = !m.open && m.reason && m.reason !== 'Outside trading hours' ? m.reason : '';
-        return <li key={p.symbol} className={`grid grid-cols-[1fr_auto_auto] items-center gap-2 border-b border-border/50 px-3 ${active ? 'bg-primary/10' : 'hover:bg-secondary/60'}`}>
+        return <li key={p.symbol} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-border/50 px-3 ${active ? 'bg-primary/10' : 'hover:bg-secondary/60'}`}>
           <button type="button" onClick={() => onSelect(p)} aria-current={active ? 'true' : undefined} className="min-w-0 py-2 text-left">
             <span className="flex items-center gap-1.5 font-mono text-sm font-semibold">{p.symbol}{!m.open && <span data-testid={`closed-${p.symbol}`} title={closedSentence(p.symbol, m, now)} className="inline-flex items-center gap-0.5 rounded bg-secondary px-1 py-px font-sans text-[10px] font-normal text-muted-foreground"><LockKeyhole size={9} aria-hidden="true" />{special || 'Closed'}</span>}</span>
             <span className="block truncate text-[11px] text-muted-foreground">{pairName(p)}</span>
           </button>
           <span className="font-mono text-[11px] text-muted-foreground">{p.pipSize}</span>
+          <button type="button" onClick={() => setSpecFor(p)} aria-label={`Contract specification for ${p.symbol}`} data-testid={`watch-spec-${p.symbol}`} className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"><Info size={14} aria-hidden="true" /></button>
           <button type="button" onClick={() => toggleFavorite(p.symbol)} aria-pressed={fav} aria-label={`${fav ? 'Remove' : 'Add'} ${p.symbol} ${fav ? 'from' : 'to'} favourites`} className="grid h-6 w-6 place-items-center"><Star size={14} className={fav ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'} /></button>
         </li>;
       })}
       {!list.length && <li className="p-4 text-sm text-muted-foreground">{group === 'Favorites' && !query ? 'Tap the star next to a pair to keep it here.' : 'No pair matches your search.'}</li>}
     </ul>
+    {specFor && <ContractSpec pair={specFor} status={status} quotes={quotes} market={pairMarket(status, specFor.symbol, now)} now={now} open onOpenChange={o => { if (!o) setSpecFor(null); }} trigger={false} />}
   </>;
 }
 
@@ -392,17 +407,18 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   </div>;
 }
 
-function Toolbox({ engine, tab, setTab, account, accounts, loading, rules, loadedFor, requested, onSelectAccount }: {
-  engine: EngineHandle; tab: ToolTab; setTab: (t: ToolTab) => void; account: Account | null; accounts: Account[]; loading: boolean; loadedFor: boolean; requested: string;
+function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, rules, loadedFor, requested, onSelectAccount }: {
+  engine: EngineHandle; pair: ForexPair; now: number; tab: ToolTab; setTab: (t: ToolTab) => void; account: Account | null; accounts: Account[]; loading: boolean; loadedFor: boolean; requested: string;
   rules: ReturnType<typeof rulesInDollars> | null; onSelectAccount: (id: string) => void;
 }) {
-  const tabs: [ToolTab, string][] = [['positions', 'Positions'], ['orders', 'Pending orders'], ['history', 'History'], ['account', 'Account']];
+  const tabs: [ToolTab, string][] = [['positions', 'Positions'], ['orders', 'Pending orders'], ['history', 'History'], ['alerts', `Alerts${engine.snapshot?.state.alerts?.length ? ` (${engine.snapshot.state.alerts.length})` : ''}`], ['account', 'Account']];
   const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
   return <div className="flex min-h-[240px] flex-col">
     <div className="flex overflow-x-auto border-b" role="tablist" aria-label="Terminal">
       {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`shrink-0 border-b-2 px-4 py-2 text-xs font-medium ${tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
     </div>
-    {tab !== 'account' && <EngineTables key={tab} tab={tab} engine={engine} hasAccount={!!account} />}
+    {tab !== 'account' && tab !== 'alerts' && <EngineTables key={tab} tab={tab} engine={engine} hasAccount={!!account} />}
+    {tab === 'alerts' && <AlertsPanel key={pair.symbol} engine={engine} pair={pair} now={now} />}
     {tab === 'account' && <div className="grid gap-4 p-4 md:grid-cols-2" role="tabpanel">
       <div className="space-y-3">
         {loading && !account && <p role="status" className="text-sm text-muted-foreground">Checking your account…</p>}
@@ -449,7 +465,7 @@ function floatingUsd(symbol: string, side: Side, lots: number, entry: number, cu
 const time = (ms: number) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const px = (symbol: string, v?: number) => v === undefined ? '—' : v.toFixed(findPair(symbol)?.digits ?? 5);
 
-function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'account'>; engine: EngineHandle; hasAccount: boolean }) {
+function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'account' | 'alerts'>; engine: EngineHandle; hasAccount: boolean }) {
   const snap = engine.snapshot, accountId = snap?.state.accountId;
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');

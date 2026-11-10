@@ -186,6 +186,24 @@ describe("terminal: spread next to SELL/BUY and the contract specification", () 
     expect(within(spec).getByTestId("spec-pip-value")).toHaveTextContent("Needs a live server price");
   });
 
+  it("opens from any Market Watch row without changing the chosen pair", async () => {
+    await setup(true, "EURUSD");
+    const ticket = await screen.findByTestId("order-ticket");
+    await waitFor(() => expect(within(ticket).getByText("1:30")).toBeInTheDocument());
+    const watch = screen.getByTestId("market-watch");
+    fireEvent.click(within(watch).getByTestId("watch-spec-USDTRY"));
+    const spec = await screen.findByTestId("contract-spec");
+    expect(within(spec).getByRole("heading", { name: /USDTRY/ })).toBeInTheDocument();
+    expect(within(spec).getByTestId("spec-closures")).toHaveTextContent("Provider maintenance: closed");
+    expect(within(spec).getByTestId("spec-conditions")).toHaveTextContent("1:30");
+    fireEvent.keyDown(spec, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("contract-spec")).toBeNull());
+    // The order panel stays on EURUSD.
+    expect(within(ticket).getByRole("button", { name: "Contract specification for EURUSD" })).toBeInTheDocument();
+    // Every row has its own button.
+    expect(within(watch).getAllByRole("button", { name: /^Contract specification for / })).toHaveLength(FOREX_PAIRS.length);
+  });
+
   it("is honest before trading is connected", async () => {
     await setup(false);
     const ticket = await screen.findByTestId("order-ticket");

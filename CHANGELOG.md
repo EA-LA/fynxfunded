@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-10 16:45 UTC — [autopilot] FYNX Trade: price alerts, and pair details from Market Watch
+
+- New "Alerts" tab in the trading terminal (https://www.fynxfunded.com/trade/access), next to History. Pick a pair, choose "Bid at or above" or "Bid at or below", type the price and an optional note ("Retest of last week's high") and press Create alert. It shows the price now and how many pips away your level is, and if you typed a level on the wrong side of the price it offers a one-tap fix.
+- The trading server watches your alerts for you, even with the page closed. Each alert fires once; fired alerts are listed with the time and the price that reached your level, and a pop-up appears if the terminal is open at that moment. Waiting alerts are listed closest-first, with a delete button. An alert only tells you: it never opens or closes a trade.
+- Market Watch: every pair now has a small ⓘ button that opens its contract specification (contract, spread, leverage, margin, commission, swap and this week's trading hours) without changing the pair you are trading.
+- Until trading is connected the Alerts tab says plainly that alerts start working then, and nothing is saved.
+- Ready for switch-on: alerts are part of the trading engine and its connection contract (docs/ENGINE-READINESS.md); nothing else to plug in.
+
 ## 2026-11-10 12:30 UTC — [autopilot] FYNX Trade: contract specification per pair and the spread next to SELL/BUY
 
 - New "Specification" button in the order panel of the trading terminal (https://www.fynxfunded.com/trade/access). It opens a clear sheet for the chosen pair: contract size, pip size, pip value per lot, the spread right now, leverage, smallest/largest volume, margin for one lot, commission, overnight swap (and which night is charged three times), and the trading hours for the next 7 days in your own time zone and in UTC, with any holiday or maintenance closures.

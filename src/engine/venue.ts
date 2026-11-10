@@ -1,5 +1,5 @@
-import { archiveHistory, cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
-import type { AccountMetrics, AccountState, ArchiveChunk, EngineEvent, HistoryPage, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
+import { addAlert, archiveHistory, cancelOrder, removeAlert, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
+import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEvent, HistoryPage, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 
@@ -271,6 +271,9 @@ export class LocalVenue {
   modify(accountId: string, positionId: string, p: PositionChange) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c)); }
   modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c)); }
   cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId)); }
+  /** Sets a price alert (checked by the timer step on every fresh bid; it never trades). */
+  addAlert(accountId: string, alert: AlertRequest) { return this.run(accountId, (s, c) => addAlert(s, alert, c)); }
+  removeAlert(accountId: string, alertId: string) { return this.run(accountId, s => removeAlert(s, alertId)); }
 
   /**
    * One page of archived (older) deals: chunk `index`, 0 being the oldest.

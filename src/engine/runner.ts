@@ -243,7 +243,7 @@ export class EngineRunner {
         const snap = await this.o.venue.snapshot(id);
         summary.checked++;
         w.checkedAt = this.o.clock();
-        w.idle = snap.state.positions.length === 0 && snap.state.orders.length === 0;
+        w.idle = snap.state.positions.length === 0 && snap.state.orders.length === 0 && !snap.state.alerts?.length;
         w.failures = 0; w.retryAt = 0; w.lastError = "";
       } catch (e) {
         if (e instanceof EngineError && e.code === "conflict") { summary.conflicts++; continue; }

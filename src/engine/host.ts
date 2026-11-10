@@ -1,6 +1,6 @@
 import type { LocalVenue, Snapshot } from "./venue";
 import type { OrderChange, PositionChange } from "./core";
-import type { OrderRequest } from "./types";
+import type { AlertRequest, OrderRequest } from "./types";
 import { EngineError } from "./types";
 
 /**
@@ -13,7 +13,7 @@ import { EngineError } from "./types";
  *
  * Safety: every request needs a valid token for a user who owns the account,
  * and opening or changing orders also needs the account's tradingEnabled flag
- * (the same owner switch the terminal checks). Closing positions and
+ * (the same owner switch the terminal checks). Price alerts never trade and need no switch. Closing positions and
  * cancelling orders are always allowed because they only reduce risk.
  */
 
@@ -57,7 +57,7 @@ export interface HostOptions {
 
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
-  not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404,
+  not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404, no_alert: 404,
   method_not_allowed: 405, conflict: 409, price_moved: 409, bad_request: 400,
 };
 
@@ -98,6 +98,18 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   if (deviation !== undefined) req.maxDeviationPips = deviation;
   if (key) req.clientId = key;
   return req;
+}
+
+/** Strictly reads a price alert body: { symbol, condition: "above" | "below", price, note? }. */
+export function parseAlertRequest(body: unknown): AlertRequest {
+  if (!isObject(body)) throw new EngineError("bad_request", "The alert must be a JSON object.");
+  const extra = Object.keys(body).filter(k => !["symbol", "condition", "price", "note"].includes(k));
+  if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
+  const { symbol, condition, note } = body;
+  if (typeof symbol !== "string" || !/^[A-Z]{6}$/.test(symbol)) throw new EngineError("bad_request", "symbol must be a pair like EURUSD.");
+  if (condition !== "above" && condition !== "below") throw new EngineError("bad_request", "condition must be above or below.");
+  if (note !== undefined && (typeof note !== "string" || note.length > 200)) throw new EngineError("bad_request", "note must be short text.");
+  return { symbol, condition, price: num(body.price, "price", false)!, ...(note !== undefined ? { note: note as string } : {}) };
 }
 
 function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit" | "trailingPips" | "expiresAt")[]): OrderChange & PositionChange {
@@ -155,7 +167,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
 
     if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } } : fail("method_not_allowed", "Use GET.");
 
-    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
+    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
     if (!m) return fail("not_found", "Unknown address.");
     const [, rawAccount, collection, rawItem, action] = m;
     const accountId = decodeURIComponent(rawAccount), itemId = rawItem === undefined ? undefined : decodeURIComponent(rawItem);
@@ -168,6 +180,12 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
       if (itemId) return fail("not_found", "Unknown address.");
       if (method !== "GET") return fail("method_not_allowed", "Use GET.");
       return { status: 200, body: await opts.venue.history(accountId, parseChunk(req)) };
+    }
+    // Alerts never place, change or close an order, so they work before the owner switches trading on.
+    if (collection === "alerts") {
+      if (action) return fail("not_found", "Unknown address.");
+      if (!itemId) return method === "POST" ? ok(await opts.venue.addAlert(accountId, parseAlertRequest(req.body))) : fail("method_not_allowed", "Use POST.");
+      return method === "DELETE" ? ok(await opts.venue.removeAlert(accountId, itemId)) : fail("method_not_allowed", "Use DELETE.");
     }
     if (collection === "orders" && !itemId) {
       if (method !== "POST") return fail("method_not_allowed", "Use POST.");

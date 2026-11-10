@@ -19,7 +19,11 @@ function Row({ label, value, testId }: { label: string; value: string; testId?: 
  * Per-pair contract specification: contract, spread, the trading server's
  * conditions and the trading hours for the coming week in the trader's own time.
  */
-export default function ContractSpec({ pair, status, quotes, market, now }: { pair: ForexPair; status: GatewayStatus | null; quotes?: QuoteBook | null; market: PairMarket; now: number }) {
+export default function ContractSpec({ pair, status, quotes, market, now, open, onOpenChange, trigger = true }: {
+  pair: ForexPair; status: GatewayStatus | null; quotes?: QuoteBook | null; market: PairMarket; now: number;
+  /** Controlled mode (e.g. Market Watch opens one sheet for the tapped row); leave out to use the built-in button. */
+  open?: boolean; onOpenChange?: (open: boolean) => void; trigger?: boolean;
+}) {
   const conditions = status?.instruments?.[pair.symbol] ?? null;
   const pv = pipValuePerLot(pair, quotes);
   const spread = spreadOf(pair, quotes?.[pair.symbol], quotes);
@@ -27,10 +31,10 @@ export default function ContractSpec({ pair, status, quotes, market, now }: { pa
   const hours = weekHours(status, pair.symbol, now, market.open);
   const rows = sessionRows(hours.sessions, now);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return <Dialog>
-    <DialogTrigger asChild>
+  return <Dialog {...(open !== undefined ? { open, onOpenChange } : {})}>
+    {trigger && <DialogTrigger asChild>
       <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Contract specification for ${pair.symbol}`} data-testid="spec-button"><Info size={12} aria-hidden="true" />Specification</button>
-    </DialogTrigger>
+    </DialogTrigger>}
     <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto" data-testid="contract-spec">
       <DialogHeader>
         <DialogTitle className="font-mono">{pair.symbol} <span className="font-sans text-sm font-normal text-muted-foreground">· contract specification</span></DialogTitle>
