@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-10 12:30 UTC — [autopilot] FYNX Trade: contract specification per pair and the spread next to SELL/BUY
+
+- New "Specification" button in the order panel of the trading terminal (https://www.fynxfunded.com/trade/access). It opens a clear sheet for the chosen pair: contract size, pip size, pip value per lot, the spread right now, leverage, smallest/largest volume, margin for one lot, commission, overnight swap (and which night is charged three times), and the trading hours for the next 7 days in your own time zone and in UTC, with any holiday or maintenance closures.
+- Under the SELL and BUY buttons the terminal now shows the spread in pips and what it costs in dollars for the volume you entered.
+- Until trading is connected the sheet says so honestly: no leverage, commission or spread is ever made up, and the hours shown are the standard forex week, labelled as such.
+- Ready for switch-on: the trading server now publishes each pair's hours for the coming week (including closures you enter), and the terminal picks them up automatically.
+
 ## 2026-11-10 08:40 UTC — [autopilot] FYNX Trade: margin, commission and swap in the order panel
 
 - Trading terminal (https://www.fynxfunded.com/trade/access), New order panel: new rows for Leverage (e.g. 1:30), Margin needed for the order, Free margin after, Commission for opening and closing, and Swap per night for a buy and a sell (with the day it counts three times). The figures come from the trading server's own settings and prices; until trading is connected each row says "Shown once trading is connected" instead of guessing.

@@ -44,7 +44,7 @@ export interface HostOptions {
   canAccess: (userId: string, accountId: string) => Promise<boolean>;
   /** The owner's per-account switch. Until it returns true no order is opened or changed. */
   tradingEnabled: (accountId: string) => Promise<boolean>;
-  /** What GET /v1/status reports. `markets` (open/closed per symbol) and `instruments` (leverage, lot limits, commission, swap) are added from the venue. */
+  /** What GET /v1/status reports. `markets` (open/closed per symbol), `instruments` (leverage, lot limits, commission, swap) and `schedule` (open stretches and closures for the next 7 days) are added from the venue. */
   status: () => { priceFeed: boolean; execution: boolean; message: string };
   /**
    * Opens the engine account the first time its owner loads it (GET
@@ -153,7 +153,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     const userId = await opts.verifyToken(token);
     if (!userId) return fail("unauthorized", "Sign in again to trade.");
 
-    if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets(), instruments: opts.venue.conditions() } } : fail("method_not_allowed", "Use GET.");
+    if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } } : fail("method_not_allowed", "Use GET.");
 
     const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
     if (!m) return fail("not_found", "Unknown address.");

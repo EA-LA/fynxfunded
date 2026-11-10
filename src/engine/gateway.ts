@@ -2,7 +2,7 @@ import type { LocalVenue, Snapshot } from "./venue";
 import type { CloseReason, Deal, HistoryPage, OrderRequest } from "./types";
 import type { OrderChange, PositionChange } from "./core";
 import { EngineError } from "./types";
-import type { MarketState } from "./hours";
+import type { MarketState, Schedule } from "./hours";
 import type { TradingConditions } from "./venue";
 
 /**
@@ -33,6 +33,12 @@ export interface GatewayStatus {
    * commission figures (it never guesses them).
    */
   instruments?: Record<string, TradingConditions>;
+  /**
+   * Open stretches and one-off closures per symbol for the next days (UTC ms),
+   * from the server's trading hours. Optional: without it the terminal's
+   * contract specification shows the standard forex week, labelled as such.
+   */
+  schedule?: Record<string, Schedule>;
 }
 
 /** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
@@ -72,6 +78,39 @@ export function parseInstruments(raw: unknown): Record<string, TradingConditions
       swap = { longPerLot: w.longPerLot as number, shortPerLot: w.shortPerLot as number, tripleWeekday: triple as number };
     }
     out[symbol] = { contractSize: c.contractSize as number, minLots: c.minLots as number, lotStep: c.lotStep as number, maxLots: c.maxLots as number, leverage: c.leverage as number, commissionPerLotPerSide: c.commissionPerLotPerSide as number, swap };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+const MAX_SPAN = 15 * 86_400_000;
+
+/**
+ * Keeps only well-formed per-symbol schedules from a server answer: sessions
+ * in time order without overlaps, closures with a short plain reason, all
+ * within about two weeks. A symbol with any bad entry is dropped as a whole.
+ */
+export function parseSchedule(raw: unknown): Record<string, Schedule> | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const out: Record<string, Schedule> = {};
+  const time = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
+  for (const [symbol, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[A-Z]{6}$/.test(symbol) || typeof v !== "object" || v === null) continue;
+    const { sessions, closures } = v as Record<string, unknown>;
+    if (!Array.isArray(sessions) || sessions.length > 60 || !(closures === undefined || (Array.isArray(closures) && closures.length <= 60))) continue;
+    const ok: Schedule = { sessions: [], closures: [] };
+    let bad = false, prev = 0;
+    for (const x of sessions) {
+      const r = (typeof x === "object" && x !== null ? x : {}) as Record<string, unknown>;
+      if (!time(r.from) || !time(r.to) || (r.to as number) <= (r.from as number) || (r.from as number) < prev || (r.to as number) - (r.from as number) > MAX_SPAN) { bad = true; break; }
+      prev = r.to as number; ok.sessions.push({ from: r.from as number, to: r.to as number });
+    }
+    for (const x of (closures as unknown[] | undefined) ?? []) {
+      if (bad) break;
+      const r = (typeof x === "object" && x !== null ? x : {}) as Record<string, unknown>;
+      if (!time(r.from) || !time(r.to) || (r.to as number) <= (r.from as number) || typeof r.reason !== "string" || !r.reason.trim() || r.reason.length > 120) { bad = true; break; }
+      ok.closures.push({ from: r.from as number, to: r.to as number, reason: r.reason });
+    }
+    if (!bad) out[symbol] = ok;
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -174,9 +213,9 @@ export class HttpGateway implements TradingGateway {
 
   async status(): Promise<GatewayStatus> {
     try {
-      const s = await this.call<Partial<GatewayStatus> & { markets?: unknown; instruments?: unknown }>("GET", "/v1/status");
-      const markets = parseMarkets(s?.markets), instruments = parseInstruments(s?.instruments);
-      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}) };
+      const s = await this.call<Partial<GatewayStatus> & { markets?: unknown; instruments?: unknown; schedule?: unknown }>("GET", "/v1/status");
+      const markets = parseMarkets(s?.markets), instruments = parseInstruments(s?.instruments), schedule = parseSchedule(s?.schedule);
+      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}) };
     } catch (e) {
       return { connected: false, priceFeed: false, execution: false, message: e instanceof Error ? e.message : "Not connected." };
     }
@@ -196,7 +235,7 @@ export class HttpGateway implements TradingGateway {
 export class LocalGatewayAdapter implements TradingGateway {
   readonly mode = "local" as const;
   constructor(private venue: LocalVenue) {}
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions() }; }
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule() }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
   placeOrder(id: string, order: OrderRequest) { return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }

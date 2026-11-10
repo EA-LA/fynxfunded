@@ -120,3 +120,35 @@ export function formatUtc(ms: number): string {
   const d = new Date(ms);
   return `${WEEKDAYS[d.getUTCDay()]} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
 }
+
+/** One open stretch of a market, in UTC milliseconds ([from, to)). */
+export interface Session { from: number; to: number }
+
+/** A pair's trading hours for a period: when it is open, and the one-off closures that fall in it. */
+export interface Schedule { sessions: Session[]; closures: Closure[] }
+
+/**
+ * When the market is open between `from` and `to` (UTC ms), as a list of open
+ * stretches cut at the ends of the period (periods up to a few weeks), with the closures (holidays,
+ * maintenance) that overlap it. No hours means open the whole period. Pure:
+ * the same answer for the same input, so the server and the terminal agree.
+ */
+export function scheduleBetween(hours: TradingHours | undefined, from: number, to: number): Schedule {
+  if (!(Number.isFinite(from) && Number.isFinite(to)) || to <= from) throw new RangeError("The schedule period must end after it starts.");
+  if (!hours) return { sessions: [{ from, to }], closures: [] };
+  check(hours);
+  const sessions: Session[] = [];
+  let t = from;
+  for (let guard = 0; t < to && guard < 500; guard++) {
+    const s = marketState(hours, t);
+    const end = s.nextChange === null ? to : Math.min(s.nextChange, to);
+    if (s.open) {
+      const last = sessions[sessions.length - 1];
+      if (last && last.to === t) last.to = end; else sessions.push({ from: t, to: end });
+    }
+    if (s.nextChange === null) break; // no change ahead: the state holds to the end of the period
+    t = end;
+  }
+  const closures = (hours.closures ?? []).filter(c => c.to > from && c.from < to).map(c => ({ ...c })).sort((a, b) => a.from - b.from);
+  return { sessions, closures };
+}

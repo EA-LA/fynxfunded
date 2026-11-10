@@ -1,6 +1,6 @@
 import { archiveHistory, cancelOrder, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
 import type { AccountMetrics, AccountState, ArchiveChunk, EngineEvent, HistoryPage, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
-import { FOREX_HOURS, marketState, type MarketState, type TradingHours } from "./hours";
+import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 
 /**
@@ -220,6 +220,16 @@ export class LocalVenue {
   markets(symbols: string[] = Object.keys(this.specs)): Record<string, MarketState> {
     const now = this.clock();
     return Object.fromEntries(symbols.filter(s => this.specs[s]).map(s => [s, marketState(this.specs[s].hours, now)]));
+  }
+
+  /**
+   * Each symbol's open stretches and closures for the next `days` days (default
+   * 7, at most 14) from the venue clock, for `/v1/status` `schedule`: the
+   * terminal's contract specification shows them as "trading hours this week".
+   */
+  schedule(days = 7, symbols: string[] = Object.keys(this.specs)): Record<string, Schedule> {
+    const now = this.clock(), span = Math.min(14, Math.max(1, Math.floor(days))) * 86_400_000;
+    return Object.fromEntries(symbols.filter(s => this.specs[s]).map(s => [s, scheduleBetween(this.specs[s].hours, now, now + span)]));
   }
 
   /** Leverage, lot limits, commission and swap per symbol (or the given ones), for `/v1/status`. */

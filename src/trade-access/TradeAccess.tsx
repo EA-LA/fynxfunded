@@ -30,6 +30,8 @@ import { parseDeviation, parseTrailing, trailingPreview } from './protection';
 import ExpiryPicker from './ExpiryPicker';
 import { expiryAt, expiryLabel, expiryValue, type ExpiryChoice } from './expiry';
 import TargetProgress from './TargetProgress';
+import ContractSpec from './ContractSpec';
+import { spreadOf } from './contract-spec';
 import { FOREX_HOURS, marketState } from '@/engine/hours';
 import { closedSentence, localAt, pairMarket, untilLabel, useNow, type PairMarket } from './market-hours';
 import type { GatewayStatus } from '@/engine/gateway';
@@ -293,6 +295,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
+  const spread = spreadOf(pair, quote, engine.snapshot?.quotes);
   const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
   const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
@@ -310,7 +313,10 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   return <div className="flex flex-col gap-4 overflow-y-auto p-4" data-testid="order-ticket">
     <div className="flex items-start justify-between gap-2">
       <div><h2 className="text-sm font-semibold">New order</h2><p className="font-mono text-lg font-bold">{pair.symbol}</p></div>
-      <span className={`rounded-full px-2 py-0.5 text-[11px] ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}>Market {marketOpen ? 'open' : 'closed'}</span>
+      <div className="flex flex-col items-end gap-1.5">
+        <span className={`rounded-full px-2 py-0.5 text-[11px] ${marketOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-secondary text-muted-foreground'}`}>Market {marketOpen ? 'open' : 'closed'}</span>
+        <ContractSpec pair={pair} status={engine.status} quotes={engine.snapshot?.quotes} market={market} now={now} />
+      </div>
     </div>
     {!marketOpen && <MarketClosedNote market={market} now={now} symbol={pair.symbol} />}
 
@@ -346,6 +352,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       <button type="button" onClick={() => { setSent(''); setReview('sell'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.bid.toFixed(pair.digits) : 'at bid') : `${type} order`}</span></button>
       <button type="button" onClick={() => { setSent(''); setReview('buy'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-blue-600 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50" data-testid="buy-button"><span className="flex items-center gap-1 text-base"><ArrowUpRight size={17} aria-hidden="true" />BUY</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.ask.toFixed(pair.digits) : 'at ask') : `${type} order`}</span></button>
     </div>
+    <p className="-mt-2 text-center text-[11px] text-muted-foreground" data-testid="ticket-spread">{spread ? `Spread ${spread.pips.toFixed(1)} pips${spread.usdPerLot !== null ? ` · ${lots ? `${money(Math.round(spread.usdPerLot * lots * 100) / 100)} on ${lots.toFixed(2)} lots` : `${money(spread.usdPerLot)} per lot`}` : ''}` : 'Spread: from the trading server\u2019s live prices'}</p>
 
     {review && lots && <div role="status" className={`rounded-lg border p-3 text-sm ${review === 'buy' ? 'border-blue-500/40 bg-blue-500/5' : 'border-red-500/40 bg-red-500/5'}`} data-testid="order-review">
       <div className="flex items-start justify-between gap-2"><p className="font-semibold">{review === 'buy' ? 'Buy' : 'Sell'} {lots.toFixed(2)} {pair.symbol} {type === 'market' ? 'at market' : `${type} at ${entry || '—'}`}</p><button type="button" aria-label="Close order review" onClick={() => setReview(null)}><X size={14} /></button></div>
