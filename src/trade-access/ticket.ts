@@ -1,4 +1,6 @@
-import { CONTRACT_SIZE, pipValueUsd, type ForexPair } from "./instruments";
+import type { QuoteBook } from "@/engine/types";
+import { CONTRACT_SIZE, type ForexPair } from "./instruments";
+import { pipValuePerLot } from "./sizing";
 
 export interface AccountRules {
   profit_target_percent: string;
@@ -30,11 +32,15 @@ export interface TicketInput {
   tpPips: number | null;
   balance?: number;
   dailyLossAmount?: number | null;
+  /** The trading server's prices, used to convert pip values of pairs not quoted in US dollars. */
+  quotes?: QuoteBook | null;
 }
 
 export interface TicketFigures {
   units: number | null;
   pipValue: number | null;
+  /** "server" when the pip value was converted with the trading server's prices (it moves with them). */
+  pipSource: "contract" | "server" | null;
   risk: number | null;
   reward: number | null;
   riskPercent: number | null;
@@ -43,16 +49,21 @@ export interface TicketFigures {
   rewardRatio: number | null;
 }
 
-/** Order-ticket arithmetic. Dollar figures are only given when they don't depend on a live price. */
-export function ticketFigures({ pair, lots, slPips, tpPips, balance, dailyLossAmount }: TicketInput): TicketFigures {
+/**
+ * Order-ticket arithmetic. Dollar figures for pairs not quoted in US dollars are
+ * only given with the trading server's prices (`quotes`); nothing is estimated.
+ */
+export function ticketFigures({ pair, lots, slPips, tpPips, balance, dailyLossAmount, quotes }: TicketInput): TicketFigures {
   const units = lots ? Math.round(lots * CONTRACT_SIZE) : null;
-  const pipValue = lots ? pipValueUsd(pair, lots) : null;
+  const pv = lots && lots > 0 ? pipValuePerLot(pair, quotes) : null;
+  const pipValue = pv && lots ? round2(pv.perLot * lots) : null;
   const sl = slPips && slPips > 0 ? slPips : null, tp = tpPips && tpPips > 0 ? tpPips : null;
   const risk = pipValue !== null && sl !== null ? round2(pipValue * sl) : null;
   const reward = pipValue !== null && tp !== null ? round2(pipValue * tp) : null;
   return {
     units,
     pipValue,
+    pipSource: pipValue !== null ? pv!.source : null,
     risk,
     reward,
     riskPercent: risk !== null && balance && balance > 0 ? round2((risk / balance) * 100) : null,

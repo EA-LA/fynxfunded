@@ -13,6 +13,8 @@ import {
   loadFavorites, normalizeLots, pairLabel, pairName, saveFavorites, searchPairs, type ForexGroup, type ForexPair,
 } from './instruments';
 import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
+import TicketRiskSize from './TicketRiskSize';
+import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
 import type { TradingGateway } from '@/engine/gateway';
 import type { Snapshot } from '@/engine/venue';
@@ -279,7 +281,9 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const deviationPips = deviation.ok ? deviation.value : null;
   // Expiry only applies to pending orders; market orders fill at once.
   const expiry = type === 'market' ? { ok: true as const, value: null } : expiryValue(expiryChoice, expiryText, now);
-  const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance: account?.balance, dailyLossAmount });
+  // The trading server's balance and prices when connected; the account record otherwise.
+  const balance = engine.snapshot?.metrics.balance ?? account?.balance;
+  const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance, dailyLossAmount, quotes: engine.snapshot?.quotes });
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
@@ -318,6 +322,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       </div>
       <div className="mt-1.5 flex gap-1">{['0.01', '0.10', '0.50', '1.00'].map(v => <button key={v} type="button" onClick={() => setLotsText(v)} className={`flex-1 rounded border py-1 font-mono text-xs ${lotsText === v ? 'border-primary bg-primary/10' : 'hover:bg-secondary'}`}>{v}</button>)}</div>
       <p className="mt-1 text-[11px] text-muted-foreground">{lots ? `${f.units?.toLocaleString()} ${pair.base} · ${LOT_MIN}–${LOT_MAX} lots, step ${LOT_STEP}` : `Enter a volume from ${LOT_MIN} to ${LOT_MAX} lots.`}</p>
+      <TicketRiskSize pair={pair} slPips={sl} balance={balance} quotes={engine.snapshot?.quotes} roomToFloor={engine.snapshot?.metrics.roomToFloor} dailyLossAmount={dailyLossAmount} currentLots={lots} onUse={v => setLotsText(v.toFixed(2))} />
     </div>
 
     {type !== 'market' && <label className="text-xs text-muted-foreground">{type === 'limit' ? 'Limit' : 'Stop'} price
@@ -354,9 +359,9 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       {([
         ['Contract size', `${CONTRACT_SIZE.toLocaleString()} ${pair.base} / lot`],
         ['Pip size', String(pair.pipSize)],
-        ['Pip value', f.pipValue !== null ? `${money(f.pipValue)} per pip` : `Moves with the ${pair.quote}/USD rate`],
+        ['Pip value', f.pipValue !== null ? `${money(f.pipValue)} per pip${f.pipSource === 'server' ? ' at the server\u2019s price now' : ''}` : `Moves with the ${pair.quote}/USD rate`],
         ['Risk at stop loss', f.risk !== null ? `${money(f.risk)}${f.riskPercent !== null ? ` (${f.riskPercent}% of balance)` : ''}` : sl ? 'Use the lot size calculator' : 'Set a stop loss'],
-        ['Profit at take profit', f.reward !== null ? money(f.reward) : tp ? 'Use the lot size calculator' : '—'],
+        ['Profit at take profit', f.reward !== null ? money(f.reward) : tp ? 'Use the lot size calculator' : '\u2014'],
         ['Reward : risk', f.rewardRatio !== null ? `${f.rewardRatio} : 1` : '—'],
       ] as const).map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right font-medium">{v}</dd></div>)}
     </dl>
@@ -439,6 +444,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
   const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
     {tab === 'positions' && snap && <BulkClose snapshot={snap} engine={engine} now={now} />}
+    {tab === 'history' && snap && <StatementBar accountId={snap.state.accountId} deals={[...snap.state.history, ...archive.pages.flatMap(p => p.deals)]} archivedNotLoaded={Math.max(0, (snap.state.archived?.deals ?? 0) - archive.shown)} />}
     <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
       <tbody>
         {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes) + (p.swap ?? 0); return <Fragment key={p.id}><tr className="border-b border-border/60">

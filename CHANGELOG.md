@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-10 04:30 UTC — [autopilot] FYNX Trade: size a trade by risk, account statement download
+
+- Trading terminal (https://www.fynxfunded.com/trade/access), New order panel: new "Size by risk" link under the volume. Type how much the stop loss may cost, as a share of the balance (or tap 0.25%, 0.5%, 1%) or in dollars. With the stop loss in pips it tells you the volume, for example "0.33 lots · a 15-pip stop would cost $49.50 of the $50.00 you chose", and "Use 0.33 lots" puts it in the volume box. It rounds down so you never risk more than you chose, and warns when the risk would use a large part of, or reach, what is left before your loss limit.
+- Pairs not priced in US dollars (yen pairs, EURGBP, and so on) now get their pip value, risk and profit in dollars too, worked out from the trading server's own prices, once trading is connected. Until then they say so plainly instead of guessing.
+- History tab: a summary of the closed trades shown (trades won and lost, win rate, gross profit and loss, commission, swap, profit factor, net result) and a "Download statement (CSV)" button with every trade and the totals, ready for a spreadsheet.
+- Ready for the API: both work as soon as the trading server is connected; nothing else to plug in (docs/ENGINE-READINESS.md updated).
+
 ## 2026-11-10 00:30 UTC — [autopilot] FYNX Trade: price protection for market orders
 
 - New "Price protection (pips)" box in the order panel of the trading terminal (https://www.fynxfunded.com/trade/access) for market orders. Type how far the price may move against you between pressing Confirm and the fill (or tap 0, 1 or 3). Empty means off, as before.
