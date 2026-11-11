@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-11 12:45 UTC — [autopilot] Trading engine: connect the price provider by filling in settings, and a "ready to run?" check
+
+- Ready for switch-on: the price feed (the "gas") no longer needs any code for most providers. When you choose a price provider that streams prices over a WebSocket (most do), you fill in a few settings on the engine server (the provider's address, your key, and where the pair, bid and ask are in their messages) and it connects, names all 45 pairs the provider's way, refuses bad prices, and reconnects by itself if the provider drops or goes quiet. Your key is never shown in logs or reports.
+- New one-command check for the engine server (`npm run engine:check`): it lists in plain words what is set and what is still missing (trading settings, price feed, Firebase access, the trading switch). Add `--feed 20` and it connects to your provider for 20 seconds and shows which pairs received prices, the latest bid/ask and spread, and why any message was refused, so a wrong setting is found before any customer sees it. It never places orders or changes any data.
+- Nothing changes on the website today; trading stays off. The exact settings, with examples, are in docs/ENGINE-READINESS.md (step 1, "A licensed price feed"). The terminal it will power: https://www.fynxfunded.com/trade/access
+
 ## 2026-11-11 08:30 UTC — [autopilot] Trading engine knows your customers' accounts by itself; easier-to-read pages for everyone
 
 - Ready for switch-on: the trading server can now find everything it needs about each customer's account on its own (which rules they bought, who owns it, whether it may trade, where to send their emails), straight from what checkout already saves. When you connect the price feed and start the server, there are no account lookups left to write. Trading still stays off until you switch it on in two places (the server's master switch and the account itself), and only for a paid challenge that is running; a passed phase waits for your review. The steps are in docs/ENGINE-READINESS.md ("Account directory").
