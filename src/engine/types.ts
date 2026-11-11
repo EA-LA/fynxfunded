@@ -291,6 +291,19 @@ export interface TriggeredAlert extends PriceAlert {
   triggerPrice: number;
 }
 
+/**
+ * What a trader can be told by email (or another channel the host connects)
+ * when it happens on the server, also with the terminal closed:
+ *  - alert:  a price alert fired
+ *  - fill:   a pending order was filled
+ *  - stop:   a position closed at its stop loss or take profit
+ *  - limit:  the daily or maximum loss limit closed the account's trades
+ *  - target: the profit target was reached with the minimum trading days
+ *  - expiry: a pending order was cancelled at its expiry time
+ */
+export type NoticeKind = "alert" | "fill" | "stop" | "limit" | "target" | "expiry";
+export type NoticePrefs = Record<NoticeKind, boolean>;
+
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";
 
 export interface AccountState {
@@ -322,6 +335,8 @@ export interface AccountState {
    * small (see `archiveHistory`). Absent until the first archive.
    */
   archived?: ArchivedHistory;
+  /** The trader's choices of which notices to receive (see NoticeKind). Missing means the defaults (DEFAULT_NOTICES). */
+  notices?: Partial<NoticePrefs>;
   breachReason?: CloseReason;
   /** When the profit target was first met with the minimum trading days (pending official review). */
   targetReachedAt?: number;
@@ -359,6 +374,7 @@ export type EngineEvent =
   | { type: "alert_added"; alert: PriceAlert }
   | { type: "alert_removed"; alertId: string }
   | { type: "alert_triggered"; alert: TriggeredAlert }
+  | { type: "notices_changed"; notices: NoticePrefs }
   | { type: "swap_applied"; positionId: string; amount: number; nights: number; at: number };
 
 export class EngineError extends Error {

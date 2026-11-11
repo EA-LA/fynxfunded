@@ -1,5 +1,5 @@
 import type { LocalVenue, Snapshot } from "./venue";
-import type { AlertRequest, CloseReason, Deal, HistoryPage, OrderRequest } from "./types";
+import type { AlertRequest, CloseReason, Deal, HistoryPage, NoticePrefs, OrderRequest } from "./types";
 import type { OrderChange, PositionChange } from "./core";
 import { EngineError } from "./types";
 import type { MarketState, Schedule } from "./hours";
@@ -39,6 +39,12 @@ export interface GatewayStatus {
    * contract specification shows the standard forex week, labelled as such.
    */
   schedule?: Record<string, Schedule>;
+  /**
+   * true when the server has a notice sender connected (email or another
+   * channel), so the trader's notice choices are acted on. Missing or false:
+   * the terminal says notices start once the sender is connected.
+   */
+  notices?: boolean;
 }
 
 /** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
@@ -133,6 +139,8 @@ export interface TradingGateway {
   /** Sets a price alert the server checks on every fresh bid, also with the terminal closed. Alerts never trade. */
   addAlert(accountId: string, alert: AlertRequest): Promise<Snapshot>;
   removeAlert(accountId: string, alertId: string): Promise<Snapshot>;
+  /** Changes which notices the trader receives (only the given kinds). Never trades. */
+  setNotices(accountId: string, change: Partial<NoticePrefs>): Promise<Snapshot>;
 }
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -185,6 +193,7 @@ export class DisconnectedGateway implements TradingGateway {
   archivedDeals() { return this.fail(); }
   addAlert() { return this.fail(); }
   removeAlert() { return this.fail(); }
+  setNotices() { return this.fail(); }
 }
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -220,7 +229,7 @@ export class HttpGateway implements TradingGateway {
     try {
       const s = await this.call<Partial<GatewayStatus> & { markets?: unknown; instruments?: unknown; schedule?: unknown }>("GET", "/v1/status");
       const markets = parseMarkets(s?.markets), instruments = parseInstruments(s?.instruments), schedule = parseSchedule(s?.schedule);
-      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}) };
+      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}), ...(s?.notices === true ? { notices: true } : {}) };
     } catch (e) {
       return { connected: false, priceFeed: false, execution: false, message: e instanceof Error ? e.message : "Not connected." };
     }
@@ -233,6 +242,7 @@ export class HttpGateway implements TradingGateway {
   cancelOrder(id: string, orderId: string) { return this.call<Snapshot>("DELETE", `/v1/accounts/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}`); }
   addAlert(id: string, alert: AlertRequest) { return this.call<Snapshot>("POST", `/v1/accounts/${encodeURIComponent(id)}/alerts`, alert); }
   removeAlert(id: string, alertId: string) { return this.call<Snapshot>("DELETE", `/v1/accounts/${encodeURIComponent(id)}/alerts/${encodeURIComponent(alertId)}`); }
+  setNotices(id: string, change: Partial<NoticePrefs>) { return this.call<Snapshot>("PATCH", `/v1/accounts/${encodeURIComponent(id)}/notices`, change); }
   async archivedDeals(id: string, index: number) {
     if (!Number.isInteger(index) || index < 0) throw new EngineError("bad_request", "chunk must be a whole number from 0.");
     return parseHistoryPage(await this.call<unknown>("GET", `/v1/accounts/${encodeURIComponent(id)}/history?chunk=${index}`), id, index);
@@ -241,8 +251,9 @@ export class HttpGateway implements TradingGateway {
 
 export class LocalGatewayAdapter implements TradingGateway {
   readonly mode = "local" as const;
-  constructor(private venue: LocalVenue) {}
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule() }; }
+  /** `notices`: whether a notice sender is connected next to this venue (default false). */
+  constructor(private venue: LocalVenue, private options: { notices?: boolean } = {}) {}
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}) }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
   placeOrder(id: string, order: OrderRequest) { return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }
@@ -252,6 +263,7 @@ export class LocalGatewayAdapter implements TradingGateway {
   archivedDeals(id: string, index: number) { return this.venue.history(id, index); }
   addAlert(id: string, alert: AlertRequest) { return this.venue.addAlert(id, alert); }
   removeAlert(id: string, alertId: string) { return this.venue.removeAlert(id, alertId); }
+  setNotices(id: string, change: Partial<NoticePrefs>) { return this.venue.setNotices(id, change); }
 }
 
 /**

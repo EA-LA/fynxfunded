@@ -1,6 +1,7 @@
 import type { LocalVenue, Snapshot } from "./venue";
 import type { OrderChange, PositionChange } from "./core";
-import type { AlertRequest, OrderRequest } from "./types";
+import type { AlertRequest, NoticePrefs, OrderRequest } from "./types";
+import { NOTICE_KINDS } from "./core";
 import { EngineError } from "./types";
 
 /**
@@ -45,7 +46,7 @@ export interface HostOptions {
   /** The owner's per-account switch. Until it returns true no order is opened or changed. */
   tradingEnabled: (accountId: string) => Promise<boolean>;
   /** What GET /v1/status reports. `markets` (open/closed per symbol), `instruments` (leverage, lot limits, commission, swap) and `schedule` (open stretches and closures for the next 7 days) are added from the venue. */
-  status: () => { priceFeed: boolean; execution: boolean; message: string };
+  status: () => { priceFeed: boolean; execution: boolean; message: string; notices?: boolean };
   /**
    * Opens the engine account the first time its owner loads it (GET
    * /v1/accounts/{id}), with the balance and rules from `rulesFor`. Default
@@ -98,6 +99,17 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   if (deviation !== undefined) req.maxDeviationPips = deviation;
   if (key) req.clientId = key;
   return req;
+}
+
+/** Strictly reads a notices body: { alert?, fill?, stop?, limit?, target?, expiry? } with true/false values. */
+export function parseNotices(body: unknown): Partial<NoticePrefs> {
+  if (!isObject(body)) throw new EngineError("bad_request", "Send the notices as a JSON object, e.g. { \"alert\": true }.");
+  const keys = Object.keys(body);
+  const extra = keys.filter(k => !(NOTICE_KINDS as readonly string[]).includes(k));
+  if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
+  if (!keys.length) throw new EngineError("bad_request", "Nothing to change.");
+  if (keys.some(k => typeof body[k] !== "boolean")) throw new EngineError("bad_request", "Each notice must be true or false.");
+  return body as Partial<NoticePrefs>;
 }
 
 /** Strictly reads a price alert body: { symbol, condition: "above" | "below", price, note? }. */
@@ -167,7 +179,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
 
     if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } } : fail("method_not_allowed", "Use GET.");
 
-    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
+    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts|notices)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
     if (!m) return fail("not_found", "Unknown address.");
     const [, rawAccount, collection, rawItem, action] = m;
     const accountId = decodeURIComponent(rawAccount), itemId = rawItem === undefined ? undefined : decodeURIComponent(rawItem);
@@ -180,6 +192,11 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
       if (itemId) return fail("not_found", "Unknown address.");
       if (method !== "GET") return fail("method_not_allowed", "Use GET.");
       return { status: 200, body: await opts.venue.history(accountId, parseChunk(req)) };
+    }
+    // Notice choices never trade either; they work on any account, also before trading is switched on.
+    if (collection === "notices") {
+      if (itemId) return fail("not_found", "Unknown address.");
+      return method === "PATCH" ? ok(await opts.venue.setNotices(accountId, parseNotices(req.body))) : fail("method_not_allowed", "Use PATCH.");
     }
     // Alerts never place, change or close an order, so they work before the owner switches trading on.
     if (collection === "alerts") {

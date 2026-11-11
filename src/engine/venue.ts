@@ -1,5 +1,5 @@
-import { addAlert, archiveHistory, cancelOrder, removeAlert, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
-import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEvent, HistoryPage, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
+import { addAlert, archiveHistory, setNotices, cancelOrder, removeAlert, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
+import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEvent, HistoryPage, NoticePrefs, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 
@@ -274,6 +274,8 @@ export class LocalVenue {
   /** Sets a price alert (checked by the timer step on every fresh bid; it never trades). */
   addAlert(accountId: string, alert: AlertRequest) { return this.run(accountId, (s, c) => addAlert(s, alert, c)); }
   removeAlert(accountId: string, alertId: string) { return this.run(accountId, s => removeAlert(s, alertId)); }
+  /** Changes which notices (email etc.) the trader receives; it never trades. */
+  setNotices(accountId: string, change: Partial<NoticePrefs>) { return this.run(accountId, s => setNotices(s, change)); }
 
   /**
    * One page of archived (older) deals: chunk `index`, 0 being the oldest.

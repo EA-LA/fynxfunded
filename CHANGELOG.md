@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-11 00:25 UTC — [autopilot] FYNX Trade: email notices when something happens on your account
+
+- Trading terminal (https://www.fynxfunded.com/trade/access), Alerts tab: new "Email me when…" box. Tick what you want to hear about by email, also with the page closed: a price alert fires, a pending order is filled, a stop loss or take profit closes a trade, a loss limit is reached, the profit target is reached, a pending order expires. Your choices are saved with your account on the trading server.
+- Each email says what happened in plain words, with the prices, the time (UTC) and a link back to the terminal. A loss-limit email says how many trades were closed and their result; a target email says clearly it is not yet the official result. The same email is never sent twice, and at most 30 an hour per account.
+- Fixed: a new price alert on an account with no open trades could wait up to a minute before the server first checked it; it is now checked straight away.
+- Until it is connected the box says so plainly: before trading is connected the choices can't be set, and before FYNX connects an email sender it says nothing is emailed yet.
+- Ready for switch-on: plug in an email sender (the Firebase "Trigger Email" extension with the provider you choose) and every notice starts going out; the steps are in docs/ENGINE-READINESS.md.
+
 ## 2026-11-10 16:45 UTC — [autopilot] FYNX Trade: price alerts, and pair details from Market Watch
 
 - New "Alerts" tab in the trading terminal (https://www.fynxfunded.com/trade/access), next to History. Pick a pair, choose "Bid at or above" or "Bid at or below", type the price and an optional note ("Retest of last week's high") and press Create alert. It shows the price now and how many pips away your level is, and if you typed a level on the wrong side of the price it offers a one-tap fix.

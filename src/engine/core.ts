@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, AlertRequest, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OrderRequest, PendingOrder, Position, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
+  AccountMetrics, AccountState, AlertRequest, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -417,6 +417,36 @@ export function addAlert(state: AccountState, req: AlertRequest, ctx: EngineCont
   if (alerts.some(a => a.symbol === req.symbol && a.condition === req.condition && a.price === req.price)) throw new EngineError("bad_alert", "You already have this alert.");
   const alert: PriceAlert = { id: ctx.newId("alr"), symbol: req.symbol, condition: req.condition, price: req.price, createdAt: ctx.now, ...(note ? { note } : {}) };
   return { state: { ...state, alerts: [...alerts, alert], sequence: state.sequence + 1 }, events: [{ type: "alert_added", alert }] };
+}
+
+export const NOTICE_KINDS: readonly NoticeKind[] = ["alert", "fill", "stop", "limit", "target", "expiry"];
+/**
+ * Defaults before a trader chooses: service messages about things the trader
+ * asked for or must know (alerts they set, loss limits, the target) are on;
+ * routine trade messages are off.
+ */
+export const DEFAULT_NOTICES: NoticePrefs = { alert: true, fill: false, stop: false, limit: true, target: true, expiry: false };
+
+/** The account's notice choices with the defaults filled in. */
+export function noticePrefs(state: Pick<AccountState, "notices">): NoticePrefs {
+  const out = { ...DEFAULT_NOTICES };
+  for (const k of NOTICE_KINDS) if (typeof state.notices?.[k] === "boolean") out[k] = state.notices[k]!;
+  return out;
+}
+
+/**
+ * Changes which notices the trader receives. Only the given kinds change. It
+ * never trades, so it works on any account status (also after a loss limit).
+ */
+export function setNotices(state: AccountState, change: Partial<NoticePrefs>): Step {
+  if (typeof change !== "object" || change === null || Array.isArray(change)) throw new EngineError("bad_notices", "Send the notices to change, e.g. { alert: true }.");
+  const keys = Object.keys(change);
+  if (!keys.length) throw new EngineError("bad_notices", "Nothing to change.");
+  const unknown = keys.filter(k => !(NOTICE_KINDS as readonly string[]).includes(k));
+  if (unknown.length) throw new EngineError("bad_notices", `Unknown notice: ${unknown.join(", ")}.`);
+  if (keys.some(k => typeof change[k as NoticeKind] !== "boolean")) throw new EngineError("bad_notices", "Each notice is on (true) or off (false).");
+  const notices = { ...noticePrefs(state), ...change };
+  return { state: { ...state, notices, sequence: state.sequence + 1 }, events: [{ type: "notices_changed", notices }] };
 }
 
 /** Deletes a waiting price alert. Works on any account status (it only removes). */

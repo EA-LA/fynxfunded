@@ -3,6 +3,7 @@ import { BellRing, Trash2 } from 'lucide-react';
 import type { AlertCondition } from '@/engine/types';
 import type { EngineHandle } from './useEngine';
 import { FOREX_PAIRS, findPair, type ForexPair } from './instruments';
+import NoticeSettings from './NoticeSettings';
 import { ALERT_NOTE_MAX, byDistance, conditionLabel, firedSentence, pipsAway, readAlertDraft, suggestedCondition } from './alerts';
 
 const when = (ms: number) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -66,6 +67,7 @@ export default function AlertsPanel({ engine, pair: selected, now }: { engine: E
       {!connected && <p className="text-xs text-muted-foreground" data-testid="alert-offline">Price alerts start working once the trading server is connected. Nothing is saved before that.</p>}
       {engine.error && <p role="alert" className="text-xs text-red-600">{engine.error}</p>}
       {message && !engine.error && <p role="status" className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="alert-message">{message}</p>}
+      <NoticeSettings engine={engine} />
     </form>
 
     <div className="min-w-0 space-y-4">

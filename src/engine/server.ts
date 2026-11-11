@@ -3,6 +3,7 @@ import { handleEngineRequest, type HostRequest, type HostResponse } from "./host
 import { EngineRunner, executionMessage, type RunnerHealth, type RunnerOptions } from "./runner";
 import type { EngineEvent, RuleSet } from "./types";
 import type { EngineLedger, LedgerHealth } from "./ledger";
+import type { EngineNotifier, NotifierHealth } from "./notifier";
 
 /**
  * Everything a trading server needs, wired in one call ("add gas and it runs").
@@ -47,6 +48,13 @@ export interface EngineServerOptions {
   onEvents?: (accountId: string, events: EngineEvent[]) => void;
   /** Writes every closed deal to the FYNX Funded `trades` collection (src/engine/ledger.ts), so it shows on the dashboard. */
   ledger?: EngineLedger;
+  /**
+   * Sends trader notices (price alert fired, order filled, stop/target hit,
+   * loss limit, target reached, order expired) by email or another channel,
+   * honouring each trader's choices (src/engine/notifier.ts). With it,
+   * GET /v1/status says `notices: true` and the terminal lets traders choose.
+   */
+  notifier?: EngineNotifier;
   /** Timer step tuning and error reporting (intervalMs, idleEveryMs, onError…). */
   runner?: Omit<RunnerOptions, "venue" | "accounts" | "ready" | "clock">;
   clock?: () => number;
@@ -60,6 +68,8 @@ export interface EngineServerStatus {
   runner: RunnerHealth;
   /** Trade ledger health when a ledger is connected (pending, written, failed…). */
   ledger?: LedgerHealth;
+  /** Notice sender health when a notifier is connected (sent, switched off, failed…). */
+  notifier?: NotifierHealth;
 }
 
 export interface EngineServer {
@@ -75,7 +85,7 @@ export interface EngineServer {
   stop(): Promise<void>;
 }
 
-const ACCOUNT_ACTION = /^\/v1\/accounts\/([^/?]+)\/(orders|positions)(?:[/?]|$)/;
+const ACCOUNT_ACTION = /^\/v1\/accounts\/([^/?]+)\/(orders|positions|alerts)(?:[/?]|$)/;
 
 export function createEngineServer(o: EngineServerOptions): EngineServer {
   const clock = o.clock ?? Date.now;
@@ -85,13 +95,14 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
   const runner = new EngineRunner({ ...o.runner, venue, accounts: o.accounts, ready: priceFeedLive, clock });
   if (o.onEvents) venue.onEvents(o.onEvents);
   if (o.ledger) venue.onEvents(o.ledger.listener);
+  if (o.notifier) venue.onEvents(o.notifier.listener);
   let disconnect: (() => void) | null = null, offQuote: (() => void) | null = null;
 
   const status = (): EngineServerStatus => {
     const priceFeed = priceFeedLive();
     const health = runner.health();
     const base = { priceFeed, execution: priceFeed && health.healthy, message: executionMessage(priceFeed, health), runner: health };
-    return o.ledger ? { ...base, ledger: o.ledger.health() } : base;
+    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}) };
   };
 
   return {
@@ -99,9 +110,9 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
     async handle(request) {
       const response = await handleEngineRequest(request, {
         venue, verifyToken: o.verifyToken, canAccess: o.canAccess, tradingEnabled: o.tradingEnabled, openOnFirstVisit: o.openOnFirstVisit,
-        status: () => { const s = status(); return { priceFeed: s.priceFeed, execution: s.execution, message: s.message }; },
+        status: () => { const s = status(); return { priceFeed: s.priceFeed, execution: s.execution, message: s.message, ...(o.notifier ? { notices: true } : {}) }; },
       });
-      // An account that just placed or changed something is checked every round from now on.
+      // An account that just placed or changed something (or set a price alert) is checked every round from now on.
       const m = ACCOUNT_ACTION.exec(request.path.split("?")[0]);
       if (m && response.status === 200) runner.watch(decodeURIComponent(m[1]));
       return response;
@@ -118,6 +129,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
       await runner.stop();
       // Trades closed in the last round still reach the dashboard before the process exits.
       await o.ledger?.flush();
+      await o.notifier?.flush();
     },
   };
 }
