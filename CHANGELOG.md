@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-11 20:30 UTC — [autopilot] Trading engine: no trade lost after a restart; FYNX Trade page fixed on phones
+
+- Fixed: on phones, the FYNX Trade home page could be dragged sideways (the page was almost twice as wide as the screen because of a hidden label in the "All pairs" table). It now fits the screen exactly: https://www.fynxfunded.com/trade
+- Ready for switch-on: when the trading server restarts (Google restarts servers from time to time), any trade that closed just before the restart but had not reached the customer's dashboard yet is now written when the server comes back. Trades already on the dashboard are never written twice. By default it looks back 7 days; you can change that with one setting (`FYNX_ENGINE_LEDGER_CATCHUP_DAYS`).
+- If the database is briefly unavailable, unsaved trade records are now tried again every 5 minutes until they are saved, instead of waiting for someone to notice.
+- The server's log says after each start how many trades it checked, how many it had to add and how many were already there. The "ready to run?" check (`npm run engine:check`) lists the new setting. Details: docs/ENGINE-READINESS.md → "Run it (switch-on steps)". The dashboard page these trades appear on: https://www.fynxfunded.com/dashboard/trades
+
 ## 2026-11-11 16:35 UTC — [autopilot] Trading engine: the server program itself is finished and packaged
 
 - Ready for switch-on: the trading server is no longer a recipe to assemble — it is a finished program. One command (`npm run engine:build`) produces a folder with the whole engine that can be uploaded to Google Cloud Run as it is. You add the settings (price provider, leverage, commission…) and start it; there is no code left to write.

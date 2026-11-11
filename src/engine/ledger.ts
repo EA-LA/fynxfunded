@@ -336,3 +336,70 @@ export class EngineLedger {
     while (this.done.size > max) this.done.delete(this.done.values().next().value as string);
   }
 }
+
+export interface CatchUpOptions {
+  ledger: EngineLedger;
+  /** The accounts to look at, e.g. the account directory's `accounts` (the ones the timer step watches). */
+  accounts: () => Promise<string[]>;
+  /** Reads one stored account (AccountStore.load). */
+  load: (accountId: string) => Promise<{ history: Deal[] } | null>;
+  /** Only deals closed at or after this time (ms) are re-sent. */
+  since: number;
+  /** Newest deals re-sent per account (default 200). */
+  maxDealsPerAccount?: number;
+  /** Most deals re-sent in one catch-up across all accounts (default 5000). */
+  maxDeals?: number;
+  /** Checked between accounts; true stops the catch-up early (the host is stopping). */
+  cancelled?: () => boolean;
+}
+
+export interface CatchUpReport {
+  /** Accounts listed by `accounts()`. */
+  accounts: number;
+  /** Accounts whose stored history was read. */
+  checked: number;
+  /** Closed deals in the window handed to the ledger (records already there are left untouched). */
+  dealsSent: number;
+  /** True when maxDeals or maxDealsPerAccount left some deals out. */
+  capped: boolean;
+  /** True when it stopped early because the host is stopping. */
+  cancelled: boolean;
+  /** Accounts that could not be read, with the first line of the error (no secrets: account ids only). */
+  unreadable: { accountId: string; error: string }[];
+  /** Set when the account list itself could not be read. */
+  listError: string | null;
+}
+
+/**
+ * Catch-up after a restart: trades closed just before the server stopped (or
+ * whose write failed and was only kept in memory) are re-sent to the ledger,
+ * so they still reach the trader's dashboard. Bounded by time (`since`), per
+ * account and in total; the ledger writes create-only records with fixed ids,
+ * so a deal that is already on the dashboard is never written twice.
+ */
+export async function catchUpLedger(o: CatchUpOptions): Promise<CatchUpReport> {
+  const perAccount = Math.max(0, o.maxDealsPerAccount ?? 200);
+  const total = Math.max(0, o.maxDeals ?? 5000);
+  const report: CatchUpReport = { accounts: 0, checked: 0, dealsSent: 0, capped: false, cancelled: false, unreadable: [], listError: null };
+  const firstLine = (e: unknown) => String((e as Error)?.message ?? e).split("\n")[0].slice(0, 200);
+  let ids: string[];
+  try { ids = [...new Set(await o.accounts())]; } catch (e) { report.listError = firstLine(e); return report; }
+  report.accounts = ids.length;
+  for (const accountId of ids) {
+    if (o.cancelled?.()) { report.cancelled = true; break; }
+    if (report.dealsSent >= total) { report.capped = true; break; }
+    let state: { history: Deal[] } | null;
+    try { state = await o.load(accountId); } catch (e) { report.unreadable.push({ accountId, error: firstLine(e) }); continue; }
+    report.checked++;
+    if (!state || !Array.isArray(state.history)) continue;
+    const recent = state.history
+      .filter(d => d && typeof d.closedAt === "number" && d.closedAt >= o.since)
+      .sort((a, b) => b.closedAt - a.closedAt);
+    const room = Math.min(perAccount, total - report.dealsSent);
+    if (recent.length > room) report.capped = true;
+    const chosen = recent.slice(0, room).reverse(); // oldest first, like they closed
+    o.ledger.sync(accountId, chosen);
+    report.dealsSent += chosen.length;
+  }
+  return report;
+}

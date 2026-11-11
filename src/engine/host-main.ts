@@ -3,7 +3,7 @@ import { readEngineConfig } from "./config";
 import { createFeedFromEnv, type SocketFactory } from "./feed-config";
 import { FirestoreAccountStore, type FirestoreLike } from "./firestore-store";
 import { FirestoreAccountDirectory, type DirectoryFirestore, type DirectoryUser } from "./firestore-directory";
-import { EngineLedger, firestoreTradeWriter, type FirestoreCreateLike } from "./ledger";
+import { catchUpLedger, EngineLedger, firestoreTradeWriter, type CatchUpReport, type FirestoreCreateLike } from "./ledger";
 import { EngineNotifier, firestoreMailSender, storePrefs } from "./notifier";
 import { createEngineServer, type EngineServer } from "./server";
 import { createHttpHandler, type NodeLikeRequest, type NodeLikeResponse } from "./http-adapter";
@@ -52,7 +52,9 @@ export interface HostDeps {
   log?: (line: string) => void;
   /** Longest wait for the current round and pending writes when stopping (default 8 s). */
   stopTimeoutMs?: number;
-  /** How often a health line is logged (default 5 minutes, 0 = never). */
+  /** Waits between trade-record write attempts (default 1 s, 5 s, 30 s); unwritten records are tried again on each health line. */
+  ledgerRetryDelaysMs?: number[];
+  /** How often a health line is logged, and unwritten trade records tried again (default 5 minutes, 0 = never). */
   healthLogEveryMs?: number;
   clock?: () => number;
 }
@@ -62,6 +64,12 @@ export interface RunningHost {
   port: number;
   tradingAllowed: boolean;
   emailNotices: boolean;
+  /**
+   * The start-up catch-up of the trade ledger (trades closed in the last
+   * FYNX_ENGINE_LEDGER_CATCHUP_DAYS days re-sent to the dashboard); resolves
+   * with its report once the records are written, or null when it is off.
+   */
+  ledgerCatchUp: Promise<CatchUpReport | null>;
   /** Stops taking requests, then stops the feed and timer and waits for trades/notices to be written. */
   stop(): Promise<void>;
 }
@@ -69,6 +77,7 @@ export interface RunningHost {
 export const HOST_ENV = {
   allowTrading: "FYNX_ENGINE_ALLOW_TRADING",
   emailNotices: "FYNX_ENGINE_EMAIL_NOTICES",
+  ledgerCatchUpDays: "FYNX_ENGINE_LEDGER_CATCHUP_DAYS",
   port: "PORT",
 } as const;
 
@@ -87,6 +96,15 @@ function readPort(env: Env): number {
   return n;
 }
 
+/** Days of closed trades re-sent to the dashboard on start (default 7, 0 = off, at most 30). */
+export function readCatchUpDays(env: Env): number {
+  const raw = env[HOST_ENV.ledgerCatchUpDays]?.trim();
+  if (!raw) return 7;
+  const n = Number(raw);
+  if (!/^\d+$/.test(raw) || n > 30) throw new HostStartError(`${HOST_ENV.ledgerCatchUpDays} must be a whole number of days from 0 to 30 (got "${raw}"; 0 = off).`, "");
+  return n;
+}
+
 /** Starts the engine host. Throws HostStartError (with the readiness report) when a setting is missing. */
 export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
   const print = d.log ?? (line => console.log(line));
@@ -101,6 +119,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     throw new HostStartError(`Engine not started: ${missing.map(i => i.name).join(", ")} incomplete.`, report);
   }
   const port = readPort(d.env);
+  const catchUpDays = readCatchUpDays(d.env);
   log("INFO", "Readiness check passed.", { report });
 
   const config = readEngineConfig(d.env, d.pairs);
@@ -115,16 +134,18 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     lookupUser: d.getUser,
     clock: d.clock,
   });
+  const ledger = new EngineLedger({
+    writer: firestoreTradeWriter(d.db), owner: directory.owner, pipSize, clock: d.clock,
+    ...(d.ledgerRetryDelaysMs ? { retryDelaysMs: d.ledgerRetryDelaysMs } : {}),
+    onError: (e, info) => log("WARNING", "Trade record not written yet; retrying.", { account: info.engineAccountId, deal: info.dealId, attempt: info.attempt, error: errorText(e) }),
+  });
   const engine = createEngineServer({
     pairs: d.pairs, settings: config.settings, feed, store,
     ...directory.engineOptions(),
     verifyToken: async token => {
       try { return (await d.verifyIdToken(token)).uid || null; } catch { return null; }
     },
-    ledger: new EngineLedger({
-      writer: firestoreTradeWriter(d.db), owner: directory.owner, pipSize, clock: d.clock,
-      onError: (e, info) => log("WARNING", "Trade record not written yet; retrying.", { account: info.engineAccountId, deal: info.dealId, attempt: info.attempt, error: errorText(e) }),
-    }),
+    ledger,
     ...(emailNotices ? {
       notifier: new EngineNotifier({
         send: firestoreMailSender(d.db), recipient: directory.recipient, prefsFor: storePrefs(store), clock: d.clock,
@@ -150,11 +171,44 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     pairs: d.pairs.length,
     trading: tradingAllowed ? "allowed for accounts switched on" : "off (every order is refused)",
     emailNotices: emailNotices ? "on (mail collection)" : "off",
+    tradeCatchUp: catchUpDays ? `last ${catchUpDays} day(s)` : "off",
     allowedOrigins: config.http.allowedOrigins,
   });
 
+  // Catch-up: trades closed just before the last stop (or whose write failed) still reach the dashboard.
+  let stopRequested = false;
+  const now = d.clock ?? Date.now;
+  const ledgerCatchUp: Promise<CatchUpReport | null> = catchUpDays === 0 ? Promise.resolve(null) : (async () => {
+    try {
+      const before = ledger.health();
+      const result = await catchUpLedger({
+        ledger, accounts: directory.accounts, load: id => store.load(id),
+        since: now() - catchUpDays * 86_400_000, cancelled: () => stopRequested,
+      });
+      if (result.listError) {
+        log("WARNING", "Trade catch-up skipped: the account list could not be read.", { error: result.listError });
+        return result;
+      }
+      await ledger.flush();
+      const after = ledger.health();
+      log(result.unreadable.length || result.capped || after.failed.length ? "WARNING" : "INFO", "Trade catch-up finished.", {
+        days: catchUpDays, accounts: result.accounts, accountsRead: result.checked, tradesChecked: result.dealsSent,
+        newlyWritten: after.written - before.written, alreadyOnDashboard: after.alreadyRecorded - before.alreadyRecorded,
+        notWritten: after.failed.length, ...(result.capped ? { capped: true } : {}), ...(result.cancelled ? { cancelled: true } : {}),
+        ...(result.unreadable.length ? { unreadableAccounts: result.unreadable.slice(0, 20) } : {}),
+      });
+      return result;
+    } catch (e) {
+      log("WARNING", "Trade catch-up failed; trades closed from now on are still written.", { error: errorText(e) });
+      return null;
+    }
+  })();
+
   const every = d.healthLogEveryMs ?? 300_000;
   const timer = every > 0 ? setInterval(() => {
+    // Records that could not be written (Firestore outage, owner not found yet) get another try each health tick.
+    const retried = ledger.health().failed.length ? ledger.retryFailed() : 0;
+    if (retried) log("INFO", "Trying unwritten trade records again.", { trades: retried });
     const s = engine.status();
     log(s.execution ? "INFO" : "WARNING", s.message || (s.execution ? "Engine healthy." : "Engine not executing."), {
       priceFeed: s.priceFeed, execution: s.execution, watched: s.runner.watched,
@@ -166,8 +220,9 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
 
   let stopping: Promise<void> | null = null;
   return {
-    engine, port: server.port, tradingAllowed, emailNotices,
+    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp,
     stop() {
+      stopRequested = true;
       stopping ??= (async () => {
         if (timer) clearInterval(timer);
         log("INFO", "Stopping: no new requests; finishing the current round and writing trades.");

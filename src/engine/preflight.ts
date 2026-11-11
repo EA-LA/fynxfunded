@@ -66,6 +66,14 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
     ? { name: "Email notices", status: "info", detail: ["FYNX_ENGINE_EMAIL_NOTICES=true: notices (alert fired, stop hit, loss limit…) are written to the Firestore \"mail\" collection. They only reach traders once the Firebase \"Trigger Email\" extension (or another mail worker) is installed on that collection."] }
     : { name: "Email notices", status: "info", detail: [`FYNX_ENGINE_EMAIL_NOTICES is ${notices ? `"${notices}"` : "not set"}: no emails are sent and the terminal says so. Set it to true after installing an email sender on the "mail" collection.`] });
 
+  const catchUp = env.FYNX_ENGINE_LEDGER_CATCHUP_DAYS?.trim();
+  const catchUpDays = catchUp ? Number(catchUp) : 7;
+  items.push(catchUp && (!/^\d+$/.test(catchUp) || catchUpDays > 30)
+    ? { name: "Trade catch-up", status: "missing", detail: [`FYNX_ENGINE_LEDGER_CATCHUP_DAYS must be a whole number of days from 0 to 30 (got "${catchUp}"; 0 = off).`] }
+    : { name: "Trade catch-up", status: "info", detail: [catchUpDays === 0
+      ? "FYNX_ENGINE_LEDGER_CATCHUP_DAYS=0: on start, trades closed before the last stop are not re-sent to the dashboard."
+      : `On start, trades closed in the last ${catchUpDays} day(s) are re-sent to the dashboard's trades list (ones already there are left as they are)${catchUp ? "" : "; change with FYNX_ENGINE_LEDGER_CATCHUP_DAYS (0 = off)"}.`] });
+
   const port = env.PORT?.trim();
   items.push({ name: "Port", status: "info", detail: [port ? `Listens on port ${port}.` : "PORT not set: listens on 8080 (Cloud Run sets PORT for you)."] });
 

@@ -272,7 +272,7 @@ function MarketsTable() {
           <label className="flex items-center gap-2 rounded-lg border border-white/10 px-3"><Search size={14} className="text-white/55" aria-hidden="true" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter" aria-label="Filter pairs" className="w-28 bg-transparent py-2 text-xs text-white outline-none placeholder:text-white/35" /></label>
         </div>
       </div>
-      <div className={`${panel} mt-10 overflow-x-auto`}>
+      <div className={`${panel} relative mt-10 overflow-x-auto`}>
         <table className="w-full min-w-[760px] text-sm" data-testid="markets-table">
           <thead><tr className="border-b border-white/[.08] text-left text-[11px] uppercase tracking-[.14em] text-white/55">{["Symbol", "Instrument", "Group", "Pip size", "Digits", "1 lot", "Pip value · 1 lot", ""].map(h => <th key={h} scope="col" className="px-5 py-3.5 font-medium">{h || <span className="sr-only">Open in the terminal</span>}</th>)}</tr></thead>
           <tbody>{shown.map(p => { const pv = pipValueUsd(p, 1); return <tr key={p.symbol} className="border-b border-white/[.05] transition last:border-0 hover:bg-white/[.03]">

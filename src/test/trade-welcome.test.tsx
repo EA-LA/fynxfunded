@@ -21,6 +21,8 @@ describe("FYNX Trade welcome page", () => {
   it("lists the pairs in a filterable table that opens each one in the terminal", () => {
     show();
     const table = screen.getByTestId("markets-table");
+    // The scroll box must contain the hidden header label, or it widens the whole page on phones.
+    expect(table.parentElement?.className).toMatch(/\brelative\b.*\boverflow-x-auto\b/);
     expect(within(table).getAllByRole("row")).toHaveLength(13);
     fireEvent.click(screen.getByRole("button", { name: "Show all 45 pairs" }));
     expect(within(table).getAllByRole("row")).toHaveLength(46);

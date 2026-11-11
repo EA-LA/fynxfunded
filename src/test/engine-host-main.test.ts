@@ -40,11 +40,12 @@ function purchaseDocs(accountSwitch: boolean): Map<string, Record<string, unknow
 }
 
 /** Firestore stand-in covering what the host uses: doc get/create, equality queries, transactions. */
-function fakeFirestore(docs: Map<string, Record<string, unknown>>, opts: { hangQueries?: boolean } = {}) {
+function fakeFirestore(docs: Map<string, Record<string, unknown>>, opts: { hangQueries?: boolean; failTrades?: { on: boolean } } = {}) {
   const ref = (p: string) => ({
     path: p,
     get: async () => ({ exists: docs.has(p), data: () => (docs.has(p) ? structuredClone(docs.get(p)) : undefined) }),
     create: async (data: Record<string, unknown>) => {
+      if (opts.failTrades?.on && p.startsWith("trades/")) throw new Error("14 UNAVAILABLE: test outage");
       if (docs.has(p)) throw Object.assign(new Error("already exists"), { code: 6 });
       docs.set(p, structuredClone(data));
     },
@@ -181,6 +182,85 @@ describe("engine host program (startEngineHost)", () => {
     expect(trades).toHaveLength(1);
     expect(trades[0][1]).toMatchObject({ userId: "u1", challengeId: "ch1", accountId: ID, symbol: "EURUSD" });
     expect([...docs.keys()].some(p => p === `engineAccounts/${ID}`)).toBe(true);
+  });
+
+  it("on start, a trade that closed before the last stop but never reached the dashboard is written (once)", async () => {
+    const docs = purchaseDocs(true);
+    const first = deps({ docs, env: { ...ENV, FYNX_ENGINE_ALLOW_TRADING: "true" } });
+    running = await startEngineHost(first.d);
+    price(first.sockets);
+    const gw = gateway(running.port);
+    await gw.snapshot(ID);
+    const placed = await gw.placeOrder(ID, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "h-c1" });
+    await gw.closePosition(ID, placed.state.positions[0].id);
+    await running.stop();
+    running = null;
+    const [tradeId, record] = [...docs].find(([p]) => p.startsWith("trades/"))!;
+    docs.delete(tradeId); // as if the process had stopped before this write
+
+    const second = deps({ docs });
+    running = await startEngineHost(second.d);
+    const report = await running.ledgerCatchUp;
+    expect(report).toMatchObject({ accounts: 1, checked: 1, dealsSent: 1, listError: null });
+    expect(docs.get(tradeId)).toMatchObject({ userId: "u1", challengeId: "ch1", accountId: ID, symbol: "EURUSD", netProfit: record.netProfit });
+    const line = second.lines.map(l => JSON.parse(l)).find(l => l.message === "Trade catch-up finished.");
+    expect(line).toMatchObject({ severity: "INFO", days: 7, accounts: 1, tradesChecked: 1, newlyWritten: 1, alreadyOnDashboard: 0, notWritten: 0 });
+    expect(second.lines.map(l => JSON.parse(l)).find(l => l.message === "FYNX trading engine started.")).toMatchObject({ tradeCatchUp: "last 7 day(s)" });
+    await running.stop();
+
+    // A third start finds it already there and leaves it untouched.
+    const third = deps({ docs });
+    running = await startEngineHost(third.d);
+    await running.ledgerCatchUp;
+    expect([...docs.keys()].filter(p => p.startsWith("trades/"))).toEqual([tradeId]);
+    expect(third.lines.map(l => JSON.parse(l)).find(l => l.message === "Trade catch-up finished.")).toMatchObject({ newlyWritten: 0, alreadyOnDashboard: 1 });
+  });
+
+  it("trade catch-up can be switched off, and a malformed day count is refused before anything starts", async () => {
+    const off = deps({ env: { ...ENV, FYNX_ENGINE_LEDGER_CATCHUP_DAYS: "0" } });
+    running = await startEngineHost(off.d);
+    expect(await running.ledgerCatchUp).toBeNull();
+    expect(off.lines.some(l => l.includes("Trade catch-up finished."))).toBe(false);
+    await running.stop();
+    running = null;
+    let listened = false;
+    const bad = deps({ env: { ...ENV, FYNX_ENGINE_LEDGER_CATCHUP_DAYS: "45" }, listen: async () => { listened = true; throw new Error("must not listen"); } });
+    const error = await startEngineHost(bad.d).catch(e => e);
+    expect(error).toBeInstanceOf(HostStartError);
+    expect(error.report).toContain("FYNX_ENGINE_LEDGER_CATCHUP_DAYS must be a whole number of days from 0 to 30");
+    expect(listened).toBe(false);
+  });
+
+  it("trade records that could not be written are tried again on the health timer", async () => {
+    const docs = purchaseDocs(true);
+    // A first run leaves one closed trade in the engine account, then its record is lost.
+    const first = deps({ docs, env: { ...ENV, FYNX_ENGINE_ALLOW_TRADING: "true" } });
+    running = await startEngineHost(first.d);
+    price(first.sockets);
+    const gw = gateway(running.port);
+    await gw.snapshot(ID);
+    const placed = await gw.placeOrder(ID, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "h-r1" });
+    await gw.closePosition(ID, placed.state.positions[0].id);
+    await running.stop();
+    running = null;
+    const tradeId = [...docs.keys()].find(p => p.startsWith("trades/"))!;
+    docs.delete(tradeId);
+
+    // Next start: Firestore refuses trade writes for a while.
+    const outage = { on: true };
+    const { d, lines } = deps({ docs, healthLogEveryMs: 40, ledgerRetryDelaysMs: [] });
+    d.db = fakeFirestore(docs, { failTrades: outage });
+    running = await startEngineHost(d);
+    await running.ledgerCatchUp;
+    expect(docs.has(tradeId)).toBe(false);
+    expect(lines.map(l => JSON.parse(l)).find(l => l.message === "Trade catch-up finished.")).toMatchObject({ severity: "WARNING", newlyWritten: 0, notWritten: 1 });
+    expect(running.engine.status().ledger?.failed).toHaveLength(1);
+
+    outage.on = false;
+    for (let i = 0; i < 50 && !docs.has(tradeId); i++) await new Promise(r => setTimeout(r, 20));
+    expect(docs.has(tradeId)).toBe(true);
+    expect(lines.some(l => JSON.parse(l).message === "Trying unwritten trade records again.")).toBe(true);
+    expect(running.engine.status().ledger?.failed).toHaveLength(0);
   });
 
   it("the account's own switch still blocks orders when the host allows trading", async () => {

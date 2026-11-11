@@ -69,6 +69,8 @@ Trading stays OFF until FYNX_ENGINE_ALLOW_TRADING=true is set here AND an
 account has tradingEnabled: true on its account document.
 Email notices stay OFF until FYNX_ENGINE_EMAIL_NOTICES=true (install an email
 sender on the Firestore "mail" collection first).
+On every start, trades closed in the last 7 days that are missing from the
+dashboard are written again (FYNX_ENGINE_LEDGER_CATCHUP_DAYS, 0 = off).
 `);
 
 console.log(`Engine host built in ${path.relative(root, out) || out}/ (server.mjs, package.json, README.txt). Nothing was deployed.`);
