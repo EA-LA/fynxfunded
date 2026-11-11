@@ -200,11 +200,12 @@ describe("engine readiness check", () => {
   it("lists what is missing on an empty host, and reports ready with every setting in place", () => {
     const empty = engineChecklist({}, FOREX_PAIRS);
     expect(empty.map(i => [i.name, i.status])).toEqual([
-      ["Trading settings", "missing"], ["Price feed settings", "missing"], ["Firebase access", "warn"], ["Trading switch", "info"], ["Port", "info"],
+      ["Trading settings", "missing"], ["Price feed settings", "missing"], ["Firebase access", "warn"], ["Trading switch", "info"], ["Email notices", "info"], ["Port", "info"],
     ]);
+    expect(empty[4].detail[0]).toContain("no emails are sent");
     expect(empty[0].detail).toContain("FYNX_ENGINE_LEVERAGE is missing.");
     const full = engineChecklist({ ...engineEnv, ...baseEnv, K_SERVICE: "fynx-engine", FYNX_ENGINE_ALLOW_TRADING: "true", PORT: "8080" }, FOREX_PAIRS);
-    expect(full.map(i => i.status)).toEqual(["ready", "ready", "ready", "info", "info"]);
+    expect(full.map(i => i.status)).toEqual(["ready", "ready", "ready", "info", "info", "info"]);
     expect(full[3].detail[0]).toContain("orders are accepted");
     const report = formatReport(full);
     expect(report).toContain("Ready to start");

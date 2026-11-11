@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-11 16:35 UTC — [autopilot] Trading engine: the server program itself is finished and packaged
+
+- Ready for switch-on: the trading server is no longer a recipe to assemble — it is a finished program. One command (`npm run engine:build`) produces a folder with the whole engine that can be uploaded to Google Cloud Run as it is. You add the settings (price provider, leverage, commission…) and start it; there is no code left to write.
+- It protects itself: if any required setting is missing it refuses to start and lists exactly what is missing, so a half-set-up server never answers customers. Trading stays off unless you switch it on on the server AND on each account. Emails to traders stay off until you choose an email sender.
+- It is easy to watch: it writes clear log lines (never your price key, sign-in tokens or customer emails), a health line every 5 minutes, and stops cleanly when Google restarts it, saving closed trades to the dashboard first.
+- The exact steps, in order, are in docs/ENGINE-READINESS.md → "Run it (switch-on steps)". Nothing changes on the website today. The terminal it will power: https://www.fynxfunded.com/trade/access
+
 ## 2026-11-11 12:45 UTC — [autopilot] Trading engine: connect the price provider by filling in settings, and a "ready to run?" check
 
 - Ready for switch-on: the price feed (the "gas") no longer needs any code for most providers. When you choose a price provider that streams prices over a WebSocket (most do), you fill in a few settings on the engine server (the provider's address, your key, and where the pair, bid and ask are in their messages) and it connects, names all 45 pairs the provider's way, refuses bad prices, and reconnects by itself if the provider drops or goes quiet. Your key is never shown in logs or reports.

@@ -15,7 +15,8 @@
     "check:release": "npm run lint && npm test && npm run test:functions && npm run test:mfa && npx tsc --noEmit -p tsconfig.app.json && npm run build",
     "test:mfa": "npm --prefix functions run build && node functions/test/mfa.integration.cjs",
     "dev:trade": "node scripts/trade-dev/start.cjs",
-    "engine:check": "node scripts/engine-check.mjs"
+    "engine:check": "node scripts/engine-check.mjs",
+    "engine:build": "node scripts/engine-build.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

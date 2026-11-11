@@ -61,6 +61,11 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
     ? { name: "Trading switch", status: "info", detail: ["FYNX_ENGINE_ALLOW_TRADING=true: orders are accepted for accounts that also have tradingEnabled on their account document, a paid order and a running challenge."] }
     : { name: "Trading switch", status: "info", detail: [`FYNX_ENGINE_ALLOW_TRADING is ${allow ? `"${allow}"` : "not set"}: the engine refuses every order. Prices, accounts, alerts and history still work. Set it to true only when you decide to open trading.`] });
 
+  const notices = env.FYNX_ENGINE_EMAIL_NOTICES?.trim();
+  items.push(notices === "true"
+    ? { name: "Email notices", status: "info", detail: ["FYNX_ENGINE_EMAIL_NOTICES=true: notices (alert fired, stop hit, loss limit…) are written to the Firestore \"mail\" collection. They only reach traders once the Firebase \"Trigger Email\" extension (or another mail worker) is installed on that collection."] }
+    : { name: "Email notices", status: "info", detail: [`FYNX_ENGINE_EMAIL_NOTICES is ${notices ? `"${notices}"` : "not set"}: no emails are sent and the terminal says so. Set it to true after installing an email sender on the "mail" collection.`] });
+
   const port = env.PORT?.trim();
   items.push({ name: "Port", status: "info", detail: [port ? `Listens on port ${port}.` : "PORT not set: listens on 8080 (Cloud Run sets PORT for you)."] });
 
