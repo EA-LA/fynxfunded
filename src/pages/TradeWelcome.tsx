@@ -101,7 +101,7 @@ export default function TradeWelcome() {
       <section aria-label="FYNX Trade at a glance" className="border-y border-white/[.07]">
         <dl className="mx-auto grid max-w-7xl grid-cols-2 lg:grid-cols-4">
           {[[String(FOREX_PAIRS.length), "Forex pairs", "majors, minors and exotics"], ["0.01", "Lot minimum", "in 0.01 steps"], ["22:00", "UTC daily reset", "the day the loss limit uses"], ["0", "Downloads", "runs in the browser"]].map(([n, t, d], i) =>
-            <div key={t} className={`px-6 py-9 ${i % 2 ? "border-l border-white/[.07]" : ""} ${i > 1 ? "border-t border-white/[.07] lg:border-t-0" : ""} ${i === 2 ? "lg:border-l" : ""}`}><dt className="sr-only">{t}</dt><dd className="font-mono text-4xl font-medium tracking-tight sm:text-5xl">{n}</dd><dd className="mt-2 text-sm font-medium">{t}</dd><dd className="text-sm text-white/45">{d}</dd></div>)}
+            <div key={t} className={`px-6 py-9 ${i % 2 ? "border-l border-white/[.07]" : ""} ${i > 1 ? "border-t border-white/[.07] lg:border-t-0" : ""} ${i === 2 ? "lg:border-l" : ""}`}><dt className="sr-only">{t}</dt><dd className="font-mono text-4xl font-medium tracking-tight sm:text-5xl">{n}</dd><dd className="mt-2 text-sm font-medium">{t}</dd><dd className="text-sm text-white/60">{d}</dd></div>)}
         </dl>
       </section>
 
@@ -138,7 +138,7 @@ export default function TradeWelcome() {
               [ShieldCheck, "Risk limits", "The daily loss limit is measured from your balance at the 22:00 UTC reset, and the maximum loss is static. Touching either closes every position and locks the account."],
               [Calculator, "Accounting", "Profit in dollars for all 45 pairs, including yen and other non-dollar quotes, plus equity, margin, free margin and margin level. Money is calculated to the cent."],
               [Timer, "Trading days", "A new day starts at the reset. Days with trades are counted towards the minimum, and reaching the profit target is flagged for review."],
-            ].map(([Icon, t, d], i) => { const I = Icon as typeof Zap; return <li key={t as string} className="flex gap-5 p-6"><span className="font-mono text-xs text-white/35">0{i + 1}</span><div><h3 className="flex items-center gap-2 font-semibold"><I size={16} className="text-amber-400" aria-hidden="true" />{t as string}</h3><p className="mt-1.5 text-sm leading-relaxed text-white/55">{d as string}</p></div></li>; })}
+            ].map(([Icon, t, d], i) => { const I = Icon as typeof Zap; return <li key={t as string} className="flex gap-5 p-6"><span className="font-mono text-xs text-white/55">0{i + 1}</span><div><h3 className="flex items-center gap-2 font-semibold"><I size={16} className="text-amber-400" aria-hidden="true" />{t as string}</h3><p className="mt-1.5 text-sm leading-relaxed text-white/55">{d as string}</p></div></li>; })}
           </ol>
         </div>
       </section>
@@ -151,10 +151,10 @@ export default function TradeWelcome() {
           <p className={label}>Getting started</p>
           <h2 id="steps-title" className="mt-4 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">From purchase to your first trade.</h2>
           <ol className="mt-12 grid gap-4 md:grid-cols-3">
-            {[[KeyRound, "Get an account", "Choose a FYNX Funded challenge. When your purchase is confirmed, your FYNX Trade account is created."], [Clock, "Check your email", "We email a secure link to your new account. Sign in with your FYNX login: no extra app, no download."], [Activity, "Open FYNX Trade", "Pick a pair, set your volume, stop and target, and trade from the browser on any device."]].map(([Icon, t, d], i) => { const I = Icon as typeof Zap; return <li key={t as string} className={`${panel} p-7`}><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-lg bg-amber-400/10"><I size={18} className="text-amber-400" aria-hidden="true" /></span><span className="font-mono text-xs text-white/30">0{i + 1}</span></div><h3 className="mt-6 text-lg font-semibold">{t as string}</h3><p className="mt-2 text-sm leading-relaxed text-white/55">{d as string}</p></li>; })}
+            {[[KeyRound, "Get an account", "Choose a FYNX Funded challenge. When your purchase is confirmed, your FYNX Trade account is created."], [Clock, "Check your email", "We email a secure link to your new account. Sign in with your FYNX login: no extra app, no download."], [Activity, "Open FYNX Trade", "Pick a pair, set your volume, stop and target, and trade from the browser on any device."]].map(([Icon, t, d], i) => { const I = Icon as typeof Zap; return <li key={t as string} className={`${panel} p-7`}><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-lg bg-amber-400/10"><I size={18} className="text-amber-400" aria-hidden="true" /></span><span className="font-mono text-xs text-white/50">0{i + 1}</span></div><h3 className="mt-6 text-lg font-semibold">{t as string}</h3><p className="mt-2 text-sm leading-relaxed text-white/55">{d as string}</p></li>; })}
           </ol>
           <div className="mt-10 grid gap-3 sm:grid-cols-3">
-            {[[Ruler, "Lot size calculator", "/rules#position-size"], [Gauge, "Risk planner", "/rules#risk-planner"], [Clock, "Trading-day clock", "/rules#trading-day"]].map(([Icon, t, to]) => { const I = Icon as typeof Zap; return <Link key={t as string} to={to as string} className="group flex items-center gap-3 rounded-xl border border-white/[.08] px-4 py-3.5 text-sm transition hover:border-white/20 hover:bg-white/[.03]"><I size={16} className="text-white/50" aria-hidden="true" /><span className="flex-1">{t as string}</span><ArrowUpRight size={15} className="text-white/40 transition group-hover:text-white" aria-hidden="true" /></Link>; })}
+            {[[Ruler, "Lot size calculator", "/rules#position-size"], [Gauge, "Risk planner", "/rules#risk-planner"], [Clock, "Trading-day clock", "/rules#trading-day"]].map(([Icon, t, to]) => { const I = Icon as typeof Zap; return <Link key={t as string} to={to as string} className="group flex items-center gap-3 rounded-xl border border-white/[.08] px-4 py-3.5 text-sm transition hover:border-white/20 hover:bg-white/[.03]"><I size={16} className="text-white/50" aria-hidden="true" /><span className="flex-1">{t as string}</span><ArrowUpRight size={15} className="text-white/55 transition group-hover:text-white" aria-hidden="true" /></Link>; })}
           </div>
         </div>
       </section>
@@ -193,7 +193,7 @@ export default function TradeWelcome() {
 
     <footer className="border-t border-white/[.07] bg-[#05060a]">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
-        <div><p className="flex items-center gap-2 font-semibold"><Activity size={16} className="text-amber-400" aria-hidden="true" />FYNX <span className="font-normal text-white/55">Trade</span></p><p className="mt-3 max-w-xs text-sm text-white/45">The web trading platform of the FYNX ecosystem.</p></div>
+        <div><p className="flex items-center gap-2 font-semibold"><Activity size={16} className="text-amber-400" aria-hidden="true" />FYNX <span className="font-normal text-white/55">Trade</span></p><p className="mt-3 max-w-xs text-sm text-white/60">The web trading platform of the FYNX ecosystem.</p></div>
         {[
           ["Platform", [["Web terminal", TERMINAL_PATH], ["Engine", "#engine"], ["Markets", "#markets"], ["Partners", "#partners"]]],
           ["Tools", [["Lot size calculator", "/rules#position-size"], ["Risk planner", "/rules#risk-planner"], ["Trading-day clock", "/rules#trading-day"], ["Glossary", "/faq#glossary"]]],
@@ -201,7 +201,7 @@ export default function TradeWelcome() {
           ["Legal", [["Terms of Service", "/terms"], ["Privacy Policy", "/privacy"], ["Risk Disclosure", "/risk-disclosure"], ["Refund Policy", "/refund-policy"]]],
         ].map(([head, links]) => <div key={head as string}><p className="text-xs font-semibold uppercase tracking-[.16em] text-white/80">{head as string}</p><ul className="mt-4 space-y-2.5 text-sm text-white/50">{(links as string[][]).map(([l, to]) => <li key={l}>{/^(#|https?:|mailto:)/.test(to) ? <a href={to} className="hover:text-white">{l}</a> : <Link to={to} className="hover:text-white">{l}</Link>}</li>)}</ul></div>)}
       </div>
-      <div className="mx-auto max-w-7xl border-t border-white/[.06] px-4 py-6 text-xs leading-relaxed text-white/40 sm:px-6">
+      <div className="mx-auto max-w-7xl border-t border-white/[.06] px-4 py-6 text-xs leading-relaxed text-white/55 sm:px-6">
         <p>Trading foreign exchange carries a high level of risk and may not be suitable for everyone. FYNX Funded evaluation and funded-stage accounts are simulated and balances are virtual. Charts are supplied by TradingView for display only. Trading on FYNX Trade is not yet open.</p>
         <p className="mt-3">© {new Date().getFullYear()} FYNX. All rights reserved.</p>
       </div>
@@ -230,14 +230,14 @@ function SessionBoard({ now }: { now: Date | null }) {
           const s = now ? centreStatus(c, now) : null;
           const progress = s?.open && s.minutesToChange !== null ? 1 - s.minutesToChange / ((c.closeHour - c.openHour) * 60) : 0;
           return <li key={c.id} className="border-t border-white/[.07] p-5 sm:[&:nth-child(-n+2)]:border-t-0 lg:border-t-0">
-            <div className="flex items-center justify-between"><span className="font-medium">{c.city}</span><span className={`rounded-full px-2 py-0.5 text-[11px] ${s?.open ? "bg-emerald-400/10 text-emerald-400" : "bg-white/5 text-white/45"}`}>{s?.open ? "Open" : "Closed"}</span></div>
+            <div className="flex items-center justify-between"><span className="font-medium">{c.city}</span><span className={`rounded-full px-2 py-0.5 text-[11px] ${s?.open ? "bg-emerald-400/10 text-emerald-400" : "bg-white/5 text-white/60"}`}>{s?.open ? "Open" : "Closed"}</span></div>
             <p className="mt-3 font-mono text-3xl tracking-tight">{s?.localTime ?? "--:--"}</p>
             <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[.06]" aria-hidden="true"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
-            <p className="mt-2 text-xs text-white/45">{!s ? " " : s.open ? `Closes in ${formatMinutes(s.minutesToChange!)}` : s.minutesToChange !== null ? `Opens in ${formatMinutes(s.minutesToChange)}` : `Opens ${String(c.openHour).padStart(2, "0")}:00 local, next business day`}</p>
+            <p className="mt-2 text-xs text-white/60">{!s ? " " : s.open ? `Closes in ${formatMinutes(s.minutesToChange!)}` : s.minutesToChange !== null ? `Opens in ${formatMinutes(s.minutesToChange)}` : `Opens ${String(c.openHour).padStart(2, "0")}:00 local, next business day`}</p>
           </li>;
         })}
       </ul>
-      <p className="border-t border-white/[.07] px-5 py-2.5 text-[11px] text-white/35">Usual local business hours, approximate. Brokers publish their own trading hours.</p>
+      <p className="border-t border-white/[.07] px-5 py-2.5 text-[11px] text-white/55">Usual local business hours, approximate. Brokers publish their own trading hours.</p>
     </div>
   </section>;
 }
@@ -248,10 +248,10 @@ function PairSearch() {
   return <div className="mx-auto mt-10 max-w-xl text-left">
     <label htmlFor="pair-search" className="sr-only">Find a forex pair</label>
     <form className="relative flex items-center rounded-xl border border-white/10 bg-white/[.04] p-1.5 shadow-[0_8px_40px_-12px_rgba(0,0,0,.8)] backdrop-blur focus-within:border-amber-400/50" role="search" onSubmit={e => { e.preventDefault(); if (results[0]) navigate(terminalFor(results[0].symbol)); }}>
-      <Search size={17} className="ml-3 text-white/40" aria-hidden="true" />
-      <input id="pair-search" value={q} onChange={e => setQ(e.target.value)} placeholder="Find a pair: EUR/USD, yen, GBP…" autoComplete="off" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35" aria-controls="pair-results" />
+      <Search size={17} className="ml-3 text-white/55" aria-hidden="true" />
+      <input id="pair-search" value={q} onChange={e => setQ(e.target.value)} placeholder="Find a pair: EUR/USD, yen, GBP…" autoComplete="off" className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35" aria-controls={results.length > 0 ? "pair-results" : undefined} />
       <button type="submit" className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-white/90">Open</button>
-      {results.length > 0 && <ul id="pair-results" className="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-white/10 bg-[#0d1117] shadow-2xl">{results.map(p => <li key={p.symbol}><Link to={terminalFor(p.symbol)} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-white/5"><span className="font-mono font-semibold">{pairLabel(p)}</span><span className="truncate text-xs text-white/45">{pairName(p)}</span></Link></li>)}</ul>}
+      {results.length > 0 && <ul id="pair-results" className="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-white/10 bg-[#0d1117] shadow-2xl">{results.map(p => <li key={p.symbol}><Link to={terminalFor(p.symbol)} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-white/5"><span className="font-mono font-semibold">{pairLabel(p)}</span><span className="truncate text-xs text-white/60">{pairName(p)}</span></Link></li>)}</ul>}
       {q.trim() && !results.length && <p className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border border-white/10 bg-[#0d1117] px-4 py-2.5 text-sm text-white/50">No pair matches “{q}”.</p>}
     </form>
     <p className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">{["EURUSD", "GBPUSD", "USDJPY", "GBPJPY", "AUDUSD"].map(s => <Link key={s} to={terminalFor(s)} className="rounded-full border border-white/10 px-2.5 py-1 font-mono text-white/60 transition hover:border-amber-400/50 hover:text-white">{pairLabel(FOREX_PAIRS.find(p => p.symbol === s)!)}</Link>)}</p>
@@ -268,13 +268,13 @@ function MarketsTable() {
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div><p className={label}>Markets</p><h2 id="markets-title" className="mt-4 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">{FOREX_PAIRS.length} forex pairs, fully specified.</h2><p className="mt-3 max-w-xl text-sm text-white/50">Standard contract conventions. Spreads, leverage and fees are confirmed before trading opens.</p></div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border border-white/10 p-0.5" role="group" aria-label="Pair group">{(["All", "Majors", "Minors", "Exotics"] as const).map(g => <button key={g} type="button" aria-pressed={group === g} onClick={() => setGroup(g)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${group === g ? "bg-white text-black" : "text-white/60 hover:text-white"}`}>{g}{g !== "All" && <span className="ml-1 opacity-60">{counts(g)}</span>}</button>)}</div>
-          <label className="flex items-center gap-2 rounded-lg border border-white/10 px-3"><Search size={14} className="text-white/40" aria-hidden="true" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter" aria-label="Filter pairs" className="w-28 bg-transparent py-2 text-xs text-white outline-none placeholder:text-white/35" /></label>
+          <div className="flex rounded-lg border border-white/10 p-0.5" role="group" aria-label="Pair group">{(["All", "Majors", "Minors", "Exotics"] as const).map(g => <button key={g} type="button" aria-pressed={group === g} onClick={() => setGroup(g)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${group === g ? "bg-white text-black" : "text-white/60 hover:text-white"}`}>{g}{g !== "All" && <span className="ml-1 opacity-80">{counts(g)}</span>}</button>)}</div>
+          <label className="flex items-center gap-2 rounded-lg border border-white/10 px-3"><Search size={14} className="text-white/55" aria-hidden="true" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter" aria-label="Filter pairs" className="w-28 bg-transparent py-2 text-xs text-white outline-none placeholder:text-white/35" /></label>
         </div>
       </div>
       <div className={`${panel} mt-10 overflow-x-auto`}>
         <table className="w-full min-w-[760px] text-sm" data-testid="markets-table">
-          <thead><tr className="border-b border-white/[.08] text-left text-[11px] uppercase tracking-[.14em] text-white/40">{["Symbol", "Instrument", "Group", "Pip size", "Digits", "1 lot", "Pip value · 1 lot", ""].map(h => <th key={h} scope="col" className="px-5 py-3.5 font-medium">{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-white/[.08] text-left text-[11px] uppercase tracking-[.14em] text-white/55">{["Symbol", "Instrument", "Group", "Pip size", "Digits", "1 lot", "Pip value · 1 lot", ""].map(h => <th key={h} scope="col" className="px-5 py-3.5 font-medium">{h || <span className="sr-only">Open in the terminal</span>}</th>)}</tr></thead>
           <tbody>{shown.map(p => { const pv = pipValueUsd(p, 1); return <tr key={p.symbol} className="border-b border-white/[.05] transition last:border-0 hover:bg-white/[.03]">
             <th scope="row" className="px-5 py-3.5 text-left font-mono font-semibold">{pairLabel(p)}</th>
             <td className="px-5 py-3.5 text-white/55">{pairName(p)}</td>
@@ -282,7 +282,7 @@ function MarketsTable() {
             <td className="px-5 py-3.5 font-mono text-white/80">{p.pipSize}</td>
             <td className="px-5 py-3.5 font-mono text-white/80">{p.digits}</td>
             <td className="px-5 py-3.5 font-mono text-white/80">{CONTRACT_SIZE.toLocaleString()} {p.base}</td>
-            <td className="px-5 py-3.5 font-mono">{pv !== null ? `$${pv.toFixed(2)}` : <span className="font-sans text-xs text-white/40">Moves with {p.quote}/USD</span>}</td>
+            <td className="px-5 py-3.5 font-mono">{pv !== null ? `$${pv.toFixed(2)}` : <span className="font-sans text-xs text-white/55">Moves with {p.quote}/USD</span>}</td>
             <td className="px-5 py-3.5 text-right"><Link to={terminalFor(p.symbol)} className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium transition hover:border-amber-400/60 hover:text-amber-300" aria-label={`Open ${pairLabel(p)} in the terminal`}>Trade <ArrowUpRight size={12} /></Link></td>
           </tr>; })}</tbody>
         </table>
@@ -317,34 +317,34 @@ function TerminalShowcase() {
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0e13] shadow-[0_40px_120px_-30px_rgba(0,0,0,.9)] ring-1 ring-white/[.04]">
       <div className="flex items-center gap-3 border-b border-white/[.07] px-4 py-2.5">
         <div className="flex gap-1.5" aria-hidden="true"><span className="h-2.5 w-2.5 rounded-full bg-white/15" /><span className="h-2.5 w-2.5 rounded-full bg-white/15" /><span className="h-2.5 w-2.5 rounded-full bg-white/15" /></div>
-        <span className="text-xs font-semibold">FYNX <span className="font-normal text-white/45">Trade</span></span>
+        <span className="text-xs font-semibold">FYNX <span className="font-normal text-white/60">Trade</span></span>
         <span className="ml-auto hidden items-center gap-1.5 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-400 sm:inline-flex"><span className="h-1 w-1 rounded-full bg-emerald-400" />Engine</span>
       </div>
-      <div className="hidden grid-cols-6 gap-px border-b border-white/[.07] bg-white/[.05] text-[10px] sm:grid" aria-hidden="true">{["Balance", "Equity", "Floating P/L", "Margin", "Free margin", "Room to limit"].map(t => <div key={t} className="bg-[#0b0e13] px-3 py-2"><p className="uppercase tracking-wider text-white/35">{t}</p><div className="mt-1.5 h-2 w-16 rounded bg-white/10" /></div>)}</div>
+      <div className="hidden grid-cols-6 gap-px border-b border-white/[.07] bg-white/[.05] text-[10px] sm:grid" aria-hidden="true">{["Balance", "Equity", "Floating P/L", "Margin", "Free margin", "Room to limit"].map(t => <div key={t} className="bg-[#0b0e13] px-3 py-2"><p className="uppercase tracking-wider text-white/55">{t}</p><div className="mt-1.5 h-2 w-16 rounded bg-white/10" /></div>)}</div>
       <div className="grid grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr_190px]">
         <div className="border-r border-white/[.07] p-2.5">
-          <p className="px-1.5 pb-1.5 text-[9px] font-semibold uppercase tracking-wider text-white/35">Market Watch</p>
+          <p className="px-1.5 pb-1.5 text-[9px] font-semibold uppercase tracking-wider text-white/55">Market Watch</p>
           {watch.map((s, i) => <div key={s} className={`flex items-center justify-between rounded-md px-1.5 py-[7px] font-mono text-[10px] ${i === 0 ? "bg-amber-400/10 text-amber-200" : "text-white/75"}`}><span className="font-semibold">{s}</span>{i < 3 && <Star size={9} className="fill-amber-400 text-amber-400" />}</div>)}
         </div>
         <div className="min-w-0 p-3 sm:p-4">
-          <div className="flex items-center justify-between"><div><p className="text-sm font-semibold">EUR/USD</p><p className="text-[10px] text-white/40">Euro / US Dollar</p></div><span className="flex gap-1">{["1m", "5m", "15m", "1H", "4H", "1D"].map((t, i) => <span key={t} className={`rounded px-1.5 py-0.5 text-[9px] ${i === 2 ? "bg-white text-black" : "text-white/45"}`}>{t}</span>)}</span></div>
+          <div className="flex items-center justify-between"><div><p className="text-sm font-semibold">EUR/USD</p><p className="text-[10px] text-white/55">Euro / US Dollar</p></div><span className="flex gap-1">{["1m", "5m", "15m", "1H", "4H", "1D"].map((t, i) => <span key={t} className={`rounded px-1.5 py-0.5 text-[9px] ${i === 2 ? "bg-white text-black" : "text-white/60"}`}>{t}</span>)}</span></div>
           <svg viewBox="0 0 330 180" preserveAspectRatio="none" className="mt-3 h-44 w-full sm:h-56" aria-hidden="true">
             <defs><linearGradient id="tw-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="rgba(251,191,36,.18)" /><stop offset="1" stopColor="rgba(251,191,36,0)" /></linearGradient></defs>
             {[30, 70, 110, 150].map(g => <line key={g} x1="0" x2="330" y1={g} y2={g} stroke="rgba(255,255,255,.06)" strokeWidth="0.6" />)}
             <path d={`M10 ${y(50)} ${candles.map(([, c], i) => `L${10 + i * 16} ${y(c)}`).join(" ")} L314 180 L10 180 Z`} fill="url(#tw-area)" />
             {candles.map(([o, c, h, l], i) => { const x = 10 + i * 16, up = c >= o, col = up ? "#34d399" : "#f87171"; return <g key={i} fill={col} stroke={col}><line x1={x} x2={x} y1={y(h)} y2={y(l)} strokeWidth="1" /><rect x={x - 4.5} y={y(Math.max(o, c))} width="9" height={Math.max(2, Math.abs(c - o) * 1.25)} rx="1" /></g>; })}
           </svg>
-          <div className="mt-2 hidden gap-4 border-t border-white/[.07] pt-2 text-[10px] text-white/40 sm:flex" aria-hidden="true">{["Positions", "Pending orders", "History", "Account"].map((t, i) => <span key={t} className={i === 0 ? "border-b border-amber-400 pb-1 text-white" : "pb-1"}>{t}</span>)}</div>
+          <div className="mt-2 hidden gap-4 border-t border-white/[.07] pt-2 text-[10px] text-white/55 sm:flex" aria-hidden="true">{["Positions", "Pending orders", "History", "Account"].map((t, i) => <span key={t} className={i === 0 ? "border-b border-amber-400 pb-1 text-white" : "pb-1"}>{t}</span>)}</div>
         </div>
         <div className="col-span-2 border-t border-white/[.07] p-3 sm:col-span-1 sm:border-l sm:border-t-0 sm:p-4">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-white/35">New order · EURUSD</p>
-          <div className="mt-2.5 flex items-center justify-between rounded-md border border-white/10 px-2 py-1.5 font-mono text-xs"><Minus size={11} className="text-white/40" /><span className="font-semibold">0.10</span><Plus size={11} className="text-white/40" /></div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px]"><div className="rounded-md border border-white/10 px-2 py-1.5 text-white/45">SL <span className="text-white">20</span> pips</div><div className="rounded-md border border-white/10 px-2 py-1.5 text-white/45">TP <span className="text-white">40</span> pips</div></div>
+          <p className="text-[9px] font-semibold uppercase tracking-wider text-white/55">New order · EURUSD</p>
+          <div className="mt-2.5 flex items-center justify-between rounded-md border border-white/10 px-2 py-1.5 font-mono text-xs"><Minus size={11} className="text-white/55" /><span className="font-semibold">0.10</span><Plus size={11} className="text-white/55" /></div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px]"><div className="rounded-md border border-white/10 px-2 py-1.5 text-white/60">SL <span className="text-white">20</span> pips</div><div className="rounded-md border border-white/10 px-2 py-1.5 text-white/60">TP <span className="text-white">40</span> pips</div></div>
           <div className="mt-2.5 grid grid-cols-2 gap-1.5"><span className="rounded-md bg-red-600 py-2.5 text-center text-[11px] font-bold">SELL</span><span className="rounded-md bg-blue-600 py-2.5 text-center text-[11px] font-bold">BUY</span></div>
-          <div className="mt-3 space-y-1.5 text-[10px] text-white/45"><div className="flex justify-between"><span>Pip value</span><span className="text-white">$1.00</span></div><div className="flex justify-between"><span>Risk at stop</span><span className="text-white">$20.00</span></div><div className="flex justify-between"><span>Reward : risk</span><span className="text-white">2 : 1</span></div><div className="flex justify-between"><span>Daily allowance used</span><span className="text-white">4%</span></div></div>
+          <div className="mt-3 space-y-1.5 text-[10px] text-white/60"><div className="flex justify-between"><span>Pip value</span><span className="text-white">$1.00</span></div><div className="flex justify-between"><span>Risk at stop</span><span className="text-white">$20.00</span></div><div className="flex justify-between"><span>Reward : risk</span><span className="text-white">2 : 1</span></div><div className="flex justify-between"><span>Daily allowance used</span><span className="text-white">4%</span></div></div>
         </div>
       </div>
     </div>
-    <figcaption className="mt-4 text-center text-xs text-white/35">Illustration of the FYNX Trade terminal. Figures shown are worked examples for a $10,000 account, not prices.</figcaption>
+    <figcaption className="mt-4 text-center text-xs text-white/55">Illustration of the FYNX Trade terminal. Figures shown are worked examples for a $10,000 account, not prices.</figcaption>
   </figure>;
 }

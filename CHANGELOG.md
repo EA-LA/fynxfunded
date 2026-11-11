@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-11 08:30 UTC — [autopilot] Trading engine knows your customers' accounts by itself; easier-to-read pages for everyone
+
+- Ready for switch-on: the trading server can now find everything it needs about each customer's account on its own (which rules they bought, who owns it, whether it may trade, where to send their emails), straight from what checkout already saves. When you connect the price feed and start the server, there are no account lookups left to write. Trading still stays off until you switch it on in two places (the server's master switch and the account itself), and only for a paid challenge that is running; a passed phase waits for your review. The steps are in docs/ENGINE-READINESS.md ("Account directory").
+- The trading server no longer reports customers who haven't opened the terminal yet as errors; it simply checks them later.
+- Easier to read: the small grey risk warning and company note at the bottom of every page (https://www.fynxfunded.com) were too faint; they are now readable. The same for the light grey text on the FYNX Trade page (https://www.fynxfunded.com/trade), the filter counts on the FAQ and glossary (https://www.fynxfunded.com/faq), the "reset" label on the trading-day clock (https://www.fynxfunded.com/rules) and the 404 page.
+- Screen readers: the login, sign-up and password pages (https://www.fynxfunded.com/login) and the challenge builder now announce a page title and main area; footer headings are in the right order; the FYNX Trade pair search no longer points at a list that isn't there; the pairs table's last column has a name.
+
 ## 2026-11-11 04:20 UTC — [autopilot] FYNX Trade: "one cancels the other" for pending orders
 
 - Trading terminal (https://www.fynxfunded.com/trade/access), order ticket: pending orders (limit or stop) have a new "One cancels the other" choice. Link the new order with one you already placed, and when either of the two fills, the trading server cancels the other one straight away, also with the page closed. The usual use: a buy stop above and a sell stop below the price, so whichever way the market breaks opens the trade (the ticket names this a "breakout set-up", or a "range set-up" for two limits).

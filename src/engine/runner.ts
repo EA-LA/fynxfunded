@@ -68,6 +68,11 @@ export interface RoundSummary {
   backoffSkipped: number;
   failed: number;
   conflicts: number;
+  /**
+   * Listed accounts the engine has not opened yet (the trader has not loaded
+   * them in the terminal): skipped quietly like idle accounts, not failures.
+   */
+  notOpened: number;
   /** True when the whole round was skipped because `ready()` was false. */
   waitingForPrices: boolean;
   /** The account list itself could not be read. */
@@ -211,7 +216,7 @@ export class EngineRunner {
 
   private async doRound(): Promise<RoundSummary> {
     const startedAt = this.o.clock();
-    const summary: RoundSummary = { startedAt, durationMs: 0, checked: 0, idleSkipped: 0, backoffSkipped: 0, failed: 0, conflicts: 0, waitingForPrices: false, listFailed: false };
+    const summary: RoundSummary = { startedAt, durationMs: 0, checked: 0, idleSkipped: 0, backoffSkipped: 0, failed: 0, conflicts: 0, notOpened: 0, waitingForPrices: false, listFailed: false };
     const finish = () => {
       summary.durationMs = this.o.clock() - startedAt;
       this.stats.rounds++; this.stats.lastRoundAt = this.o.clock(); this.stats.lastRound = summary;
@@ -247,6 +252,11 @@ export class EngineRunner {
         w.failures = 0; w.retryAt = 0; w.lastError = "";
       } catch (e) {
         if (e instanceof EngineError && e.code === "conflict") { summary.conflicts++; continue; }
+        if (e instanceof EngineError && e.code === "no_account") {
+          summary.notOpened++;
+          w.idle = true; w.checkedAt = this.o.clock(); w.failures = 0; w.retryAt = 0; w.lastError = "";
+          continue;
+        }
         summary.failed++;
         w.failures++;
         const delays = this.o.failureBackoffMs;

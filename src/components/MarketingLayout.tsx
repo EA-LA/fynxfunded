@@ -121,7 +121,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
             <div>
-              <h4 className="text-sm font-semibold mb-4">{t("footer.product")}</h4>
+              <h2 className="text-sm font-semibold mb-4">{t("footer.product")}</h2>
               <div className="space-y-2">
                 <Link to="/challenges" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.challenges")}</Link>
                 <Link to="/rules" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.rules")}</Link>
@@ -133,7 +133,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold mb-4">{t("footer.company")}</h4>
+              <h2 className="text-sm font-semibold mb-4">{t("footer.company")}</h2>
               <div className="space-y-2">
                 <Link to="/how-it-works" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.howItWorks")}</Link>
                 <Link to="/faq" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("nav.faq")}</Link>
@@ -143,7 +143,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold mb-4">{t("footer.legal")}</h4>
+              <h2 className="text-sm font-semibold mb-4">{t("footer.legal")}</h2>
               <div className="space-y-2">
                 <Link to="/terms" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("footer.terms")}</Link>
                 <Link to="/privacy" className="block text-sm text-muted-foreground hover:text-foreground transition-colors">{t("footer.privacy")}</Link>
@@ -153,7 +153,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div>
-              <h4 className="text-sm font-semibold mb-4">{t("footer.connect")}</h4>
+              <h2 className="text-sm font-semibold mb-4">{t("footer.connect")}</h2>
               <div className="space-y-2">
                 <span className="block text-sm text-muted-foreground">Discord</span>
                 <span className="block text-sm text-muted-foreground">Twitter</span>
@@ -176,10 +176,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               <Link to="/refund-policy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t("footer.refund")}</Link>
               <Link to="/aml-kyc" className="text-xs text-muted-foreground hover:text-foreground transition-colors">AML/KYC Policy</Link>
             </div>
-            <p className="text-xs text-muted-foreground/70">{t("footer.disclaimer")}</p>
+            <p className="text-xs text-muted-foreground">{t("footer.disclaimer")}</p>
           </div>
 
-          <p className="text-xs text-muted-foreground/60 mb-6">
+          <p className="text-xs text-muted-foreground mb-6">
             FYNX Funded is building a trading-evaluation platform with account tracking, risk controls, and educational resources. Available markets and features depend on the selected plan and connected provider.
           </p>
 

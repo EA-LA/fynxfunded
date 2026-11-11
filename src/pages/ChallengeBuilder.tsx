@@ -50,7 +50,7 @@ export default function ChallengeBuilder() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      <main className="max-w-6xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold tracking-tight mb-1">Challenge Builder</h1>
         <p className="text-sm text-muted-foreground mb-8">Configure your evaluation in a few steps.</p>
 
@@ -306,7 +306,7 @@ export default function ChallengeBuilder() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

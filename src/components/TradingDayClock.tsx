@@ -138,7 +138,7 @@ export default function TradingDayClock({ now: fixedNow }: { now?: Date }) {
         </div>
         <div className="relative mt-1 h-4 text-[10px] text-muted-foreground" aria-hidden="true">
           {[0, 6, 12, 18].map(h => <span key={h} className="absolute" style={{ left: `${(h / 24) * 100}%` }}>{String(h).padStart(2, "0")}:00</span>)}
-          <span className="absolute -translate-x-1/2 font-semibold text-destructive" style={{ left: `${resetPos}%` }}>reset</span>
+          <span className="absolute -translate-x-1/2 font-semibold text-red-400" style={{ left: `${resetPos}%` }}>reset</span>
         </div>
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span><span className="mr-1 inline-block h-2.5 w-0.5 bg-foreground align-middle" />Now</span>

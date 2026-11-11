@@ -139,7 +139,7 @@ export default function Index() {
               key={step.num}
               className={`premium-card hover-lift animate-fade-up delay-${(i + 1) * 200}`}
             >
-              <span className="text-4xl font-bold text-muted-foreground/30">{step.num}</span>
+              <span className="text-4xl font-bold text-muted-foreground/30" aria-hidden="true">{step.num}</span>
               <h3 className="mt-4 text-lg font-semibold">{step.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
             </div>

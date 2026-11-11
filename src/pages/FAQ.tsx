@@ -77,7 +77,7 @@ export default function FAQ() {
           <a href="#glossary" className="font-medium text-foreground underline underline-offset-4">See the glossary</a>.
         </p>
 
-        <div role="search" className="relative mb-3">
+        <div role="search" aria-label="FAQ" className="relative mb-3">
           <label htmlFor="faq-search" className="sr-only">Search questions</label>
           <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -120,7 +120,7 @@ export default function FAQ() {
                   active ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                 }`}
               >
-                {t.label} <span className={active ? "opacity-80" : "opacity-60"}>({count})</span>
+                {t.label} <span>({count})</span>
               </button>
             );
           })}

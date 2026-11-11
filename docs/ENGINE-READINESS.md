@@ -14,6 +14,7 @@ The FYNX Trade terminal (`/trade/access`) and the trading engine behind it are b
 | Timer step | `src/engine/runner.ts` | `EngineRunner({ venue, accounts, intervalMs, idleEveryMs, ready, onError })`: looks at every watched account every `intervalMs` (default 1 s) and right after new prices (`nudge()`, at most once per `minGapMs`, 200 ms), so pending orders fill and stops, take profits and loss limits close positions while nobody has the terminal open. Rounds never overlap (a nudge during a round runs one more round after it). Accounts with nothing open are checked only every `idleEveryMs` (60 s); `watch(id)` checks an account every round from now on and keeps it watched until it holds nothing, even if `accounts()` leaves it out. While `ready()` is false (price feed not live) rounds are skipped. A failing account is retried with backoff (1 s, 5 s, 30 s, 60 s) without stopping the others; a `conflict` is retried on the next round. `health()` (running, healthy = a round finished within 3 intervals, rounds, last round counts, failing accounts with their last error) and `executionMessage(priceFeedLive, health)` give `/v1/status` its `execution` and a plain `message`. |
 | Server in one call | `src/engine/server.ts` | `createEngineServer({ pairs, settings, store, rulesFor, feed, accounts, verifyToken, canAccess, tradingEnabled, onEvents, runner })` wires the venue, price feed, timer step and HTTP contract together and returns `{ handle(request), status(), start(), stop() }`. `start()` connects the feed and starts the timer step (every new price nudges it); `handle` answers the HTTP contract through the host skeleton and puts an account that just placed or changed something on the every-round watch; GET `/v1/status` reports `priceFeed` from `feed.health().live`, `execution` only when prices are live and the timer step is healthy, and the matching sentence ("Waiting for prices…", "Order checks are delayed…", "Trading engine live…"). `stop()` closes the feed and waits for a running round. Not imported by the website and not deployed. |
 | HTTP adapter | `src/engine/http-adapter.ts` | `createHttpHandler(engine, { allowedOrigins, basePath?, maxBodyBytes?, healthPath?, log? })`: a `(req, res)` handler for `node:http`, Express, Cloud Run or a Firebase `onRequest` function, so the engine runs on a real web server with no glue code. **Browser access (CORS):** answers the browser's OPTIONS preflight for the listed website origins only (`Access-Control-Allow-Origin` = that origin, methods `GET, POST, PATCH, DELETE`, headers `Authorization, Content-Type, Idempotency-Key, Accept`, 10-minute cache); any other website gets 403 `origin_not_allowed` and its request never runs; calls without an Origin (server to server) still need a valid sign-in. **Bodies:** JSON only (415 `unsupported_media_type`), at most 16 KB (413 `too_large`), malformed JSON 400 `bad_request`; uses `req.body` (Express) or `req.rawBody` (Firebase) when already read. `basePath` serves under a prefix (e.g. `/engine`). `GET /healthz` without sign-in returns only `{ ok, priceFeed, execution }` for uptime checks. Every answer is JSON with `Cache-Control: no-store` and `nosniff`; `log` gets method, path, status, time and error code (never the token). Tested through `HttpGateway` and on a real `node:http` socket. |
+| Account directory | `src/engine/firestore-directory.ts` | Reads the engine's answers about each account (rules, owner, access, trading switch, accounts to watch, notice email) from the `accounts` / `challenges` / `orders` documents checkout already writes; read-only, cached; trading only with the host master switch and the account switch both on. See "Account directory". |
 | Settings from the environment | `src/engine/config.ts` | `readEngineConfig(process.env, FOREX_PAIRS)` reads the venue settings and allowed websites from environment variables (table below) and refuses to start with one message listing **every** missing or wrong value; business numbers have no defaults. Holiday closures and swap rates are entered as JSON and checked exactly as the venue will use them. |
 | Firestore store | `src/engine/firestore-store.ts` | `FirestoreAccountStore(getFirestore(), { collection: "engineAccounts" })`: the `AccountStore` for a Firebase host. One document per account; `save` runs in a transaction and refuses with `conflict` unless the stored `sequence` is the one the engine loaded (creation refuses if the document exists). Drops `undefined` fields (Firestore refuses them), refuses states over 900 KB (`state_too_large`, below Firestore's 1 MiB limit), refuses odd account ids and malformed stored documents (`bad_state`). **Long-lived accounts:** when a document would pass `archive.aboveBytes` (default 600 KB) the oldest deals move, in the same transaction, to numbered chunk documents `engineAccounts/{accountId}/history/000000…` (`archive.chunkSize`, default 250 deals each), keeping the newest `archive.keepRecentDeals` (default 300) in the account. The account keeps an `archived` summary (`archiveHistory` in core.ts: count, net profit, daily results, the last 1000 client order ids, first/last close) so the 40% best-day rule, retried orders and deal numbering work exactly as before; `archivedDeals(accountId, index)` reads a chunk back; the venue serves it as `GET /v1/accounts/{id}/history?chunk=n`. Set `archive.resetHourUtc` to the accounts' reset hour (default 22, FYNX Funded); `archive: false` turns it off. Needs only the Admin SDK's `collection().doc()` and `runTransaction`, so it imports no Firebase SDK and is not in the site bundle. |
 | Price feed template | `src/engine/quote-feed.ts` | `StreamingQuoteFeed({ transport, parse, symbolMap, pipSize })`: the `QuoteFeed` for a licensed provider. The provider adapter only writes `transport.open(symbols, onMessage, onClose)` (WebSocket/SSE/SDK) and `parse(message)` → `{ symbol, bid, ask, time }`. The template maps provider symbols (e.g. `EUR/USD`) to FYNX symbols, refuses bad prices before the engine can fill on them (missing/negative numbers, bid above ask, spread wider than `maxSpreadPips` (50), timestamps in the future or older than the last quote), reconnects with backoff (1 s, 2 s, 5 s, 10 s, 30 s) and reports `health()` (`live` = connected with a valid quote in the last 15 s, accepted/refused counts by reason, reconnects, last error) for `/v1/status` `priceFeed`. |
@@ -51,6 +52,7 @@ FYNX Funded's official evaluation keeps running on the existing server rule engi
    | `FYNX_ENGINE_SWAP` | `{"EURUSD":{"longPerLot":-6.2,"shortPerLot":1.1}}` | no (no swap charged) |
    | `FYNX_ENGINE_CLOSURES` | `[{"from":"2026-12-25T00:00:00Z","to":"2026-12-26T00:00:00Z","reason":"Christmas Day"}]` | no (provider's holiday calendar) |
    | `FYNX_ENGINE_BASE_PATH` | `/engine` | no |
+   | `FYNX_ENGINE_ALLOW_TRADING` | `true` | no (default off: the engine refuses every order; read by the host file below, not by `readEngineConfig`) |
 
    The numbers in the examples only show the format; they are not FYNX's settings.
 5. **Expose the HTTP contract below**, with Firebase ID-token authentication. Each user may only reach their own accounts. The quickest way: `const engine = createEngineServer({ pairs: FOREX_PAIRS, settings, store, rulesFor, feed, accounts, verifyToken, canAccess, tradingEnabled })`, `engine.start()`, then for every request call `engine.handle({ method, path, headers, body })` and send back its `status` and JSON `body` (it uses `handleEngineRequest` from `src/engine/host.ts` and fills `/v1/status` from the real feed and timer health). Without the one-call server, call `handleEngineRequest` directly with your own `status`. HTTP statuses: 401 sign-in, 403 not your account / trading switched off / account closed, 404 unknown account, position or order, 405 wrong method, 409 conflict, 400 malformed body, 422 any other engine refusal, 500 unexpected.
@@ -70,7 +72,7 @@ FYNX Funded's official evaluation keeps running on the existing server rule engi
    import { StreamingQuoteFeed } from "./src/engine/quote-feed";
    import { EngineLedger, firestoreTradeWriter } from "./src/engine/ledger";
    import { EngineNotifier, firestoreMailSender, storePrefs } from "./src/engine/notifier";
-   import { rulesFromPurchase } from "./src/engine/venue";
+   import { FirestoreAccountDirectory } from "./src/engine/firestore-directory";
    import { FOREX_PAIRS } from "./src/trade-access/instruments";
 
    initializeApp();
@@ -78,22 +80,23 @@ FYNX Funded's official evaluation keeps running on the existing server rule engi
    const config = readEngineConfig(process.env, FOREX_PAIRS);          // stops here if a setting is missing
    const store = new FirestoreAccountStore(db, { collection: "engineAccounts" });
    const feed = new StreamingQuoteFeed({ transport: /* provider */, parse: /* provider */, pipSize: s => FOREX_PAIRS.find(p => p.symbol === s)?.pipSize });
+   const directory = new FirestoreAccountDirectory(db, {                // reads accounts / challenges / orders written at checkout
+     allowTrading: process.env.FYNX_ENGINE_ALLOW_TRADING === "true",     // owner's master switch; off unless set
+     lookupUser: uid => getAuth().getUser(uid),                         // for notice emails (verified addresses only)
+   });
    const engine = createEngineServer({
      pairs: FOREX_PAIRS, settings: config.settings, feed,
      store,
-     rulesFor: async id => /* read the purchase for account id */ rulesFromPurchase(/* startingBalance, purchase.rules, { funded } */),
-     accounts: async () => /* ids of accounts whose evaluation or funded stage is running */ [],
+     ...directory.engineOptions(),                                       // rulesFor, accounts, canAccess, tradingEnabled
      verifyToken: async token => (await getAuth().verifyIdToken(token).catch(() => null))?.uid ?? null,
-     canAccess: async (uid, id) => /* the account belongs to uid */ false,
-     tradingEnabled: async id => /* the owner's switch (fundedTradeAccess) */ false,
      notifier: new EngineNotifier({                                      // optional: emails (alert fired, stop hit, loss limit…)
        send: firestoreMailSender(db),                                    // "mail" collection, Trigger Email format
-       recipient: async id => /* { email } of the account's owner, or null */ null,
+       recipient: directory.recipient,                                   // the trader's verified email
        prefsFor: storePrefs(store),                                      // the trader's choices from the Alerts tab
      }),
      ledger: new EngineLedger({                                          // closed trades → FYNX Funded dashboard
        writer: firestoreTradeWriter(db),
-       owner: async id => /* { userId, challengeId, accountId } of the purchase for account id */ null,
+       owner: directory.owner,                                           // { userId, challengeId, accountId } of the purchase
        pipSize: s => FOREX_PAIRS.find(p => p.symbol === s)?.pipSize,
      }),
    });
@@ -102,10 +105,28 @@ FYNX Funded's official evaluation keeps running on the existing server rule engi
    process.on("SIGTERM", () => void engine.stop());
    ```
 
+   The only part left to write is the price provider's `transport` and `parse`. Everything about accounts comes from `FirestoreAccountDirectory` (`src/engine/firestore-directory.ts`); see "Account directory" below.
+
    For a Firebase function instead: `export const engine = onRequest(createHttpHandler(engineServer, config.http))` (Firebase's `rawBody` is used), but the timer step needs a process that stays up, so Cloud Run or a VM is the better home.
 
 6. **Set `VITE_FYNX_TRADE_API_URL`** in Vercel (an `https://` address) and add that host to `connect-src` in the site's Content-Security-Policy (`vercel.json`). These are owner-controlled settings.
-7. **Switch trading on per account:** `fundedTradeAccess` must return `tradingEnabled: true` for accounts that may trade. Until then the terminal never sends an order, even when connected.
+7. **Switch trading on per account:** `fundedTradeAccess` must return `tradingEnabled: true` for accounts that may trade. Until then the terminal never sends an order, even when connected. On the engine side, orders also need the host's `FYNX_ENGINE_ALLOW_TRADING=true` and `tradingEnabled: true` on the `accounts/{id}` document (both checked by `FirestoreAccountDirectory`, together with a paid order and a running challenge).
+
+## Account directory (`src/engine/firestore-directory.ts`)
+
+`FirestoreAccountDirectory` answers everything the engine asks about an account from the documents checkout already writes, so the host needs no hand-written lookups:
+
+| Engine question | Answer |
+| --- | --- |
+| Which account is it? | The `accounts/{id}` document id (`ft_…_p1`), the same id the terminal sends. Only `platform: "FYNX Trade"`, `accessVersion: 1` accounts exist for the engine; anything else is "Account not found". |
+| `rulesFor` | The purchased rule snapshot on the account (`rules`, written by `provisionTradeAccess` from the agreement the trader accepted), via `rulesFromPurchase`, never today's public pages. Funded challenges (`challenges.status = "funded"`) have no profit target. A snapshot that does not match the account's starting balance, is missing, or uses a trailing maximum loss is refused (`bad_rules`) so the account goes to review instead of trading. |
+| `canAccess` | The signed-in user is the account's `userId`. Any lookup failure answers no. |
+| `tradingEnabled` | **All** of: the host's master switch `allowTrading: true` (e.g. `FYNX_ENGINE_ALLOW_TRADING=true`; off by default), the account document's own `tradingEnabled: true`, a paid order, the challenge `active` or `funded` (a `passed` phase waits for review), the account `active` and still the challenge's current account (`brokerAccountId`), and usable rules. |
+| `accounts` (timer step) | Activated FYNX Trade accounts (`status` and `activationStatus` both `active`) whose challenge is running on them; re-read every 30 s; more than `maxAccounts` (5000) is reported as an error rather than silently watching some. Listed accounts the trader has not opened in the terminal yet are skipped quietly (`notOpened` in the round summary), not counted as failures. |
+| Ledger `owner` | `{ userId, challengeId, accountId }` from the account, so closed trades appear on that trader's dashboard. |
+| Notifier `recipient` | The trader's email from Firebase Auth (`lookupUser`), only when verified and the user is not disabled. |
+
+It only reads (never writes), caches each account for 15 s (`cacheMs`) because the engine asks on every timer step, and `directory.invalidate(id)` makes a switch-off count at once. The query on `platform`, `status`, `activationStatus` uses equality filters only, so Firestore needs no extra index.
 
 ## HTTP contract (`HttpGateway`)
 

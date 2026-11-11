@@ -42,7 +42,7 @@ export default function TradingGlossary() {
         {glossaryTerms.length} trading and evaluation terms in plain words. FYNX Funded figures come from the published new-account schedule; examples are simple arithmetic, not market prices.
       </p>
 
-      <div role="search" className="relative mt-6 mb-3">
+      <div role="search" aria-label="Glossary" className="relative mt-6 mb-3">
         <label htmlFor="glossary-search" className="sr-only">Search the glossary</label>
         <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -76,7 +76,7 @@ export default function TradingGlossary() {
           const count = g.id === "all" ? searched.length : searched.filter((t) => t.group === g.id).length;
           return (
             <button key={g.id} type="button" aria-pressed={group === g.id} onClick={() => setGroup(g.id)} className={chip(group === g.id)}>
-              {g.label} <span className="opacity-70">({count})</span>
+              {g.label} <span>({count})</span>
             </button>
           );
         })}

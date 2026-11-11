@@ -49,7 +49,7 @@ export default function ChallengesPricing() {
                   Most Popular
                 </span>
               )}
-              <h3 className="text-lg font-semibold">{plan.name}</h3>
+              <h2 className="text-lg font-semibold">{plan.name}</h2>
               <div className="mt-4 mb-6">
                 <span className="text-4xl font-bold">${plan.price}</span>
                 <span className="text-sm text-muted-foreground ml-1">one-time</span>
