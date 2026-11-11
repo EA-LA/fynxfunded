@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, AlertRequest, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
+  AccountMetrics, AccountState, AlertRequest, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -174,6 +174,30 @@ function open(state: AccountState, ctx: EngineContext, req: { symbol: string; si
   return { state: next, events: [{ type: "position_opened", position }] };
 }
 
+/** Newest OCO-cancelled orders kept on the account for the terminal. */
+export const OCO_CANCELLED_KEPT = 20;
+
+/** The partner of a new OCO link must be pending, not the order itself and not linked with a third order. */
+function checkOcoPartner(state: AccountState, partnerId: string, selfId: string | undefined) {
+  if (typeof partnerId !== "string" || !partnerId) throw new EngineError("bad_oco", "Choose the pending order to link with.");
+  if (partnerId === selfId) throw new EngineError("bad_oco", "An order cannot be linked with itself.");
+  const partner = state.orders.find(o => o.id === partnerId);
+  if (!partner) throw new EngineError("bad_oco", "The order to link with is no longer pending.");
+  if (partner.ocoWith !== undefined && partner.ocoWith !== selfId) throw new EngineError("bad_oco", `Order ${partner.id} is already linked with order ${partner.ocoWith}. Unlink it first.`);
+}
+
+/** Removes the OCO link that points at any of `ids` from the remaining orders (their partner left without filling). */
+function unlinkPartners(orders: PendingOrder[], ids: Set<string>): { orders: PendingOrder[]; changed: PendingOrder[] } {
+  const changed: PendingOrder[] = [];
+  const next = orders.map(o => {
+    if (o.ocoWith === undefined || !ids.has(o.ocoWith)) return o;
+    const { ocoWith: _gone, ...rest } = o;
+    changed.push(rest);
+    return rest;
+  });
+  return { orders: next, changed };
+}
+
 /** Validates and executes an order request. Market orders fill at the current bid/ask. */
 export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineContext): Step {
   assertActive(state);
@@ -189,6 +213,10 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   if (req.expiresAt !== undefined && req.type === "market") throw new EngineError("bad_expiry", "Only pending orders can have an expiry time.");
   checkExpiry(req.expiresAt, ctx.now);
   checkDeviation(s, req);
+  if (req.ocoWith !== undefined) {
+    if (req.type === "market") throw new EngineError("bad_oco", "Only pending orders can be linked (one cancels the other).");
+    checkOcoPartner(state, req.ocoWith, undefined);
+  }
   const q = executableQuote(ctx, req.symbol);
   const m = metrics(state, ctx);
   const required = marginUsd(s, req.lots, ctx.quotes);
@@ -206,8 +234,10 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   if (req.price === undefined) throw new EngineError("bad_price", "Pending orders need a price.");
   checkPendingSide(req.side, req.type, req.price, openingPrice(req.side, q));
   checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
-  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), ...(req.expiresAt !== undefined ? { expiresAt: req.expiresAt } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
-  return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
+  const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), ...(req.expiresAt !== undefined ? { expiresAt: req.expiresAt } : {}), ...(req.ocoWith !== undefined ? { ocoWith: req.ocoWith } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
+  if (req.ocoWith === undefined) return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
+  const partner: PendingOrder = { ...state.orders.find(o => o.id === req.ocoWith)!, ocoWith: order.id };
+  return { state: { ...state, orders: [...state.orders.map(o => (o.id === partner.id ? partner : o)), order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }, { type: "order_modified", order: partner }] };
 }
 
 function closeAt(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes" | "now">, positionId: string, lots: number, price: number, reason: CloseReason): Step {
@@ -354,6 +384,12 @@ export interface OrderChange {
   trailingPips?: number | null;
   /** Expiry time (ms since epoch); null makes the order good till cancelled, leaving it out keeps it. */
   expiresAt?: number | null;
+  /**
+   * "One cancels the other": the id of another pending order to link with,
+   * null to unlink (both orders), leaving it out keeps the link. Linking to a
+   * new order unlinks the previous partner.
+   */
+  ocoWith?: string | null;
 }
 
 /**
@@ -378,10 +414,19 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   if (change.expiresAt != null && change.expiresAt !== o.expiresAt) checkExpiry(change.expiresAt, ctx.now);
   if (change.price !== undefined) checkPendingSide(o.side, o.type, price, openingPrice(o.side, executableQuote(ctx, o.symbol)));
   checkProtection(o.side, price, sl, tp);
-  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit && trail === o.trailingPips && expires === o.expiresAt) return { state, events: [] };
-  const { trailingPips: _oldTrail, expiresAt: _oldExpiry, ...rest } = o;
-  const next: PendingOrder = { ...rest, price, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingPips: trail } : {}), ...(expires !== undefined ? { expiresAt: expires } : {}) };
-  return { state: { ...state, orders: state.orders.map(x => (x.id === o.id ? next : x)), sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }] };
+  const oco = change.ocoWith === null ? undefined : change.ocoWith ?? o.ocoWith;
+  if (change.ocoWith != null && change.ocoWith !== o.ocoWith) checkOcoPartner(state, change.ocoWith, o.id);
+  if (price === o.price && sl === o.stopLoss && tp === o.takeProfit && trail === o.trailingPips && expires === o.expiresAt && oco === o.ocoWith) return { state, events: [] };
+  const { trailingPips: _oldTrail, expiresAt: _oldExpiry, ocoWith: _oldOco, ...rest } = o;
+  const next: PendingOrder = { ...rest, price, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingPips: trail } : {}), ...(expires !== undefined ? { expiresAt: expires } : {}), ...(oco !== undefined ? { ocoWith: oco } : {}) };
+  let orders = state.orders.map(x => (x.id === o.id ? next : x));
+  const partners: PendingOrder[] = [];
+  if (oco !== o.ocoWith) {
+    // The old partner loses its link; the new partner points back at this order.
+    if (o.ocoWith !== undefined) orders = orders.map(x => { if (x.id !== o.ocoWith || x.ocoWith !== o.id) return x; const { ocoWith: _x, ...r } = x; partners.push(r); return r; });
+    if (oco !== undefined) orders = orders.map(x => { if (x.id !== oco) return x; const linked = { ...x, ocoWith: o.id }; partners.push(linked); return linked; });
+  }
+  return { state: { ...state, orders, sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }, ...partners.map(order => ({ type: "order_modified" as const, order }))] };
 }
 
 export const MAX_ALERTS = 50;
@@ -457,7 +502,9 @@ export function removeAlert(state: AccountState, alertId: string): Step {
 
 export function cancelOrder(state: AccountState, orderId: string): Step {
   if (!state.orders.some(o => o.id === orderId)) throw new EngineError("no_order", "That order is not pending.");
-  return { state: { ...state, orders: state.orders.filter(o => o.id !== orderId), sequence: state.sequence + 1 }, events: [{ type: "order_cancelled", orderId }] };
+  // A linked (OCO) partner stays pending on its own.
+  const { orders, changed } = unlinkPartners(state.orders.filter(o => o.id !== orderId), new Set([orderId]));
+  return { state: { ...state, orders, sequence: state.sequence + 1 }, events: [{ type: "order_cancelled", orderId }, ...changed.map(order => ({ type: "order_modified" as const, order }))] };
 }
 
 /**
@@ -482,8 +529,9 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   const expired: ExpiredOrder[] = current.orders.filter(o => o.expiresAt !== undefined && o.expiresAt <= ctx.now).map(o => ({ ...o, expiresAt: o.expiresAt!, expiredAt: ctx.now }));
   if (expired.length) {
     const gone = new Set(expired.map(o => o.id));
-    current = { ...current, orders: current.orders.filter(o => !gone.has(o.id)), expiredOrders: [...[...expired].reverse(), ...(current.expiredOrders ?? [])].slice(0, EXPIRED_ORDERS_KEPT), sequence: current.sequence + 1 };
-    events.push(...expired.map(order => ({ type: "order_expired" as const, order })));
+    const unlinked = unlinkPartners(current.orders.filter(o => !gone.has(o.id)), gone);
+    current = { ...current, orders: unlinked.orders, expiredOrders: [...[...expired].reverse(), ...(current.expiredOrders ?? [])].slice(0, EXPIRED_ORDERS_KEPT), sequence: current.sequence + 1 };
+    events.push(...expired.map(order => ({ type: "order_expired" as const, order })), ...unlinked.changed.map(order => ({ type: "order_modified" as const, order })));
   }
   // Price alerts fire once on the first fresh bid at or beyond their level.
   if (current.alerts?.length) {
@@ -504,6 +552,8 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   const tradable = (symbol: string) => { const s = ctx.specs[symbol]; return !s || isMarketOpen(s.hours, ctx.now); };
 
   for (const o of current.orders) {
+    // Skip an order its linked (OCO) partner cancelled earlier in this step.
+    if (!current.orders.some(x => x.id === o.id)) continue;
     const q = ctx.quotes[o.symbol];
     if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs || !tradable(o.symbol)) continue;
     const market = openingPrice(o.side, q);
@@ -515,7 +565,16 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     const step = open(current, ctx, o, price);
     apply(step);
     const opened = step.events[0];
-    if (opened.type === "position_opened") events.push({ type: "order_triggered", orderId: o.id, positionId: opened.position.id });
+    if (opened.type === "position_opened") {
+      events.push({ type: "order_triggered", orderId: o.id, positionId: opened.position.id });
+      // One cancels the other: the linked order goes in the same step.
+      const partner = o.ocoWith !== undefined ? current.orders.find(x => x.id === o.ocoWith) : undefined;
+      if (partner) {
+        const order: OcoCancelledOrder = { ...partner, ocoWith: o.id, cancelledAt: ctx.now, positionId: opened.position.id };
+        current = { ...current, orders: current.orders.filter(x => x.id !== partner.id), ocoCancelled: [order, ...(current.ocoCancelled ?? [])].slice(0, OCO_CANCELLED_KEPT), sequence: current.sequence + 1 };
+        events.push({ type: "order_cancelled", orderId: partner.id, reason: "oco", order });
+      }
+    }
   }
 
   for (const p of current.positions) {

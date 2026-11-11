@@ -66,6 +66,11 @@ export function noticesFor(accountId: string, events: EngineEvent[], at: number,
   const px = (symbol: string, v: number) => v.toFixed(digits(symbol));
   const footer = `\n\nOpen FYNX Trade: ${link}\nYou can choose which notices you get in the terminal's Alerts tab.`;
   const out: Notice[] = [];
+  // "One cancels the other": the linked order the fill cancelled, said in the fill notice.
+  const ocoNote = (filledId: string) => {
+    const c = events.find((x): x is Extract<EngineEvent, { type: "order_cancelled" }> => x.type === "order_cancelled" && x.reason === "oco" && x.order?.ocoWith === filledId)?.order;
+    return c ? `\nYour linked order (${c.side} ${c.type} ${c.lots.toFixed(2)} ${c.symbol} at ${px(c.symbol, c.price)}) was cancelled, as you asked: one cancels the other.` : "";
+  };
   const add = (kind: NoticeKind, key: string, subject: string, body: string) => out.push({ id: `${accountId}:${kind}:${key}`, accountId, kind, subject, text: body + footer, at });
   const opened = new Map<string, Position>();
   for (const e of events) if (e.type === "position_opened") opened.set(e.position.id, e.position);
@@ -82,7 +87,7 @@ export function noticesFor(accountId: string, events: EngineEvent[], at: number,
         const p = opened.get(e.positionId);
         if (!p) break;
         add("fill", e.orderId, `Order filled: ${p.side === "buy" ? "Buy" : "Sell"} ${p.lots.toFixed(2)} ${p.symbol} at ${px(p.symbol, p.entryPrice)}`,
-          `Your pending order on ${p.symbol} was filled at ${utc(p.openedAt)}: ${p.side} ${p.lots.toFixed(2)} lots at ${px(p.symbol, p.entryPrice)}.\nStop loss: ${p.stopLoss !== undefined ? px(p.symbol, p.stopLoss) : "none"} · Take profit: ${p.takeProfit !== undefined ? px(p.symbol, p.takeProfit) : "none"}.`);
+          `Your pending order on ${p.symbol} was filled at ${utc(p.openedAt)}: ${p.side} ${p.lots.toFixed(2)} lots at ${px(p.symbol, p.entryPrice)}.\nStop loss: ${p.stopLoss !== undefined ? px(p.symbol, p.stopLoss) : "none"} · Take profit: ${p.takeProfit !== undefined ? px(p.symbol, p.takeProfit) : "none"}.${ocoNote(e.orderId)}`);
         break;
       }
       case "position_closed": {

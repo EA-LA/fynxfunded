@@ -75,7 +75,7 @@ const level = (v: unknown, name: string): number | null | undefined => (v === nu
 /** Strictly reads an order request body; unknown fields are refused so typos never pass silently. */
 export function parseOrderRequest(body: unknown, idempotencyKey?: string): OrderRequest {
   if (!isObject(body)) throw new EngineError("bad_request", "The order must be a JSON object.");
-  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "expiresAt", "expectedPrice", "maxDeviationPips", "clientId"]);
+  const allowed = new Set(["symbol", "side", "type", "lots", "price", "stopLoss", "takeProfit", "trailingPips", "expiresAt", "expectedPrice", "maxDeviationPips", "ocoWith", "clientId"]);
   const extra = Object.keys(body).filter(k => !allowed.has(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
   const { symbol, side, type, clientId } = body;
@@ -97,6 +97,7 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   const expected = num(body.expectedPrice, "expectedPrice"), deviation = num(body.maxDeviationPips, "maxDeviationPips");
   if (expected !== undefined) req.expectedPrice = expected;
   if (deviation !== undefined) req.maxDeviationPips = deviation;
+  if (body.ocoWith !== undefined) req.ocoWith = orderId(body.ocoWith);
   if (key) req.clientId = key;
   return req;
 }
@@ -124,7 +125,13 @@ export function parseAlertRequest(body: unknown): AlertRequest {
   return { symbol, condition, price: num(body.price, "price", false)!, ...(note !== undefined ? { note: note as string } : {}) };
 }
 
-function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit" | "trailingPips" | "expiresAt")[]): OrderChange & PositionChange {
+/** An order id sent as a link target: a short string without spaces. */
+function orderId(v: unknown): string {
+  if (typeof v !== "string" || !/^[A-Za-z0-9_:.-]{1,100}$/.test(v)) throw new EngineError("bad_request", "ocoWith must be the id of a pending order.");
+  return v;
+}
+
+function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit" | "trailingPips" | "expiresAt" | "ocoWith")[]): OrderChange & PositionChange {
   if (!isObject(body)) throw new EngineError("bad_request", "The change must be a JSON object.");
   const extra = Object.keys(body).filter(k => !(fields as string[]).includes(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
@@ -134,6 +141,7 @@ function parseChange(body: unknown, fields: ("price" | "stopLoss" | "takeProfit"
   if ("takeProfit" in body) out.takeProfit = level(body.takeProfit, "takeProfit");
   if ("trailingPips" in body) out.trailingPips = level(body.trailingPips, "trailingPips");
   if ("expiresAt" in body) out.expiresAt = level(body.expiresAt, "expiresAt");
+  if ("ocoWith" in body) out.ocoWith = body.ocoWith === null ? null : orderId(body.ocoWith);
   if (!Object.keys(out).length) throw new EngineError("bad_request", "Nothing to change.");
   return out;
 }
@@ -212,7 +220,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     }
     if (collection === "orders" && itemId && !action) {
       if (method === "DELETE") return ok(await opts.venue.cancel(accountId, itemId));
-      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit", "trailingPips", "expiresAt"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
+      if (method === "PATCH") { const change = parseChange(req.body, ["price", "stopLoss", "takeProfit", "trailingPips", "expiresAt", "ocoWith"]); await needsTrading(); return ok(await opts.venue.modifyOrder(accountId, itemId, change)); }
       return fail("method_not_allowed", "Use PATCH or DELETE.");
     }
     if (collection === "positions" && itemId && action === "close") {

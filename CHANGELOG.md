@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-11 04:20 UTC — [autopilot] FYNX Trade: "one cancels the other" for pending orders
+
+- Trading terminal (https://www.fynxfunded.com/trade/access), order ticket: pending orders (limit or stop) have a new "One cancels the other" choice. Link the new order with one you already placed, and when either of the two fills, the trading server cancels the other one straight away, also with the page closed. The usual use: a buy stop above and a sell stop below the price, so whichever way the market breaks opens the trade (the ticket names this a "breakout set-up", or a "range set-up" for two limits).
+- The order review says which order it is linked with before you confirm.
+- Pending orders tab: linked orders carry an "OCO" tag naming their partner; the order editor can link, change or remove the link of an order you already placed; a new "Cancelled by a linked order" list says which order was cancelled, when, and which fill caused it.
+- Cancelling one of the two yourself, or its expiry, keeps the other pending on its own. The "order filled" email now also says which linked order was cancelled.
+- Ready for switch-on: this is part of the trading server's order rules and its web contract (docs/ENGINE-READINESS.md), so it works the moment trading is connected.
+
 ## 2026-11-11 00:25 UTC — [autopilot] FYNX Trade: email notices when something happens on your account
 
 - Trading terminal (https://www.fynxfunded.com/trade/access), Alerts tab: new "Email me when…" box. Tick what you want to hear about by email, also with the page closed: a price alert fires, a pending order is filled, a stop loss or take profit closes a trade, a loss limit is reached, the profit target is reached, a pending order expires. Your choices are saved with your account on the trading server.

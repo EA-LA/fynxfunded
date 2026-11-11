@@ -89,6 +89,14 @@ export interface OrderRequest {
    */
   expectedPrice?: number;
   maxDeviationPips?: number;
+  /**
+   * Pending orders only, "one cancels the other" (OCO): the id of a pending
+   * order already on the account that this order is linked with. When either
+   * of the two fills, the engine cancels the other one in the same step. A
+   * pending order can be linked with one other order at a time. Cancelling or
+   * expiring one of them leaves the other pending, unlinked.
+   */
+  ocoWith?: string;
   /** Client idempotency key: the same key never opens two positions. */
   clientId?: string;
 }
@@ -160,8 +168,18 @@ export interface PendingOrder {
   trailingPips?: number;
   /** Expiry time (ms since epoch); missing = good till cancelled. See OrderRequest.expiresAt. */
   expiresAt?: number;
+  /** Id of the pending order this one is linked with ("one cancels the other"); both point at each other. */
+  ocoWith?: string;
   createdAt: number;
   clientId?: string;
+}
+
+/** A pending order the engine cancelled because the order it was linked with (OCO) filled. */
+export interface OcoCancelledOrder extends PendingOrder {
+  ocoWith: string;
+  cancelledAt: number;
+  /** The position the linked order opened. */
+  positionId: string;
 }
 
 /** A pending order that reached its expiry time without filling. */
@@ -326,6 +344,11 @@ export interface AccountState {
    * them. Missing until the first expiry.
    */
   expiredOrders?: ExpiredOrder[];
+  /**
+   * Pending orders cancelled because their linked (OCO) order filled, newest
+   * first (at most OCO_CANCELLED_KEPT). Missing until the first one.
+   */
+  ocoCancelled?: OcoCancelledOrder[];
   /** Price alerts waiting to fire (at most MAX_ALERTS). Missing until the first alert. */
   alerts?: PriceAlert[];
   /** Alerts that fired, newest first (at most TRIGGERED_ALERTS_KEPT). */
@@ -362,7 +385,7 @@ export type EngineEvent =
   | { type: "position_opened"; position: Position }
   | { type: "order_placed"; order: PendingOrder }
   | { type: "order_triggered"; orderId: string; positionId: string }
-  | { type: "order_cancelled"; orderId: string }
+  | { type: "order_cancelled"; orderId: string; reason?: "oco"; order?: OcoCancelledOrder }
   | { type: "order_modified"; order: PendingOrder }
   | { type: "order_expired"; order: ExpiredOrder }
   | { type: "position_modified"; positionId: string }
