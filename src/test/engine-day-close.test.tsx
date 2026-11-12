@@ -27,6 +27,7 @@ describe("end-of-day records at the daily reset", () => {
     expect(step.state.dayCloses).toEqual([{
       tradingDay: "2026-11-09", startBalance: 10000, closingBalance: 10050, closingEquity: 10050, pricesAt: null, closedResult: 50, trades: 2,
       dailyLossFloor: 9500, maxLossFloor: 9000, roomAtClose: 550, openPositions: 0, openLots: 0, swapAtRollover: 0, status: "active", recordedAt: RESET + 30_000, late: false,
+      lowestEquity: 10050, lowestEquityAt: RESET + 30_000, roomAtLow: 550,
     }]);
     // The next tick in the same day adds nothing.
     expect(tick(step.state, ctx(RESET + 60_000)).state.dayCloses).toHaveLength(1);
@@ -100,14 +101,14 @@ describe("daily statement for the terminal and dashboard", () => {
   it("sums up days, dropping a repeated day", () => {
     expect(sortedDays(days).map(d => d.tradingDay)).toEqual(["2026-11-09", "2026-11-06", "2026-11-05"]);
     expect(sortedDays(days)[1].recordedAt).toBe(5);
-    expect(dailySummary(days)).toEqual({ days: 3, up: 1, down: 1, flat: 1, net: 50, best: { day: "2026-11-05", change: 200 }, worst: { day: "2026-11-06", change: -150 }, closestCall: { day: "2026-11-06", room: 360 }, late: 1, firstDay: "2026-11-05", lastDay: "2026-11-09" });
+    expect(dailySummary(days)).toEqual({ days: 3, up: 1, down: 1, flat: 1, net: 50, best: { day: "2026-11-05", change: 200 }, worst: { day: "2026-11-06", change: -150 }, closestCall: { day: "2026-11-06", room: 360 }, closestIntraday: null, late: 1, firstDay: "2026-11-05", lastDay: "2026-11-09" });
     expect(dailySummary(undefined)).toMatchObject({ days: 0, best: null, worst: null, closestCall: null });
   });
 
   it("downloads a CSV oldest day first with totals, safe for spreadsheets", () => {
     const csv = dailyStatementCsv("=acc", days).split("\r\n");
     expect(csv[0]).toBe(DAILY_HEADERS.map(h => `"${h}"`).join(","));
-    expect(csv[1]).toMatch(/^"2026-11-05","2026-11-06T22:00:00Z",10000,10200,200,10200,2,200,9500,9000,700,0,0,0,"active","no"$/);
+    expect(csv[1]).toMatch(/^"2026-11-05","2026-11-06T22:00:00Z",10000,10200,200,10200,2,200,9500,9000,700,0,0,0,"active","no",,,$/);
     expect(csv[2]).toContain('"yes"');
     expect(csv).toContain('"Account","\'=acc"');
     expect(csv).toContain('"Net change (USD)",50');

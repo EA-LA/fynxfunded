@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-12 08:40 UTC — [autopilot] FYNX Trade: lowest equity of each trading day
+
+- Added: the trading server now remembers each account's lowest equity during the trading day (the worst moment, not only how the day ended), on live prices only. This is the figure that shows how close a trader really came to the daily loss limit.
+- FYNX Trade terminal (https://www.fynxfunded.com/trade/access → Account): "Lowest equity today so far", with the time it happened and how much room was left above the loss limit at that moment. The daily statement has two new columns ("Lowest equity" and "Room at lowest"), the summary now shows the closest the account came to a limit during any day, and the CSV download has three new columns.
+- FYNX Funded account page (https://www.fynxfunded.com/dashboard/accounts → an account): the live FYNX Trade card shows today's lowest equity too.
+- Built to keep database costs low: the server checks every second but only saves a new low when it matters (a drop of 0.1% of the balance or more, at most once a minute for small dips). Older days recorded before today show "—" instead of a guess.
+- Ready for switch-on: nothing extra to plug in; it works as soon as the trading server runs with the price provider.
+
 ## 2026-11-12 04:25 UTC — [autopilot] FYNX Trade: safe handling of missing prices after a restart
 
 - Fixed: when the trading server had just restarted and did not yet have every price, an account holding a trade on a cross pair (for example EUR/JPY before the USD/JPY price arrived) could not be loaded at all, and a winning trade with no price yet could have made a healthy account look like it broke a loss limit. The server now waits for the missing price before checking the loss limits.

@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, AlertRequest, CloseReason, DayClose, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
+  AccountMetrics, AccountState, AlertRequest, CloseReason, DayClose, DayLow, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -634,6 +634,11 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   const m = metrics(current, ctx);
   if (m.unpriced?.length) return { state: current, events };
   const breach: CloseReason | null = m.equity <= m.maxLossFloor ? "maximum_loss_limit" : m.equity <= m.dailyLossFloor ? "daily_loss_limit" : null;
+  // Lowest equity of the day, on fresh prices only, stored write-light (see DayLow).
+  if (current.positions.every(p => { const q = ctx.quotes[p.symbol]; return !!q && ctx.now - q.time <= ctx.maxQuoteAgeMs; })) {
+    const low = nextDayLow(current.dayLow, current.tradingDay, current.dayStartBalance, m.equity, ctx.now, current !== state || !current.positions.length || breach !== null);
+    if (low) current = { ...current, dayLow: low, sequence: current.sequence === state.sequence ? current.sequence + 1 : current.sequence };
+  }
   if (breach) {
     for (const p of current.positions) {
       const q = ctx.quotes[p.symbol];
@@ -667,6 +672,23 @@ export function rollovers(fromDay: string, toDay: string, resetHourUtc: number, 
     out.push({ at, nights: wd === 0 || wd === 6 ? 0 : wd === tripleWeekday ? 3 : 1 });
   }
   return out;
+}
+
+/** A new daily low this far (percent of the day's starting balance) below the stored one is written at once. */
+export const DAY_LOW_STEP_PERCENT = 0.1;
+/** Smaller new lows are written at most this often. */
+export const DAY_LOW_INTERVAL_MS = 60_000;
+
+/**
+ * The day's low to store after an equity check, or null to keep the stored
+ * one (write-light rules in `DayLow`). Pure; used by `tick`.
+ */
+export function nextDayLow(low: DayLow | undefined, tradingDay: string, dayStartBalance: number, equity: number, now: number, force = false): DayLow | null {
+  if (!Number.isFinite(equity)) return null;
+  if (!low || low.tradingDay !== tradingDay) return { tradingDay, equity, at: now };
+  if (equity >= low.equity) return null;
+  const step = new Decimal(dayStartBalance).times(DAY_LOW_STEP_PERCENT).div(100).toNumber();
+  return force || low.equity - equity >= step || now - low.at >= DAY_LOW_INTERVAL_MS ? { tradingDay, equity, at: now } : null;
 }
 
 /** End-of-day records kept on the account (about three months of trading days). */
@@ -706,6 +728,8 @@ export function dayCloseRecord(state: AccountState, ctx: Pick<EngineContext, "sp
   try { closedResult = dailyResults(state, reset)[state.tradingDay] ?? 0; } catch { closedResult = cash(state.history.filter(d => tradingDayKey(d.closedAt, reset) === state.tradingDay).reduce((t, d) => t.plus(d.netProfit), new Decimal(0))); }
   const swapAtRollover = cash(swapEvents.reduce((t, e) => e.type === "swap_applied" ? t.plus(e.amount) : t, new Decimal(0)));
   const end = tradingDayStart(state.tradingDay, reset) + 86_400_000;
+  const stored = state.dayLow?.tradingDay === state.tradingDay ? state.dayLow : undefined;
+  const low = closingEquity !== null && (!stored || closingEquity < stored.equity) ? { equity: closingEquity, at: pricesAt ?? ctx.now } : stored ?? null;
   return {
     tradingDay: state.tradingDay,
     startBalance: state.dayStartBalance,
@@ -723,6 +747,9 @@ export function dayCloseRecord(state: AccountState, ctx: Pick<EngineContext, "sp
     status: state.status,
     recordedAt: ctx.now,
     late: ctx.now - end > DAY_CLOSE_LATE_MS,
+    lowestEquity: low ? low.equity : null,
+    lowestEquityAt: low ? low.at : null,
+    roomAtLow: low ? cash(new Decimal(low.equity).minus(Math.max(m.dailyLossFloor, m.maxLossFloor))) : null,
   };
 }
 

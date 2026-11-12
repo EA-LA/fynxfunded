@@ -363,6 +363,32 @@ export interface DayClose {
   recordedAt: number;
   /** True when it was written more than 5 minutes after the reset (the engine was not running then). */
   late: boolean;
+  /**
+   * Lowest equity the engine recorded during that day (see `DayLow`), the
+   * closing equity included; null when no priced equity was seen. Missing on
+   * records written before this was tracked.
+   */
+  lowestEquity?: number | null;
+  /** When that lowest equity was seen (ms); null with lowestEquity null. */
+  lowestEquityAt?: number | null;
+  /** lowestEquity minus the higher of the two loss levels: how close the day came to a limit. */
+  roomAtLow?: number | null;
+}
+
+/**
+ * Lowest equity seen during the current trading day. Write-light: a lower
+ * value is stored at once when it is at least DAY_LOW_STEP_PERCENT of the
+ * day's starting balance below the stored one, when the account is changing
+ * anyway (a fill, a close, a reset, a breach) or when it has no open trades;
+ * smaller dips at most once every DAY_LOW_INTERVAL_MS. Only tradable, fresh,
+ * fully priced equity counts.
+ */
+export interface DayLow {
+  /** Trading-day key the low belongs to. */
+  tradingDay: string;
+  equity: number;
+  /** When it was seen (ms). */
+  at: number;
 }
 
 export interface AccountState {
@@ -396,6 +422,8 @@ export interface AccountState {
    * first reset.
    */
   dayCloses?: DayClose[];
+  /** Lowest equity so far in the current trading day; missing until the first priced check of the day. */
+  dayLow?: DayLow;
   /** Price alerts waiting to fire (at most MAX_ALERTS). Missing until the first alert. */
   alerts?: PriceAlert[];
   /** Alerts that fired, newest first (at most TRIGGERED_ALERTS_KEPT). */

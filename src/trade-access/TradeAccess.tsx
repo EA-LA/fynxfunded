@@ -33,6 +33,7 @@ import { chosenLink, orderLabel } from './oco';
 import { expiryAt, expiryLabel, expiryValue, type ExpiryChoice } from './expiry';
 import TargetProgress from './TargetProgress';
 import DailyStatement from './DailyStatement';
+import { todayLow } from './daily-statement';
 import ContractSpec from './ContractSpec';
 import AlertsPanel from './AlertsPanel';
 import { firedSentence, newlyFired } from './alerts';
@@ -464,7 +465,7 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
         {engine.snapshot?.report && <TargetProgress report={engine.snapshot.report} />}
         <div className="rounded-md border p-3"><p className="flex items-center gap-1.5 text-sm font-semibold"><Mail size={15} aria-hidden="true" />Account email</p><p className="mt-1 text-xs text-muted-foreground">After payment and account creation we email a secure link to this account. Sign in with your FYNX login; no trading password is emailed.</p>{account && <p role="status" className="mt-2 text-xs">{accountEmailStatus(account.accountEmailStatus)}</p>}</div>
       </div>
-      {engine.snapshot && <div className="md:col-span-2"><DailyStatement accountId={engine.snapshot.state.accountId} closes={engine.snapshot.state.dayCloses} now={now} /></div>}
+      {engine.snapshot && <div className="md:col-span-2"><DailyStatement accountId={engine.snapshot.state.accountId} closes={engine.snapshot.state.dayCloses} now={now} today={todayLow(engine.snapshot.state, engine.snapshot.metrics)} /></div>}
     </div>}
   </div>;
 }
