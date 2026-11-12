@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-12 12:40 UTC — [autopilot] FYNX Trade: a warning before you reach a loss limit
+
+- New choice in the terminal's Alerts tab: "Equity comes close to a loss limit". Pick how close (10%, 25% or 50% of the loss allowance still left) and the box tells you what that means in dollars on your account today, and how much room you have right now.
+- When equity gets that close to the daily or the maximum loss limit, the trading server records a warning (at most once per limit per trading day), emails it once the email sender is connected, lists it in the Alerts tab and shows a pop-up if the terminal is open. A warning never opens or closes a trade.
+- It is off until the trader switches it on (your decision whether it should be on by default).
+- See it at https://www.fynxfunded.com/trade/access → Alerts tab (choices become active once the trading server is connected).
+
 ## 2026-11-12 08:40 UTC — [autopilot] FYNX Trade: lowest equity of each trading day
 
 - Added: the trading server now remembers each account's lowest equity during the trading day (the worst moment, not only how the day ended), on live prices only. This is the figure that shows how close a trader really came to the daily loss limit.

@@ -6,8 +6,9 @@ import type { CloseReason, EngineEvent, NoticeKind, NoticePrefs, Position } from
  * Trader notices: tells a trader by email (or any channel the host connects)
  * when something happens on the trading server while the terminal may be
  * closed — a price alert fires, a pending order fills, a stop loss or take
- * profit closes a trade, a loss limit is reached, the target is reached, or a
- * pending order expires.
+ * profit closes a trade, a loss limit is reached, equity comes close to a loss
+ * limit (the trader's chosen distance), the target is reached, or a pending
+ * order expires.
  *
  * The engine only decides WHAT to say (`noticesFor`, pure and tested) and the
  * trader's choices (`setNotices` in core, PATCH /v1/accounts/{id}/notices).
@@ -110,6 +111,12 @@ export function noticesFor(accountId: string, events: EngineEvent[], at: number,
         add("target", "first", "Profit target reached on your FYNX Trade account",
           `Your account reached its profit target with the minimum trading days and the best-day rule met (${utc(at)}).\nThis is not yet the official result: FYNX reviews the account before the next step.`);
         break;
+      case "limit_near": {
+        const w = e.warning, name = w.limit === "daily" ? "daily loss limit" : "maximum loss limit";
+        add("near", `${w.limit}:${w.tradingDay}`, `Close to your ${name}: ${money(w.room)} left`,
+          `At ${utc(w.at)} your equity was ${money(w.equity)}, which is ${money(w.room)} above the ${name} level of ${money(w.floor)} (${w.roomPercent.toFixed(1)}% of the ${money(w.allowance)} allowance left; you asked to be warned at ${w.thresholdPercent}% or less).\nIf equity reaches ${money(w.floor)}, the trading server closes all open trades and the account takes no new trades.${w.limit === "daily" ? "\nThe daily loss limit starts again at the next daily reset." : "\nThe maximum loss limit does not reset."}\n\nThis is only a warning: nothing was opened or closed. You get it at most once per limit per trading day.`);
+        break;
+      }
       case "order_expired": {
         const o = e.order;
         add("expiry", o.id, `Order expired: ${o.side} ${o.type} ${o.symbol} at ${px(o.symbol, o.price)}`,

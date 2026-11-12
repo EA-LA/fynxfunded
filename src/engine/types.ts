@@ -318,9 +318,44 @@ export interface TriggeredAlert extends PriceAlert {
  *  - limit:  the daily or maximum loss limit closed the account's trades
  *  - target: the profit target was reached with the minimum trading days
  *  - expiry: a pending order was cancelled at its expiry time
+ *  - near:   equity came within the trader's chosen distance of a loss limit
+ *            (once per limit per trading day; see NearLimitWarning)
  */
-export type NoticeKind = "alert" | "fill" | "stop" | "limit" | "target" | "expiry";
+export type NoticeKind = "alert" | "fill" | "stop" | "limit" | "target" | "expiry" | "near";
 export type NoticePrefs = Record<NoticeKind, boolean>;
+/**
+ * A change to the notice choices: kinds on/off, and optionally the distance
+ * for the "near a loss limit" warning as the share (whole percent, 5–90) of
+ * the limit's allowance still left.
+ */
+export type NoticeChange = Partial<NoticePrefs> & { nearPercent?: number };
+
+/**
+ * "Close to a loss limit" warning: equity came within the trader's chosen
+ * share of a limit's allowance. Written at most once per limit per trading
+ * day, only while the trader has the "near" notice on, on fresh and fully
+ * priced equity. It never trades.
+ */
+export interface NearLimitWarning {
+  /** Trading-day key it belongs to. */
+  tradingDay: string;
+  /** Which limit: the daily loss limit or the maximum loss limit. */
+  limit: "daily" | "maximum";
+  /** When it was seen (ms). */
+  at: number;
+  /** Equity at that moment. */
+  equity: number;
+  /** The limit's equity level. */
+  floor: number;
+  /** Equity minus that level: dollars left before the limit. */
+  room: number;
+  /** The limit's whole allowance in dollars (from the day's start balance or the starting balance). */
+  allowance: number;
+  /** room / allowance × 100, one decimal. */
+  roomPercent: number;
+  /** The trader's setting at that moment (warn at or below this share left). */
+  thresholdPercent: number;
+}
 
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";
 
@@ -435,6 +470,10 @@ export interface AccountState {
   archived?: ArchivedHistory;
   /** The trader's choices of which notices to receive (see NoticeKind). Missing means the defaults (DEFAULT_NOTICES). */
   notices?: Partial<NoticePrefs>;
+  /** Distance for the "near a loss limit" warning: share of the allowance left, whole percent (missing: DEFAULT_NEAR_LIMIT_PERCENT). */
+  nearLimitPercent?: number;
+  /** "Close to a loss limit" warnings, newest first (at most NEAR_WARNINGS_KEPT). Missing until the first one. */
+  nearWarnings?: NearLimitWarning[];
   breachReason?: CloseReason;
   /** When the profit target was first met with the minimum trading days (pending official review). */
   targetReachedAt?: number;
@@ -481,7 +520,8 @@ export type EngineEvent =
   | { type: "alert_added"; alert: PriceAlert }
   | { type: "alert_removed"; alertId: string }
   | { type: "alert_triggered"; alert: TriggeredAlert }
-  | { type: "notices_changed"; notices: NoticePrefs }
+  | { type: "notices_changed"; notices: NoticePrefs; nearLimitPercent?: number }
+  | { type: "limit_near"; warning: NearLimitWarning }
   | { type: "swap_applied"; positionId: string; amount: number; nights: number; at: number };
 
 export class EngineError extends Error {

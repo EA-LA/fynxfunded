@@ -80,9 +80,18 @@ export function fromFirestoreData(accountId: string, data: Record<string, unknow
   const ok = d.accountId === accountId && d.currency === "USD" && typeof d.status === "string" && STATUSES.has(d.status)
     && fin(d.balance) && fin(d.dayStartBalance) && typeof d.tradingDay === "string" && Number.isInteger(d.sequence)
     && isArr(d.tradingDays) && isArr(d.positions) && isArr(d.orders) && isArr(d.history);
-  if (!ok || (d.archived !== undefined && !validArchive(d.archived)) || (d.dayCloses !== undefined && !(isArr(d.dayCloses) && d.dayCloses.every(c => !!c && typeof c === "object" && typeof (c as Record<string, unknown>).tradingDay === "string"))) || (d.dayLow !== undefined && !validDayLow(d.dayLow))) throw new EngineError("bad_state", `Stored engine account ${accountId} is malformed; it was not loaded.`);
+  if (!ok || (d.archived !== undefined && !validArchive(d.archived)) || (d.dayCloses !== undefined && !(isArr(d.dayCloses) && d.dayCloses.every(c => !!c && typeof c === "object" && typeof (c as Record<string, unknown>).tradingDay === "string"))) || (d.dayLow !== undefined && !validDayLow(d.dayLow))
+    || (d.nearLimitPercent !== undefined && !(Number.isInteger(d.nearLimitPercent) && (d.nearLimitPercent as number) >= 5 && (d.nearLimitPercent as number) <= 90))
+    || (d.nearWarnings !== undefined && !(isArr(d.nearWarnings) && d.nearWarnings.every(validNearWarning)))) throw new EngineError("bad_state", `Stored engine account ${accountId} is malformed; it was not loaded.`);
   const { updatedAt: _ignored, ...state } = d;
   return state as unknown as AccountState;
+}
+
+function validNearWarning(v: unknown): boolean {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const x = v as Record<string, unknown>;
+  const fin = (n: unknown) => typeof n === "number" && Number.isFinite(n);
+  return typeof x.tradingDay === "string" && (x.limit === "daily" || x.limit === "maximum") && fin(x.at) && fin(x.equity) && fin(x.floor) && fin(x.room) && fin(x.allowance) && fin(x.roomPercent) && fin(x.thresholdPercent);
 }
 
 function validDayLow(v: unknown): boolean {

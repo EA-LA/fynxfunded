@@ -1,5 +1,5 @@
 import type { LocalVenue, Snapshot } from "./venue";
-import type { AlertRequest, CloseReason, Deal, HistoryPage, NoticePrefs, OrderRequest } from "./types";
+import type { AlertRequest, CloseReason, Deal, HistoryPage, NoticeChange, OrderRequest } from "./types";
 import type { OrderChange, PositionChange } from "./core";
 import { EngineError } from "./types";
 import type { MarketState, Schedule } from "./hours";
@@ -140,7 +140,7 @@ export interface TradingGateway {
   addAlert(accountId: string, alert: AlertRequest): Promise<Snapshot>;
   removeAlert(accountId: string, alertId: string): Promise<Snapshot>;
   /** Changes which notices the trader receives (only the given kinds). Never trades. */
-  setNotices(accountId: string, change: Partial<NoticePrefs>): Promise<Snapshot>;
+  setNotices(accountId: string, change: NoticeChange): Promise<Snapshot>;
 }
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -242,7 +242,7 @@ export class HttpGateway implements TradingGateway {
   cancelOrder(id: string, orderId: string) { return this.call<Snapshot>("DELETE", `/v1/accounts/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}`); }
   addAlert(id: string, alert: AlertRequest) { return this.call<Snapshot>("POST", `/v1/accounts/${encodeURIComponent(id)}/alerts`, alert); }
   removeAlert(id: string, alertId: string) { return this.call<Snapshot>("DELETE", `/v1/accounts/${encodeURIComponent(id)}/alerts/${encodeURIComponent(alertId)}`); }
-  setNotices(id: string, change: Partial<NoticePrefs>) { return this.call<Snapshot>("PATCH", `/v1/accounts/${encodeURIComponent(id)}/notices`, change); }
+  setNotices(id: string, change: NoticeChange) { return this.call<Snapshot>("PATCH", `/v1/accounts/${encodeURIComponent(id)}/notices`, change); }
   async archivedDeals(id: string, index: number) {
     if (!Number.isInteger(index) || index < 0) throw new EngineError("bad_request", "chunk must be a whole number from 0.");
     return parseHistoryPage(await this.call<unknown>("GET", `/v1/accounts/${encodeURIComponent(id)}/history?chunk=${index}`), id, index);
@@ -263,7 +263,7 @@ export class LocalGatewayAdapter implements TradingGateway {
   archivedDeals(id: string, index: number) { return this.venue.history(id, index); }
   addAlert(id: string, alert: AlertRequest) { return this.venue.addAlert(id, alert); }
   removeAlert(id: string, alertId: string) { return this.venue.removeAlert(id, alertId); }
-  setNotices(id: string, change: Partial<NoticePrefs>) { return this.venue.setNotices(id, change); }
+  setNotices(id: string, change: NoticeChange) { return this.venue.setNotices(id, change); }
 }
 
 /**

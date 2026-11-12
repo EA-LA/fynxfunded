@@ -32,7 +32,7 @@ describe("engine: notice choices", () => {
   it("has honest defaults and changes only the given kinds", () => {
     const s = newAccount("a", rules, T0);
     expect(noticePrefs(s)).toEqual(DEFAULT_NOTICES);
-    expect(DEFAULT_NOTICES).toEqual({ alert: true, fill: false, stop: false, limit: true, target: true, expiry: false });
+    expect(DEFAULT_NOTICES).toEqual({ alert: true, fill: false, stop: false, limit: true, target: true, expiry: false, near: false });
     const step = setNotices(s, { stop: true, alert: false });
     expect(step.state.notices).toEqual({ ...DEFAULT_NOTICES, stop: true, alert: false });
     expect(step.state.sequence).toBe(s.sequence + 1);

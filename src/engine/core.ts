@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, AlertRequest, CloseReason, DayClose, DayLow, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
+  AccountMetrics, AccountState, AlertRequest, CloseReason, DayClose, DayLow, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NearLimitWarning, NoticeChange, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -488,13 +488,53 @@ export function addAlert(state: AccountState, req: AlertRequest, ctx: EngineCont
   return { state: { ...state, alerts: [...alerts, alert], sequence: state.sequence + 1 }, events: [{ type: "alert_added", alert }] };
 }
 
-export const NOTICE_KINDS: readonly NoticeKind[] = ["alert", "fill", "stop", "limit", "target", "expiry"];
+export const NOTICE_KINDS: readonly NoticeKind[] = ["alert", "fill", "stop", "limit", "target", "expiry", "near"];
 /**
  * Defaults before a trader chooses: service messages about things the trader
  * asked for or must know (alerts they set, loss limits, the target) are on;
  * routine trade messages are off.
  */
-export const DEFAULT_NOTICES: NoticePrefs = { alert: true, fill: false, stop: false, limit: true, target: true, expiry: false };
+export const DEFAULT_NOTICES: NoticePrefs = { alert: true, fill: false, stop: false, limit: true, target: true, expiry: false, near: false };
+
+/**
+ * "Near a loss limit" warning distance used until the trader picks one: warn
+ * when 25% or less of a limit's allowance is left (e.g. $125 of a $500 daily
+ * allowance). The warning itself is off until the trader (or the owner, by
+ * changing DEFAULT_NOTICES.near) switches it on.
+ */
+export const DEFAULT_NEAR_LIMIT_PERCENT = 25;
+export const NEAR_LIMIT_MIN_PERCENT = 5;
+export const NEAR_LIMIT_MAX_PERCENT = 90;
+/** "Near a loss limit" warnings kept on the account, newest first. */
+export const NEAR_WARNINGS_KEPT = 20;
+
+/** The account's warning distance (share of the allowance left, whole percent). */
+export function nearLimitPercent(state: Pick<AccountState, "nearLimitPercent">): number {
+  const v = state.nearLimitPercent;
+  return typeof v === "number" && Number.isInteger(v) && v >= NEAR_LIMIT_MIN_PERCENT && v <= NEAR_LIMIT_MAX_PERCENT ? v : DEFAULT_NEAR_LIMIT_PERCENT;
+}
+
+/**
+ * The "close to a loss limit" warning to write after a priced equity check,
+ * or null. Pure; used by `tick`. Each limit warns at most once per trading
+ * day; when both are within the distance, the closer one (less room) goes
+ * first and the other follows on the next check.
+ */
+export function nearLimitCheck(state: AccountState, m: Pick<AccountMetrics, "equity" | "dailyLossFloor" | "maxLossFloor">, rules: Pick<RuleSet, "startingBalance">, now: number): NearLimitWarning | null {
+  if (state.status !== "active" || !noticePrefs(state).near || !Number.isFinite(m.equity)) return null;
+  const threshold = nearLimitPercent(state);
+  const warned = new Set((state.nearWarnings ?? []).filter(w => w.tradingDay === state.tradingDay).map(w => w.limit));
+  const candidates = ([
+    { limit: "daily" as const, floor: m.dailyLossFloor, allowance: cash(new Decimal(state.dayStartBalance).minus(m.dailyLossFloor)) },
+    { limit: "maximum" as const, floor: m.maxLossFloor, allowance: cash(new Decimal(rules.startingBalance).minus(m.maxLossFloor)) },
+  ]).filter(c => !warned.has(c.limit) && c.allowance > 0)
+    .map(c => ({ ...c, room: cash(new Decimal(m.equity).minus(c.floor)) }))
+    .map(c => ({ ...c, roomPercent: new Decimal(c.room).div(c.allowance).times(100).toDecimalPlaces(1).toNumber() }))
+    .filter(c => c.room > 0 && c.roomPercent <= threshold)
+    .sort((a, b) => a.room - b.room);
+  const c = candidates[0];
+  return c ? { tradingDay: state.tradingDay, limit: c.limit, at: now, equity: m.equity, floor: c.floor, room: c.room, allowance: c.allowance, roomPercent: c.roomPercent, thresholdPercent: threshold } : null;
+}
 
 /** The account's notice choices with the defaults filled in. */
 export function noticePrefs(state: Pick<AccountState, "notices">): NoticePrefs {
@@ -507,15 +547,20 @@ export function noticePrefs(state: Pick<AccountState, "notices">): NoticePrefs {
  * Changes which notices the trader receives. Only the given kinds change. It
  * never trades, so it works on any account status (also after a loss limit).
  */
-export function setNotices(state: AccountState, change: Partial<NoticePrefs>): Step {
+export function setNotices(state: AccountState, change: NoticeChange): Step {
   if (typeof change !== "object" || change === null || Array.isArray(change)) throw new EngineError("bad_notices", "Send the notices to change, e.g. { alert: true }.");
-  const keys = Object.keys(change);
-  if (!keys.length) throw new EngineError("bad_notices", "Nothing to change.");
+  const { nearPercent, ...kinds } = change;
+  const keys = Object.keys(kinds);
+  if (!keys.length && nearPercent === undefined) throw new EngineError("bad_notices", "Nothing to change.");
   const unknown = keys.filter(k => !(NOTICE_KINDS as readonly string[]).includes(k));
   if (unknown.length) throw new EngineError("bad_notices", `Unknown notice: ${unknown.join(", ")}.`);
-  if (keys.some(k => typeof change[k as NoticeKind] !== "boolean")) throw new EngineError("bad_notices", "Each notice is on (true) or off (false).");
-  const notices = { ...noticePrefs(state), ...change };
-  return { state: { ...state, notices, sequence: state.sequence + 1 }, events: [{ type: "notices_changed", notices }] };
+  if (keys.some(k => typeof kinds[k as NoticeKind] !== "boolean")) throw new EngineError("bad_notices", "Each notice is on (true) or off (false).");
+  if (nearPercent !== undefined && !(typeof nearPercent === "number" && Number.isInteger(nearPercent) && nearPercent >= NEAR_LIMIT_MIN_PERCENT && nearPercent <= NEAR_LIMIT_MAX_PERCENT)) {
+    throw new EngineError("bad_notices", `The warning distance is a whole percent from ${NEAR_LIMIT_MIN_PERCENT} to ${NEAR_LIMIT_MAX_PERCENT} (share of the loss allowance still left).`);
+  }
+  const notices = { ...noticePrefs(state), ...kinds };
+  const next: AccountState = { ...state, notices, ...(nearPercent !== undefined ? { nearLimitPercent: nearPercent } : {}), sequence: state.sequence + 1 };
+  return { state: next, events: [{ type: "notices_changed", notices, ...(nearPercent !== undefined ? { nearLimitPercent: nearPercent } : {}) }] };
 }
 
 /** Deletes a waiting price alert. Works on any account status (it only removes). */
@@ -638,6 +683,12 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   if (current.positions.every(p => { const q = ctx.quotes[p.symbol]; return !!q && ctx.now - q.time <= ctx.maxQuoteAgeMs; })) {
     const low = nextDayLow(current.dayLow, current.tradingDay, current.dayStartBalance, m.equity, ctx.now, current !== state || !current.positions.length || breach !== null);
     if (low) current = { ...current, dayLow: low, sequence: current.sequence === state.sequence ? current.sequence + 1 : current.sequence };
+    // "Close to a loss limit" warning (only with the trader's "near" notice on; once per limit per day).
+    const near = breach ? null : nearLimitCheck(current, m, ctx.rules, ctx.now);
+    if (near) {
+      current = { ...current, nearWarnings: [near, ...(current.nearWarnings ?? [])].slice(0, NEAR_WARNINGS_KEPT), sequence: current.sequence === state.sequence ? current.sequence + 1 : current.sequence };
+      events.push({ type: "limit_near", warning: near });
+    }
   }
   if (breach) {
     for (const p of current.positions) {

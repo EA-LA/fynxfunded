@@ -34,6 +34,7 @@ import { expiryAt, expiryLabel, expiryValue, type ExpiryChoice } from './expiry'
 import TargetProgress from './TargetProgress';
 import DailyStatement from './DailyStatement';
 import { todayLow } from './daily-statement';
+import { newlyWarned, warningKey, warningSentence } from './near-limit';
 import ContractSpec from './ContractSpec';
 import AlertsPanel from './AlertsPanel';
 import { firedSentence, newlyFired } from './alerts';
@@ -104,6 +105,15 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
     const fired = snap.state.triggeredAlerts;
     if (seenAlerts.current?.account !== snap.state.accountId) { seenAlerts.current = { account: snap.state.accountId, ids: new Set((fired ?? []).map(a => a.id)) }; return; }
     for (const a of newlyFired(fired, seenAlerts.current.ids)) toast(`Price alert: ${firedSentence(a, findPair(a.symbol)?.digits ?? 5)}`, { description: a.note });
+  }, [engine.snapshot]);
+  // "Close to a loss limit" warnings that arrive while the terminal is open pop up once.
+  const seenNear = useRef<{ account: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    const snap = engine.snapshot;
+    if (!snap) return;
+    const list = snap.state.nearWarnings;
+    if (seenNear.current?.account !== snap.state.accountId) { seenNear.current = { account: snap.state.accountId, ids: new Set((list ?? []).map(warningKey)) }; return; }
+    for (const w of newlyWarned(list, seenNear.current.ids)) toast(`Close to your ${w.limit === 'daily' ? 'daily' : 'maximum'} loss limit`, { description: warningSentence(w, ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) });
   }, [engine.snapshot]);
 
   // Terminal state

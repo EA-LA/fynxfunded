@@ -1,7 +1,7 @@
 import type { LocalVenue, Snapshot } from "./venue";
 import type { OrderChange, PositionChange } from "./core";
-import type { AlertRequest, NoticePrefs, OrderRequest } from "./types";
-import { NOTICE_KINDS } from "./core";
+import type { AlertRequest, NoticeChange, OrderRequest } from "./types";
+import { NEAR_LIMIT_MAX_PERCENT, NEAR_LIMIT_MIN_PERCENT, NOTICE_KINDS } from "./core";
 import { EngineError } from "./types";
 
 /**
@@ -102,15 +102,22 @@ export function parseOrderRequest(body: unknown, idempotencyKey?: string): Order
   return req;
 }
 
-/** Strictly reads a notices body: { alert?, fill?, stop?, limit?, target?, expiry? } with true/false values. */
-export function parseNotices(body: unknown): Partial<NoticePrefs> {
+/**
+ * Strictly reads a notices body: { alert?, fill?, stop?, limit?, target?,
+ * expiry?, near? } with true/false values, and optionally `nearPercent`
+ * (whole percent 5–90: warn when this share of a loss allowance is left).
+ */
+export function parseNotices(body: unknown): NoticeChange {
   if (!isObject(body)) throw new EngineError("bad_request", "Send the notices as a JSON object, e.g. { \"alert\": true }.");
   const keys = Object.keys(body);
-  const extra = keys.filter(k => !(NOTICE_KINDS as readonly string[]).includes(k));
+  const extra = keys.filter(k => k !== "nearPercent" && !(NOTICE_KINDS as readonly string[]).includes(k));
   if (extra.length) throw new EngineError("bad_request", `Unknown field: ${extra.join(", ")}.`);
   if (!keys.length) throw new EngineError("bad_request", "Nothing to change.");
-  if (keys.some(k => typeof body[k] !== "boolean")) throw new EngineError("bad_request", "Each notice must be true or false.");
-  return body as Partial<NoticePrefs>;
+  if (keys.some(k => k !== "nearPercent" && typeof body[k] !== "boolean")) throw new EngineError("bad_request", "Each notice must be true or false.");
+  if (body.nearPercent !== undefined && !(typeof body.nearPercent === "number" && Number.isInteger(body.nearPercent) && body.nearPercent >= NEAR_LIMIT_MIN_PERCENT && body.nearPercent <= NEAR_LIMIT_MAX_PERCENT)) {
+    throw new EngineError("bad_request", `nearPercent must be a whole number from ${NEAR_LIMIT_MIN_PERCENT} to ${NEAR_LIMIT_MAX_PERCENT}.`);
+  }
+  return body as NoticeChange;
 }
 
 /** Strictly reads a price alert body: { symbol, condition: "above" | "below", price, note? }. */
