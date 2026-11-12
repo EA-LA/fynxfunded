@@ -3,6 +3,7 @@ import { FOREX_HOURS, type Closure } from "./hours";
 import { checkAllowedOrigins } from "./http-adapter";
 import { EngineError, type SwapRates } from "./types";
 import { parseRateLimits, type RateLimits } from "./rate-limit";
+import { parseSignInGuard, type SignInGuardConfig } from "./sign-in-guard";
 
 /**
  * Reads the engine host's settings from environment variables, so the owner
@@ -22,6 +23,8 @@ import { parseRateLimits, type RateLimits } from "./rate-limit";
  * | FYNX_ENGINE_CLOSURES | [{"from":"2026-12-25T00:00:00Z","to":"2026-12-26T00:00:00Z","reason":"Christmas Day"}] | no |
  * | FYNX_ENGINE_BASE_PATH | /engine | no |
  * | FYNX_ENGINE_RATE_LIMITS | trade=20/2,reduce=100/20,read=120/10 or off | no (these defaults) |
+ * | FYNX_ENGINE_CLIENT_ADDRESS | x-forwarded-for (Cloud Run / load balancer), x-forwarded-for:2, socket | no (failed sign-in protection off until set) |
+ * | FYNX_ENGINE_SIGNIN_LIMIT | 30/300/900 or off | no (this default: 30 failed sign-ins in 300 s → refused 900 s) |
  */
 
 export interface EngineConfig {
@@ -29,6 +32,8 @@ export interface EngineConfig {
   http: { allowedOrigins: string[]; basePath?: string };
   /** Request limits per signed-in user, or false when switched off. */
   rateLimits: RateLimits | false;
+  /** Failed sign-in protection per visitor address, or null when off. */
+  signInGuard: SignInGuardConfig | null;
 }
 
 export const ENGINE_ENV = {
@@ -41,6 +46,8 @@ export const ENGINE_ENV = {
   closures: "FYNX_ENGINE_CLOSURES",
   basePath: "FYNX_ENGINE_BASE_PATH",
   rateLimits: "FYNX_ENGINE_RATE_LIMITS",
+  clientAddress: "FYNX_ENGINE_CLIENT_ADDRESS",
+  signInLimit: "FYNX_ENGINE_SIGNIN_LIMIT",
 } as const;
 
 type Env = Record<string, string | undefined>;
@@ -128,6 +135,8 @@ export function readEngineConfig(env: Env, pairs: PairLike[]): EngineConfig {
 
   const rate = parseRateLimits(env[ENGINE_ENV.rateLimits]);
   for (const p of rate.problems) problems.push(`${ENGINE_ENV.rateLimits}: ${p}`);
+  const signIn = parseSignInGuard(env[ENGINE_ENV.clientAddress], env[ENGINE_ENV.signInLimit]);
+  problems.push(...signIn.problems);
 
   const settings: VenueSettings & SpecOptions = {
     leverage, commissionPerLotPerSide, maxLots, maxQuoteAgeMs,
@@ -139,5 +148,5 @@ export function readEngineConfig(env: Env, pairs: PairLike[]): EngineConfig {
     try { buildSpecs(pairs, settings); } catch (e) { problems.push((e as Error).message); }
   }
   if (problems.length) throw new EngineError("bad_settings", `The trading engine is not configured yet:\n- ${problems.join("\n- ")}`);
-  return { settings, http: { allowedOrigins, ...(basePath ? { basePath } : {}) }, rateLimits: rate.limits };
+  return { settings, http: { allowedOrigins, ...(basePath ? { basePath } : {}) }, rateLimits: rate.limits, signInGuard: signIn.guard };
 }

@@ -2,6 +2,7 @@ import type { PairLike } from "./venue";
 import type { Quote } from "./types";
 import { readEngineConfig } from "./config";
 import { describeRateLimits } from "./rate-limit";
+import { describeSignInGuard } from "./sign-in-guard";
 import { createFeedFromEnv, readFeedConfig, type SocketFactory } from "./feed-config";
 import type { FeedHealth, RejectReason } from "./quote-feed";
 
@@ -33,6 +34,7 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
       s.hours && "closures" in s.hours && s.hours.closures?.length ? `${s.hours.closures.length} holiday/maintenance closure(s) entered.` : "No holiday closures entered (FYNX_ENGINE_CLOSURES); add the provider's calendar when you have it.",
       `Websites allowed to call the engine: ${c.http.allowedOrigins.join(", ")}.`,
       describeRateLimits(c.rateLimits) + (c.rateLimits && !env.FYNX_ENGINE_RATE_LIMITS?.trim() ? " (defaults; change with FYNX_ENGINE_RATE_LIMITS)" : ""),
+      describeSignInGuard(c.signInGuard),
     ] });
   } catch (e) {
     items.push({ name: "Trading settings", status: "missing", detail: lines(e) });

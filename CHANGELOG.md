@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12 20:30 UTC — [autopilot] Trading server: protection against password-guessing floods
+
+- The FYNX Trade server can now protect itself when someone keeps trying to sign in with wrong or stolen sign-in details: after 30 failed attempts from the same network within 5 minutes, that network is paused for 15 minutes and is told so in plain words ("Too many failed sign-ins from this network…"). Traders on other networks are not affected, and getting out of trades from a normal session is never slowed by this.
+- It switches on with one setting when you start the trading server (FYNX_ENGINE_CLIENT_ADDRESS=x-forwarded-for on Cloud Run); the readiness check (`npm run engine:check`) tells you whether it is on. Nothing changes on the live website until the trading server is connected.
+- Where to see it: https://www.fynxfunded.com/trade/access (terminal) once the trading server is connected; switch-on steps in docs/ENGINE-READINESS.md.
+
 ## 2026-11-12 16:21 UTC — [autopilot] Trading server: protection against request floods; close-to-limit warning on the dashboard
 
 - Added: the trading server now limits how many requests one signed-in trader can send in a short time (for example a stuck browser tab or a script sending hundreds of orders). Normal trading is never slowed: up to 20 orders or changes at once, then 2 per second; closing trades and cancelling orders get a much wider allowance (100 at once, 20 per second) so "Close all" and getting out always work. Anyone over the limit gets a plain message ("Too many orders or changes in a short time. Nothing was sent; try again in 1 second.") and nothing is recorded.

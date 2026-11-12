@@ -301,6 +301,32 @@ describe("engine host program (startEngineHost)", () => {
     expect(health.length).toBeGreaterThan(0);
     expect(health[0]).toMatchObject({ severity: "WARNING", priceFeed: false, execution: false });
   });
+
+  it("failed sign-in protection: off by default, on with FYNX_ENGINE_CLIENT_ADDRESS, refuses the address on a real port", async () => {
+    const off = deps({ docs: purchaseDocs(true) });
+    running = await startEngineHost(off.d);
+    expect(running.signInGuard).toBeNull();
+    expect(off.lines.map(l => JSON.parse(l)).find(l => l.message === "FYNX trading engine started.")).toMatchObject({ failedSignInProtection: "off (set FYNX_ENGINE_CLIENT_ADDRESS)" });
+    await running.stop();
+    running = null;
+
+    const { d, lines } = deps({ docs: purchaseDocs(true), env: { ...ENV, FYNX_ENGINE_CLIENT_ADDRESS: "socket", FYNX_ENGINE_SIGNIN_LIMIT: "3/60/120" } });
+    running = await startEngineHost(d);
+    expect(running.signInGuard).not.toBeNull();
+    expect(lines.map(l => JSON.parse(l)).find(l => l.message === "FYNX trading engine started.")).toMatchObject({ failedSignInProtection: "on (connection address)" });
+    const base = `http://127.0.0.1:${running.port}`;
+    for (let i = 0; i < 3; i++) {
+      expect((await fetch(`${base}/v1/accounts/${ID}`, { headers: { Origin: SITE, Authorization: "Bearer stolen" } })).status).toBe(401);
+    }
+    const refused = await fetch(`${base}/v1/accounts/${ID}`, { headers: { Origin: SITE, Authorization: "Bearer good-token" } });
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("retry-after")).toBe("120");
+    expect((await refused.json()).error.code).toBe("too_many_failed_sign_ins");
+    expect((await fetch(`${base}/healthz`)).status).toBe(200);
+    const warning = lines.map(l => JSON.parse(l)).find(l => l.message === "Too many failed sign-ins: address refused for a while.");
+    expect(warning).toMatchObject({ severity: "WARNING", address: "127.0.0.1", seconds: 120 });
+    expect(lines.join("\n")).not.toContain("stolen");
+  });
 });
 
 describe("npm run engine:build", () => {

@@ -1,5 +1,6 @@
 import type { EngineServer } from "./server";
 import { EngineError } from "./types";
+import { clientAddress, type ClientAddressMode, type SignInGuard } from "./sign-in-guard";
 
 /**
  * Puts the engine on a real HTTP server: node:http, Express, Cloud Run or a
@@ -23,6 +24,10 @@ import { EngineError } from "./types";
  *    checks: `{ ok, priceFeed, execution }`, nothing about any account.
  *  - Safe response headers (JSON, no caching, nosniff) and one log line per
  *    request (method, path, status, time, error code; never the token).
+ *  - Optional failed sign-in protection (`signInGuard`, sign-in-guard.ts):
+ *    too many 401 answers to one visitor address refuse that address for a
+ *    while (429 `too_many_failed_sign_ins`) before the body is read or the
+ *    token is checked. Health checks and browser preflights are never refused.
  */
 
 /** The parts of Node's IncomingMessage the adapter reads (Express/Firebase requests fit too). */
@@ -34,6 +39,8 @@ export interface NodeLikeRequest {
   body?: unknown;
   /** Raw body bytes (Firebase onRequest). */
   rawBody?: Uint8Array;
+  /** The TCP connection (node:http, Express, Firebase); read only for the sign-in guard's "socket" mode. */
+  socket?: { remoteAddress?: string | null } | null;
   [Symbol.asyncIterator]?(): AsyncIterator<Uint8Array | string>;
 }
 
@@ -63,6 +70,8 @@ export interface HttpAdapterOptions {
   healthPath?: string | null;
   log?: (entry: RequestLog) => void;
   clock?: () => number;
+  /** Failed sign-in protection per visitor address (off when absent). */
+  signInGuard?: { guard: SignInGuard; address: ClientAddressMode; onBlock?: (address: string) => void };
 }
 
 export const ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
@@ -190,12 +199,25 @@ export function createHttpHandler(engine: Pick<EngineServer, "handle" | "status"
 
       if (!(ALLOWED_METHODS as readonly string[]).includes(method)) return error(405, "method_not_allowed", `Use ${ALLOWED_METHODS.join(", ")}.`);
 
+      const guard = options.signInGuard;
+      const visitor = guard ? clientAddress(req, guard.address) : null;
+      if (guard && visitor) {
+        const g = guard.guard.check(visitor);
+        if ("retryAfterSeconds" in g) {
+          code = "too_many_failed_sign_ins";
+          const minutes = Math.ceil(g.retryAfterSeconds / 60);
+          const wait = g.retryAfterSeconds < 120 ? `${g.retryAfterSeconds} seconds` : `${minutes} minutes`;
+          return send(429, { error: { code, message: `Too many failed sign-ins from this network. Nothing was sent; sign in again and retry in ${wait}.`, retryAfterSeconds: g.retryAfterSeconds } }, { "Retry-After": String(g.retryAfterSeconds) });
+        }
+      }
+
       const body = method === "POST" || method === "PATCH" ? await readBody(req, limit) : undefined;
       const headers: Record<string, string | undefined> = {};
       for (const key of Object.keys(req.headers)) headers[key.toLowerCase()] = headerValue(req.headers, key.toLowerCase());
       const response = await engine.handle({ method, path: query ? `${path}?${query}` : path, headers, body });
       const err = (response.body as { error?: { code?: unknown } } | null)?.error;
       if (err && typeof err.code === "string") code = err.code;
+      if (guard && visitor && response.status === 401 && guard.guard.fail(visitor)) guard.onBlock?.(visitor);
       return send(response.status, response.body, response.headers);
     } catch (e) {
       if (e instanceof BodyError) return error(e.status, e.code, e.message);

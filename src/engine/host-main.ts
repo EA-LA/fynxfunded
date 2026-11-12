@@ -6,6 +6,7 @@ import { FirestoreAccountDirectory, type DirectoryFirestore, type DirectoryUser 
 import { catchUpLedger, EngineLedger, firestoreTradeWriter, type CatchUpReport, type FirestoreCreateLike } from "./ledger";
 import { EngineNotifier, firestoreMailSender, storePrefs } from "./notifier";
 import { createEngineServer, type EngineServer } from "./server";
+import { SignInGuard } from "./sign-in-guard";
 import { createHttpHandler, type NodeLikeRequest, type NodeLikeResponse } from "./http-adapter";
 import { engineChecklist, formatReport } from "./preflight";
 
@@ -70,6 +71,8 @@ export interface RunningHost {
    * with its report once the records are written, or null when it is off.
    */
   ledgerCatchUp: Promise<CatchUpReport | null>;
+  /** Failed sign-in protection (null when FYNX_ENGINE_CLIENT_ADDRESS is not set or the limit is off). */
+  signInGuard: SignInGuard | null;
   /** Stops taking requests, then stops the feed and timer and waits for trades/notices to be written. */
   stop(): Promise<void>;
 }
@@ -158,8 +161,15 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     clock: d.clock,
   });
 
+  const signInGuard = config.signInGuard ? new SignInGuard(config.signInGuard.limits, d.clock) : null;
   const handler = createHttpHandler(engine, {
     ...config.http, clock: d.clock,
+    ...(signInGuard && config.signInGuard ? {
+      signInGuard: {
+        guard: signInGuard, address: config.signInGuard.address,
+        onBlock: address => log("WARNING", "Too many failed sign-ins: address refused for a while.", { address, seconds: config.signInGuard!.limits.blockSeconds }),
+      },
+    } : {}),
     log: entry => { if (entry.status >= 500) log("ERROR", "Request failed.", { ...entry }); },
   });
   const server = await d.listen(handler, port);
@@ -174,6 +184,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     tradeCatchUp: catchUpDays ? `last ${catchUpDays} day(s)` : "off",
     allowedOrigins: config.http.allowedOrigins,
     requestLimits: config.rateLimits ? "on" : "off",
+    failedSignInProtection: config.signInGuard ? (config.signInGuard.address.from === "socket" ? "on (connection address)" : `on (X-Forwarded-For, ${config.signInGuard.address.trustedHops} hop(s))`) : "off (set FYNX_ENGINE_CLIENT_ADDRESS)",
   });
 
   // Catch-up: trades closed just before the last stop (or whose write failed) still reach the dashboard.
@@ -216,13 +227,14 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
       ...(s.ledger ? { tradesPending: s.ledger.pending, tradesFailed: s.ledger.failed.length } : {}),
       ...(s.notifier ? { noticesFailed: s.notifier.failed.length } : {}),
       ...(s.limits ? { requestsRefused: s.limits.refused.trade + s.limits.refused.reduce + s.limits.refused.read } : {}),
+      ...(signInGuard ? { signInRefused: signInGuard.health().refused, addressesBlocked: signInGuard.health().blockedNow } : {}),
     });
   }, every) : null;
   (timer as { unref?: () => void } | null)?.unref?.();
 
   let stopping: Promise<void> | null = null;
   return {
-    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp,
+    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard,
     stop() {
       stopRequested = true;
       stopping ??= (async () => {
