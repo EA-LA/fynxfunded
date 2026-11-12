@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-12 00:30 UTC — [autopilot] FYNX Trade: a daily statement for every account
+
+- Added: FYNX Trade now keeps a daily statement for each account, like a broker's end-of-day statement. When each trading day ends (22:00 UTC, the same moment the daily loss limit resets) the trading server writes down how the day ended: balance at the start and end, equity, trades closed and their result, the loss limit levels, how much room was left above them, what was held overnight and the overnight charge (swap). About three months are kept.
+- In the terminal's Account tab (https://www.fynxfunded.com/trade/access → Account): "Daily statement" with up/down days, net change, best and worst day, the closest the account came to a limit at a day's end, one row per day, and "Download daily statement (CSV)".
+- In the FYNX Funded account page (https://www.fynxfunded.com/dashboard/accounts → an account), the live FYNX Trade card shows the last 5 trading days.
+- Honest by design: if a price was missing, equity is left blank instead of guessed; if the server was not running at the reset, the day is marked with * and explained. Before the first reset it says when the first record will appear.
+- Ready for switch-on: nothing extra to plug in; this works as soon as the trading server runs.
+
 ## 2026-11-11 20:30 UTC — [autopilot] Trading engine: no trade lost after a restart; FYNX Trade page fixed on phones
 
 - Fixed: on phones, the FYNX Trade home page could be dragged sideways (the page was almost twice as wide as the screen because of a hidden label in the "All pairs" table). It now fits the screen exactly: https://www.fynxfunded.com/trade

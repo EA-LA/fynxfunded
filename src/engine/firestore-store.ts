@@ -80,7 +80,7 @@ export function fromFirestoreData(accountId: string, data: Record<string, unknow
   const ok = d.accountId === accountId && d.currency === "USD" && typeof d.status === "string" && STATUSES.has(d.status)
     && fin(d.balance) && fin(d.dayStartBalance) && typeof d.tradingDay === "string" && Number.isInteger(d.sequence)
     && isArr(d.tradingDays) && isArr(d.positions) && isArr(d.orders) && isArr(d.history);
-  if (!ok || (d.archived !== undefined && !validArchive(d.archived))) throw new EngineError("bad_state", `Stored engine account ${accountId} is malformed; it was not loaded.`);
+  if (!ok || (d.archived !== undefined && !validArchive(d.archived)) || (d.dayCloses !== undefined && !(isArr(d.dayCloses) && d.dayCloses.every(c => !!c && typeof c === "object" && typeof (c as Record<string, unknown>).tradingDay === "string")))) throw new EngineError("bad_state", `Stored engine account ${accountId} is malformed; it was not loaded.`);
   const { updatedAt: _ignored, ...state } = d;
   return state as unknown as AccountState;
 }

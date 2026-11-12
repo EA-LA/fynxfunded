@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Activity } from "lucide-react";
 import GlossaryTip from "@/components/GlossaryTip";
 import TargetProgress from "@/trade-access/TargetProgress";
+import DailyStatement from "@/trade-access/DailyStatement";
 import { engineLabel, type EngineHandle } from "@/trade-access/useEngine";
 import { liveAccountSummary, type LossRoom } from "@/trade-access/live-account";
 import { findPair } from "@/trade-access/instruments";
@@ -77,6 +78,7 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
       {s.positions.some(p => p.stopLoss === undefined) && <p className="mt-2 text-xs text-muted-foreground">A trade without a stop loss can lose until the loss limit closes the account.</p>}
     </div>}
     {snapshot.report && <TargetProgress report={snapshot.report} />}
+    <DailyStatement accountId={accountId} closes={snapshot.state.dayCloses} now={updatedAt ?? Date.now()} compact />
     <p className="text-xs text-muted-foreground">These are the figures the trading engine uses for your rules. The official result of an evaluation is confirmed by review. <Link to={terminal} className="underline">Trade or manage positions in FYNX Trade</Link></p>
   </section>;
 }

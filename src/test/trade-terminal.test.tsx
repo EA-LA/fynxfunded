@@ -248,7 +248,8 @@ describe("terminal connected to the engine", () => {
     const progress = await screen.findByTestId("target-progress");
     expect(progress).toHaveTextContent("Trading days1 of 5");
     expect(progress).toHaveTextContent("Still needed:");
-    expect(progress).toHaveTextContent("Close 1 open position.");
+    expect(progress).toHaveTextContent("Close 1 open position.");    // No daily reset yet on this account: the daily statement says when the first record comes.
+    expect(screen.getByTestId("daily-empty")).toHaveTextContent("The first one appears after the next reset");
   });
 });
 

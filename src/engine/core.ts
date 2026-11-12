@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import type {
-  AccountMetrics, AccountState, AlertRequest, CloseReason, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
+  AccountMetrics, AccountState, AlertRequest, CloseReason, DayClose, Deal, EngineEvent, EntryRisk, ExpiredOrder, InstrumentSpec, OcoCancelledOrder, OrderRequest, PendingOrder, Position, NoticeKind, NoticePrefs, PriceAlert, Quote, QuoteBook, RuleSet, Side, TargetReport, TriggeredAlert,
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
@@ -520,7 +520,8 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   const day = tradingDayKey(ctx.now, ctx.rules.resetHourUtc);
   if (day !== current.tradingDay) {
     const swaps = applySwaps(current, ctx, day);
-    current = { ...swaps.state, tradingDay: day, dayStartBalance: current.balance, sequence: current.sequence + 1 };
+    const closing = dayCloseRecord(current, ctx, swaps.events);
+    current = { ...swaps.state, tradingDay: day, dayStartBalance: current.balance, dayCloses: [closing, ...(current.dayCloses ?? [])].slice(0, DAY_CLOSES_KEPT), sequence: current.sequence + 1 };
     events.push(...swaps.events, { type: "day_reset", tradingDay: day, dayStartBalance: current.balance });
   }
   if (current.status !== "active") return { state: current, events };
@@ -638,6 +639,60 @@ export function rollovers(fromDay: string, toDay: string, resetHourUtc: number, 
     out.push({ at, nights: wd === 0 || wd === 6 ? 0 : wd === tripleWeekday ? 3 : 1 });
   }
   return out;
+}
+
+/** End-of-day records kept on the account (about three months of trading days). */
+export const DAY_CLOSES_KEPT = 66;
+/** A day close written later than this after the reset is marked `late`. */
+export const DAY_CLOSE_LATE_MS = 5 * 60_000;
+
+/** Start of trading day `day` (YYYY-MM-DD key) in ms. */
+export function tradingDayStart(day: string, resetHourUtc: number): number {
+  return Date.parse(`${day}T00:00:00Z`) + resetHourUtc * 3_600_000;
+}
+
+/**
+ * The record of how the account's stored trading day ended, taken just before
+ * the reset rolls it over. Pure; used by `tick`.
+ */
+export function dayCloseRecord(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes" | "rules" | "now">, swapEvents: readonly EngineEvent[] = []): DayClose {
+  const reset = ctx.rules.resetHourUtc;
+  const r = ctx.rules;
+  const m = {
+    dailyLossFloor: cash(new Decimal(state.dayStartBalance).times(new Decimal(1).minus(new Decimal(r.dailyLossPercent).div(100)))),
+    maxLossFloor: cash(new Decimal(r.startingBalance).times(new Decimal(1).minus(new Decimal(r.maxLossPercent).div(100)))),
+  };
+  let closingEquity: number | null = null, pricesAt: number | null = null;
+  if (!state.positions.length) closingEquity = state.balance;
+  else if (state.positions.every(p => ctx.quotes[p.symbol])) {
+    try {
+      closingEquity = metrics(state, ctx).equity;
+      pricesAt = Math.min(...state.positions.map(p => ctx.quotes[p.symbol]!.time));
+    } catch { closingEquity = null; }
+  }
+  const trades = state.history.filter(d => tradingDayKey(d.closedAt, reset) === state.tradingDay).length;
+  let closedResult = 0;
+  try { closedResult = dailyResults(state, reset)[state.tradingDay] ?? 0; } catch { closedResult = cash(state.history.filter(d => tradingDayKey(d.closedAt, reset) === state.tradingDay).reduce((t, d) => t.plus(d.netProfit), new Decimal(0))); }
+  const swapAtRollover = cash(swapEvents.reduce((t, e) => e.type === "swap_applied" ? t.plus(e.amount) : t, new Decimal(0)));
+  const end = tradingDayStart(state.tradingDay, reset) + 86_400_000;
+  return {
+    tradingDay: state.tradingDay,
+    startBalance: state.dayStartBalance,
+    closingBalance: state.balance,
+    closingEquity,
+    pricesAt,
+    closedResult,
+    trades,
+    dailyLossFloor: m.dailyLossFloor,
+    maxLossFloor: m.maxLossFloor,
+    roomAtClose: closingEquity === null ? null : cash(new Decimal(closingEquity).minus(Math.max(m.dailyLossFloor, m.maxLossFloor))),
+    openPositions: state.positions.length,
+    openLots: cash(state.positions.reduce((t, p) => t.plus(p.lots), new Decimal(0))),
+    swapAtRollover,
+    status: state.status,
+    recordedAt: ctx.now,
+    late: ctx.now - end > DAY_CLOSE_LATE_MS,
+  };
 }
 
 /** Charges (or pays) overnight swap on positions held through each reset between the stored trading day and `day`. */

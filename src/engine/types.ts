@@ -324,6 +324,47 @@ export type NoticePrefs = Record<NoticeKind, boolean>;
 
 export type AccountStatus = "active" | "passed" | "breached" | "disabled";
 
+/**
+ * What one trading day ended with, written by the engine at the daily reset
+ * (22:00 UTC by default). Figures come from the account itself; nothing is
+ * estimated. When the engine was not running at the reset, the record is
+ * written on the first check after it and `late` is true: balances are still
+ * exact, but the equity is taken at that later moment.
+ */
+export interface DayClose {
+  /** Trading-day key (YYYY-MM-DD) of the day that ended. */
+  tradingDay: string;
+  /** Balance at the start of that day (the daily loss limit is measured from it). */
+  startBalance: number;
+  /** Balance when the day ended (closed trades only). */
+  closingBalance: number;
+  /** Equity when the day ended (open trades at the last prices, swap included); null when an open trade had no price. */
+  closingEquity: number | null;
+  /** Oldest price time used for closingEquity (ms); null without open trades or without prices. */
+  pricesAt: number | null;
+  /** Net result of the trades closed that day (commission and swap included), archived trades included. */
+  closedResult: number;
+  /** Trades closed that day (from the deals still in the account history). */
+  trades: number;
+  /** Equity level of the daily loss limit that applied that day. */
+  dailyLossFloor: number;
+  /** Equity level of the maximum loss limit. */
+  maxLossFloor: number;
+  /** closingEquity minus the higher of the two floors; null without closingEquity. */
+  roomAtClose: number | null;
+  /** Positions held through the reset and their total lots. */
+  openPositions: number;
+  openLots: number;
+  /** Swap charged (negative) or paid on those positions at this reset, all nights included. */
+  swapAtRollover: number;
+  /** Account status when the day ended. */
+  status: AccountStatus;
+  /** When the record was written (ms). */
+  recordedAt: number;
+  /** True when it was written more than 5 minutes after the reset (the engine was not running then). */
+  late: boolean;
+}
+
 export interface AccountState {
   accountId: string;
   currency: "USD";
@@ -349,6 +390,12 @@ export interface AccountState {
    * first (at most OCO_CANCELLED_KEPT). Missing until the first one.
    */
   ocoCancelled?: OcoCancelledOrder[];
+  /**
+   * End-of-day records, newest first (at most DAY_CLOSES_KEPT): one per
+   * trading day the account was open at its daily reset. Missing until the
+   * first reset.
+   */
+  dayCloses?: DayClose[];
   /** Price alerts waiting to fire (at most MAX_ALERTS). Missing until the first alert. */
   alerts?: PriceAlert[];
   /** Alerts that fired, newest first (at most TRIGGERED_ALERTS_KEPT). */

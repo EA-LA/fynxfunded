@@ -130,7 +130,7 @@ describe("Live on FYNX Trade card", () => {
     expect(row).toHaveTextContent("EURUSD");
     expect(row).toHaveTextContent("1.07800");
     expect(row).toHaveTextContent("None"); // no take profit
-    expect(within(card).getByTestId("target-progress")).toHaveTextContent("Trading days");
+    expect(within(card).getByTestId("target-progress")).toHaveTextContent("Trading days");    expect(within(card).getByTestId("daily-statement")).toHaveTextContent("Recent trading days");
   });
 
   it("explains when the account can't be loaded from the engine", async () => {
