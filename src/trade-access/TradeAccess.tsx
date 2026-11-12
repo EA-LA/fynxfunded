@@ -41,6 +41,7 @@ import { spreadOf } from './contract-spec';
 import { FOREX_HOURS, marketState } from '@/engine/hours';
 import { closedSentence, localAt, pairMarket, untilLabel, useNow, type PairMarket } from './market-hours';
 import type { GatewayStatus } from '@/engine/gateway';
+import { metricsGaps } from './live-account';
 
 interface Account {
   accountId: string; challengeId: string; orderId: string; platform: string; status: string;
@@ -199,15 +200,21 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
 
 function AccountStrip({ account, loading, snapshot }: { account: Account | null; loading: boolean; snapshot: Snapshot | null }) {
   const m = snapshot?.metrics;
+  const gaps = m ? metricsGaps(m) : null;
   const tone = (v: number) => (v < 0 ? 'text-red-500' : v > 0 ? 'text-emerald-500' : '');
+  const wait = 'Waiting…';
+  const eq = !!gaps?.equityKnown, mg = eq && !!gaps?.marginKnown;
   const items: [string, string, string?][] = m
-    ? [['Balance', money(m.balance)], ['Equity', money(m.equity)], ['Floating P/L', money(m.floatingProfit), tone(m.floatingProfit)], ['Margin', money(m.margin)], ['Free margin', money(m.freeMargin)], ['Margin level', m.marginLevel === null ? '—' : `${m.marginLevel.toFixed(0)}%`], ['Room to loss limit', money(m.roomToFloor), m.roomToFloor < 0 ? 'text-red-500' : '']]
+    ? [['Balance', money(m.balance)], ['Equity', eq ? money(m.equity) : wait], ['Floating P/L', eq ? money(m.floatingProfit) : wait, eq ? tone(m.floatingProfit) : ''], ['Margin', gaps?.marginKnown ? money(m.margin) : wait], ['Free margin', mg ? money(m.freeMargin) : wait], ['Margin level', !mg ? wait : m.marginLevel === null ? '—' : `${m.marginLevel.toFixed(0)}%`], ['Room to loss limit', eq ? money(m.roomToFloor) : wait, eq && m.roomToFloor < 0 ? 'text-red-500' : '']]
     : account
       ? [['Balance', money(account.balance)], ['Equity', money(account.equity)], ['Floating P/L', money(account.equity - account.balance), tone(account.equity - account.balance)], ['Margin', money(0)], ['Free margin', money(account.equity)], ['Stage', `Phase ${account.currentPhase}`]]
       : [['Balance', '—'], ['Equity', '—'], ['Floating P/L', '—'], ['Margin', '—'], ['Free margin', '—'], ['Stage', loading ? 'Loading…' : 'No account']];
-  return <dl className="flex gap-px overflow-x-auto border-t bg-border text-xs" aria-label="Account summary">
-    {items.map(([label, value, t]) => <div key={label} className="min-w-[110px] flex-1 bg-card px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${t ?? ''}`}>{value}</dd></div>)}
-  </dl>;
+  return <div className="border-t">
+    <dl className="flex gap-px overflow-x-auto bg-border text-xs" aria-label="Account summary">
+      {items.map(([label, value, t]) => <div key={label} className="min-w-[110px] flex-1 bg-card px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${t ?? ''}`}>{value}</dd></div>)}
+    </dl>
+    {gaps?.message && <p role="status" data-testid="strip-prices-missing" className="bg-amber-500/10 px-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">{gaps.message}</p>}
+  </div>;
 }
 
 function MarketWatch({ selected, onSelect, status, quotes, now }: { selected: ForexPair; onSelect: (p: ForexPair) => void; status: GatewayStatus | null; quotes?: QuoteBook | null; now: number }) {
@@ -313,7 +320,10 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const f = ticketFigures({ pair, lots, slPips: sl, tpPips: tp, balance, dailyLossAmount, quotes: engine.snapshot?.quotes });
   // Leverage, commission and swap only from the trading server's published conditions.
   const conditions = engine.status?.instruments?.[pair.symbol] ?? null;
-  const costs = orderCosts({ pair, lots, conditions, quotes: engine.snapshot?.quotes, freeMargin: engine.snapshot?.metrics.freeMargin });
+  const gaps = engine.snapshot ? metricsGaps(engine.snapshot.metrics) : null;
+  const figuresKnown = !gaps?.missing.length;
+  // Free margin and room are only used while every open trade is valued.
+  const costs = orderCosts({ pair, lots, conditions, quotes: engine.snapshot?.quotes, freeMargin: figuresKnown ? engine.snapshot?.metrics.freeMargin : null });
   const notConnected = 'Shown once trading is connected';
   const calc = calculatorKind(pair);
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
@@ -357,7 +367,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       </div>
       <div className="mt-1.5 flex gap-1">{['0.01', '0.10', '0.50', '1.00'].map(v => <button key={v} type="button" onClick={() => setLotsText(v)} className={`flex-1 rounded border py-1 font-mono text-xs ${lotsText === v ? 'border-primary bg-primary/10' : 'hover:bg-secondary'}`}>{v}</button>)}</div>
       <p className="mt-1 text-[11px] text-muted-foreground">{lots ? `${f.units?.toLocaleString()} ${pair.base} · ${LOT_MIN}–${LOT_MAX} lots, step ${LOT_STEP}` : `Enter a volume from ${LOT_MIN} to ${LOT_MAX} lots.`}</p>
-      <TicketRiskSize pair={pair} slPips={sl} balance={balance} quotes={engine.snapshot?.quotes} roomToFloor={engine.snapshot?.metrics.roomToFloor} dailyLossAmount={dailyLossAmount} currentLots={lots} onUse={v => setLotsText(v.toFixed(2))} />
+      <TicketRiskSize pair={pair} slPips={sl} balance={balance} quotes={engine.snapshot?.quotes} roomToFloor={figuresKnown ? engine.snapshot?.metrics.roomToFloor : null} dailyLossAmount={dailyLossAmount} currentLots={lots} onUse={v => setLotsText(v.toFixed(2))} />
     </div>
 
     {type !== 'market' && <label className="text-xs text-muted-foreground">{type === 'limit' ? 'Limit' : 'Stop'} price
@@ -384,6 +394,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       {ocoPartner && <p className="mt-1 text-xs" data-testid="review-oco">Linked with {orderLabel(ocoPartner)}: if either fills, the other is cancelled.</p>}
       {type === 'market' && deviationPips !== null && quote && <p className="mt-1 text-xs" data-testid="review-protection">Price now {(review === 'buy' ? quote.ask : quote.bid).toFixed(pair.digits)} ({review === 'buy' ? 'ask' : 'bid'}). {review === 'buy' ? 'Highest' : 'Lowest'} fill accepted: {(review === 'buy' ? quote.ask + deviationPips * pair.pipSize : quote.bid - deviationPips * pair.pipSize).toFixed(pair.digits)}, counted from the price when you press Confirm.</p>}
       {costs.margin !== null && <p className="mt-1 text-xs" data-testid="review-costs">Margin {money(costs.margin)}{costs.freeMarginAfter !== null ? ` · free margin after ${money(costs.freeMarginAfter)}` : ''}{costs.commissionRoundTurn !== null ? ` · commission ${money(costs.commissionRoundTurn)} round turn` : ''}</p>}
+      {!figuresKnown && <p role="alert" className="mt-2 text-xs text-amber-700 dark:text-amber-300" data-testid="review-prices-missing">The trading server has no price yet for your open {gaps!.missing.join(', ')} trade{gaps!.missing.length === 1 ? '' : 's'}, so it cannot work out free margin and will refuse new orders for a moment. Try again shortly.</p>}
       {costs.notEnoughMargin && <p role="alert" className="mt-2 text-xs text-red-500" data-testid="margin-warning">Not enough free margin: this order needs {money(costs.margin!)} and the account has {money(engine.snapshot!.metrics.freeMargin)} free. The trading server will refuse it; lower the volume.</p>}
       {costs.volumeProblem && <p role="alert" className="mt-2 text-xs text-red-500" data-testid="volume-warning">{costs.volumeProblem} The trading server will refuse this volume.</p>}
       {deviation.ok === false && <p role="alert" className="mt-2 text-xs text-red-500">{deviation.error} Fix it or clear the field to send.</p>}

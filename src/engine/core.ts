@@ -85,13 +85,28 @@ export function tradingDayKey(now: number, resetHourUtc: number): string {
   return new Date(now - resetHourUtc * 3_600_000).toISOString().slice(0, 10);
 }
 
+/**
+ * Account figures at the current prices. Never throws for missing prices: an
+ * open position whose own price or dollar conversion is not in the quote book
+ * yet (e.g. right after a restart) is left out of the open P/L and listed in
+ * `unpriced`, and one whose margin cannot be valued is left out of the margin
+ * and listed in `marginUnpriced`. While either list is present the equity /
+ * margin figures are incomplete: `tick` waits before checking loss limits and
+ * `placeOrder` refuses new orders.
+ */
 export function metrics(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes" | "rules">): AccountMetrics {
   let floating = new Decimal(0), margin = new Decimal(0);
+  const unpriced = new Set<string>(), marginUnpriced = new Set<string>();
   for (const p of state.positions) {
     const s = spec(ctx, p.symbol), q = ctx.quotes[p.symbol];
-    if (q) floating = floating.plus(profitUsd(s, p.side, p.lots, p.entryPrice, closingPrice(p.side, q), ctx.quotes));
+    if (!q) unpriced.add(p.symbol);
+    else {
+      try { floating = floating.plus(profitUsd(s, p.side, p.lots, p.entryPrice, closingPrice(p.side, q), ctx.quotes)); }
+      catch (e) { if (!(e instanceof EngineError) || e.code !== "no_conversion") throw e; unpriced.add(p.symbol); }
+    }
     floating = floating.plus(p.swap ?? 0);
-    margin = margin.plus(marginUsd(s, p.lots, ctx.quotes));
+    try { margin = margin.plus(marginUsd(s, p.lots, ctx.quotes)); }
+    catch (e) { if (!(e instanceof EngineError) || e.code !== "no_conversion") throw e; marginUnpriced.add(p.symbol); }
   }
   const equity = cash(new Decimal(state.balance).plus(floating));
   const { rules } = ctx;
@@ -109,7 +124,14 @@ export function metrics(state: AccountState, ctx: Pick<EngineContext, "specs" | 
     maxLossFloor,
     roomToFloor: cash(new Decimal(equity).minus(Math.max(dailyLossFloor, maxLossFloor))),
     profitTargetBalance: rules.profitTargetPercent === null ? null : cash(new Decimal(rules.startingBalance).times(new Decimal(1).plus(new Decimal(rules.profitTargetPercent).div(100)))),
+    ...(unpriced.size ? { unpriced: [...unpriced].sort() } : {}),
+    ...(marginUnpriced.size ? { marginUnpriced: [...marginUnpriced].sort() } : {}),
   };
+}
+
+/** Symbols whose figures are missing from `m` (open P/L or margin), sorted; empty when everything is valued. */
+export function missingPrices(m: Pick<AccountMetrics, "unpriced" | "marginUnpriced">): string[] {
+  return [...new Set([...(m.unpriced ?? []), ...(m.marginUnpriced ?? [])])].sort();
 }
 
 function checkLots(s: InstrumentSpec, lots: number) {
@@ -219,6 +241,8 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   }
   const q = executableQuote(ctx, req.symbol);
   const m = metrics(state, ctx);
+  const missing = missingPrices(m);
+  if (missing.length) throw new EngineError("no_conversion", `Free margin cannot be worked out yet: the server has no price to value your open ${missing.join(", ")} trade${missing.length === 1 ? "" : "s"}. Try again in a moment. Nothing was sent.`);
   const required = marginUsd(s, req.lots, ctx.quotes);
   if (required > m.freeMargin) throw new EngineError("no_margin", `Not enough free margin: this order needs ${required.toFixed(2)} USD.`);
   if (req.type === "market") {
@@ -604,7 +628,11 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
   // market is closed its last price cannot be dealt on, so the check waits for
   // the first price after the reopen (and closes at that price if breached).
   if (current.positions.some(p => !tradable(p.symbol))) return { state: current, events };
+  // Equity is only known once every open position can be valued in dollars;
+  // until then (e.g. a conversion price not in yet after a restart) the check
+  // waits for the next round instead of deciding on a partial figure.
   const m = metrics(current, ctx);
+  if (m.unpriced?.length) return { state: current, events };
   const breach: CloseReason | null = m.equity <= m.maxLossFloor ? "maximum_loss_limit" : m.equity <= m.dailyLossFloor ? "daily_loss_limit" : null;
   if (breach) {
     for (const p of current.positions) {
@@ -666,8 +694,11 @@ export function dayCloseRecord(state: AccountState, ctx: Pick<EngineContext, "sp
   if (!state.positions.length) closingEquity = state.balance;
   else if (state.positions.every(p => ctx.quotes[p.symbol])) {
     try {
-      closingEquity = metrics(state, ctx).equity;
-      pricesAt = Math.min(...state.positions.map(p => ctx.quotes[p.symbol]!.time));
+      const m = metrics(state, ctx);
+      if (!m.unpriced?.length) {
+        closingEquity = m.equity;
+        pricesAt = Math.min(...state.positions.map(p => ctx.quotes[p.symbol]!.time));
+      }
     } catch { closingEquity = null; }
   }
   const trades = state.history.filter(d => tradingDayKey(d.closedAt, reset) === state.tradingDay).length;

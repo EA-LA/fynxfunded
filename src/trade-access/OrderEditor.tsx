@@ -53,6 +53,8 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
   const changed = Object.keys(change).length > 0;
   const outcome = (level: number | null) => (pair && price !== null && level !== null ? levelOutcome(pair, o.side, o.lots, price, level, snapshot.quotes) : null);
   const atStop = outcome(slValue), atTarget = outcome(tpValue);
+  // Room before the loss limit is only shown while every open trade has a price (see metricsGaps).
+  const roomKnown = !snapshot.metrics.unpriced?.length;
   const room = snapshot.metrics.roomToFloor;
   const id = `edit-${o.id}`;
 
@@ -104,7 +106,7 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
     <div className="space-y-1 md:col-span-4" aria-live="polite">
       {closed && hours && <p data-testid="editor-market-closed" role="note" className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-foreground">{closedSentence(o.symbol, hours, now)} You can prepare the change now; saving unlocks when the market opens. Cancelling the order works at any time.</p>}
       <p className="text-muted-foreground">{o.lots.toFixed(2)} lots · fills at the order price or the next available price. Volume and direction can't change: cancel and place a new order for that.</p>
-      {atStop?.dollars != null && atStop.dollars < 0 && -atStop.dollars > room && <p data-testid="order-stop-vs-room" className="text-red-500">This stop would lose {money(-atStop.dollars)}, more than the {money(room)} left before the loss limit: the account would be stopped out first.</p>}
+      {roomKnown && atStop?.dollars != null && atStop.dollars < 0 && -atStop.dollars > room && <p data-testid="order-stop-vs-room" className="text-red-500">This stop would lose {money(-atStop.dollars)}, more than the {money(room)} left before the loss limit: the account would be stopped out first.</p>}
       {errors.map(e => <p key={e} role="alert" className="text-red-500">{e}</p>)}
     </div>
   </form>;

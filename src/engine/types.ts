@@ -426,6 +426,15 @@ export interface AccountMetrics {
   /** Equity left before the closer of the two floors. */
   roomToFloor: number;
   profitTargetBalance: number | null;
+  /**
+   * Open positions' symbols whose profit/loss could not be valued in dollars
+   * (no price for the pair, or no conversion price yet). Present only when not
+   * empty; equity, free margin, margin level and room to floor then leave them
+   * out and are not complete.
+   */
+  unpriced?: string[];
+  /** Open positions' symbols whose margin could not be valued (no conversion price yet). Present only when not empty. */
+  marginUnpriced?: string[];
 }
 
 export type EngineEvent =

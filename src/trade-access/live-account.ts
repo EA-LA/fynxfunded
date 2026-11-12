@@ -1,5 +1,5 @@
-import { profitUsd } from "@/engine/core";
-import type { AccountStatus, InstrumentSpec, Position, QuoteBook, Side } from "@/engine/types";
+import { missingPrices, profitUsd } from "@/engine/core";
+import type { AccountMetrics, AccountStatus, InstrumentSpec, Position, QuoteBook, Side } from "@/engine/types";
 import type { Snapshot } from "@/engine/venue";
 import { CONTRACT_SIZE, findPair } from "./instruments";
 
@@ -15,6 +15,34 @@ export function positionProfitUsd(p: Pick<Position, "symbol" | "side" | "lots" |
   if (!pair || !q) return NaN;
   const current = closePrice(p.side, q);
   try { return profitUsd({ contractSize: CONTRACT_SIZE, quote: pair.quote } as InstrumentSpec, p.side, p.lots, p.entryPrice, current, quotes) + (p.swap ?? 0); } catch { return NaN; }
+}
+
+/**
+ * Which snapshot figures are complete. Right after the trading server restarts
+ * it may not have every price yet: an open trade it cannot value is left out of
+ * equity / margin, so those figures are shown as "waiting for prices" instead
+ * of a number that looks real but is not.
+ */
+export interface MetricsGaps {
+  /** Equity, open P/L, free margin, margin level and room to the limits are complete. */
+  equityKnown: boolean;
+  /** Margin (and so free margin) is complete. */
+  marginKnown: boolean;
+  /** Symbols of open trades still waiting for a price, sorted. */
+  missing: string[];
+  /** Plain sentence for the trader; "" when nothing is missing. */
+  message: string;
+}
+
+export function metricsGaps(m: Pick<AccountMetrics, "unpriced" | "marginUnpriced">): MetricsGaps {
+  const missing = missingPrices(m);
+  const equityKnown = !m.unpriced?.length, marginKnown = !m.marginUnpriced?.length;
+  return {
+    equityKnown,
+    marginKnown,
+    missing,
+    message: missing.length ? `Waiting for the trading server's price to value your open ${missing.join(", ")} trade${missing.length === 1 ? "" : "s"}: ${!equityKnown ? "equity, free margin and the room left before the loss limits" : "margin and free margin"} are shown once it arrives. New orders wait until then; loss limits are checked on the first complete price.` : "",
+  };
 }
 
 const closePrice = (side: Side, q: { bid: number; ask: number }) => (side === "buy" ? q.bid : q.ask);
@@ -46,6 +74,8 @@ export interface LiveAccountSummary {
   pendingOrders: number;
   /** Latest price time among the account's open symbols (ms); null when no open position has a price. */
   pricesAt: number | null;
+  /** Which figures are complete (see `metricsGaps`). */
+  gaps: MetricsGaps;
 }
 
 /** Status in words. "passed" in the engine means the target was met and waits for the official review. */
@@ -88,5 +118,6 @@ export function liveAccountSummary(snap: Snapshot, startingBalance?: number | nu
     positions,
     pendingOrders: state.orders.length,
     pricesAt: times.length ? Math.max(...times) : null,
+    gaps: metricsGaps(m),
   };
 }

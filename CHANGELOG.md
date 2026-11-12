@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-12 04:25 UTC — [autopilot] FYNX Trade: safe handling of missing prices after a restart
+
+- Fixed: when the trading server had just restarted and did not yet have every price, an account holding a trade on a cross pair (for example EUR/JPY before the USD/JPY price arrived) could not be loaded at all, and a winning trade with no price yet could have made a healthy account look like it broke a loss limit. The server now waits for the missing price before checking the loss limits.
+- FYNX Trade terminal (https://www.fynxfunded.com/trade/access): the account bar shows "Waiting…" for equity, free margin and room to the loss limit until every open trade has a price, with a line naming the pair; the order review explains that new orders wait a moment. Closing a trade that has a price still works.
+- FYNX Funded account page (https://www.fynxfunded.com/dashboard): the "Live on FYNX Trade" card shows "Waiting for prices" instead of a number that would look real but leave a trade out.
+- Ready for switch-on: nothing extra to plug in; it is part of the engine that starts with the price provider.
+
 ## 2026-11-12 00:30 UTC — [autopilot] FYNX Trade: a daily statement for every account
 
 - Added: FYNX Trade now keeps a daily statement for each account, like a broker's end-of-day statement. When each trading day ends (22:00 UTC, the same moment the daily loss limit resets) the trading server writes down how the day ended: balance at the start and end, equity, trades closed and their result, the loss limit levels, how much room was left above them, what was held overnight and the overnight charge (swap). About three months are kept.

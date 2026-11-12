@@ -43,8 +43,8 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
   const s = liveAccountSummary(snapshot, startingBalance);
   const tiles: [string, string, string, string?][] = [
     ["Balance", money(s.balance), "", "balance"],
-    ["Equity", money(s.equity), "", "equity"],
-    ["Open profit/loss", s.positions.length ? signed(s.floatingProfit) : "—", s.positions.length ? tone(s.floatingProfit) : ""],
+    ["Equity", s.gaps.equityKnown ? money(s.equity) : "Waiting for prices", "", "equity"],
+    ["Open profit/loss", !s.positions.length ? "—" : s.gaps.equityKnown ? signed(s.floatingProfit) : "Waiting for prices", s.positions.length && s.gaps.equityKnown ? tone(s.floatingProfit) : ""],
     ["Open trades", `${s.positions.length}${s.pendingOrders ? ` · ${s.pendingOrders} pending` : ""}`, ""],
   ];
   return <section className="premium-card space-y-4" data-testid="live-trade-card">
@@ -54,13 +54,14 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
       {updatedAt !== null && <> · updated {clock(updatedAt)}</>}
       {s.pricesAt !== null && <> · latest price {clock(s.pricesAt)}</>}
     </p>
+    {s.gaps.missing.length > 0 && <p role="status" data-testid="live-prices-missing" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-5">{s.gaps.message}</p>}
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">{tiles.map(([k, v, cls, term]) => <div key={k} className="rounded-lg border p-3">
       <dt className="flex items-center gap-1 text-xs text-muted-foreground">{k}{term && <GlossaryTip term={term} />}</dt>
       <dd className={`mt-1 text-xl font-bold ${cls}`}>{v}</dd>
     </div>)}</dl>
     <div className="grid gap-3 lg:grid-cols-2">
-      <Room title="Daily loss limit" term="daily-loss-limit" r={s.dailyLoss} closer={s.closerLimit === "daily"} what="today's allowance" />
-      <Room title="Maximum loss" term="maximum-loss" r={s.maxLoss} closer={s.closerLimit === "maximum"} what="the total allowance" />
+      <Room title="Daily loss limit" term="daily-loss-limit" r={s.dailyLoss} closer={s.closerLimit === "daily"} what="today's allowance" known={s.gaps.equityKnown} />
+      <Room title="Maximum loss" term="maximum-loss" r={s.maxLoss} closer={s.closerLimit === "maximum"} what="the total allowance" known={s.gaps.equityKnown} />
     </div>
     {s.positions.length > 0 && <div className="overflow-x-auto" data-testid="live-positions">
       <table className="w-full text-sm"><caption className="mb-2 text-left text-xs text-muted-foreground">Open trades right now</caption>
@@ -83,12 +84,12 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
   </section>;
 }
 
-function Room({ title, term, r, closer, what }: { title: string; term: string; r: LossRoom; closer: boolean; what: string }) {
-  const used = r.usedPercent;
+function Room({ title, term, r, closer, what, known = true }: { title: string; term: string; r: LossRoom; closer: boolean; what: string; known?: boolean }) {
+  const used = known ? r.usedPercent : null;
   const warn = used !== null && used >= 75;
   return <div className={`rounded-lg border p-3 ${closer ? "border-primary/50" : ""}`} data-testid={`room-${term}`}>
     <p className="flex items-center gap-1 text-xs text-muted-foreground">{title}<GlossaryTip term={term} />{closer && <span className="ml-auto rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">Closer limit</span>}</p>
-    <p className="mt-1 text-lg font-bold">{money(r.room)} left</p>
+    <p className="mt-1 text-lg font-bold">{known ? `${money(r.room)} left` : "Waiting for prices"}</p>
     {used !== null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-label={`${title}: share used`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(used)}><div className={`h-full ${warn ? "bg-red-500" : "bg-primary"}`} style={{ width: `${used}%` }} /></div>}
     <p className="mt-1.5 text-xs text-muted-foreground">Account closes if equity reaches {money(r.floor)}{used !== null ? ` · ${used.toFixed(1)}% of ${what} used` : ""}.</p>
   </div>;

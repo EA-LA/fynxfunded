@@ -137,7 +137,7 @@ import { act, waitFor } from "@testing-library/react";
 import { LocalVenue, MemoryStore, StaticQuoteFeed, buildSpecs } from "@/engine/venue";
 import { LocalGatewayAdapter } from "@/engine/gateway";
 import { FOREX_HOURS } from "@/engine/hours";
-import { archiveHistory } from "@/engine/core";
+import { archiveHistory, newAccount } from "@/engine/core";
 import { engineLabel } from "@/trade-access/useEngine";
 
 describe("terminal connected to the engine", () => {
@@ -476,5 +476,30 @@ describe("terminal paging through archived trades", () => {
     await act(async () => { fireEvent.click(within(history).getByRole("button", { name: "Show older trades" })); });
     expect(await within(history).findByTestId("archive-page-1")).toBeInTheDocument();
     expect(within(history).queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("terminal: figures while a price is missing", () => {
+  afterEach(cleanup);
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-04T10:00:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+  it("shows 'Waiting…' in the account bar instead of a partial equity, and says why", async () => {
+    const live = { ...account, tradingEnabled: true, tradingHoldReason: "" };
+    mocks.call.mockReset().mockImplementation(async (_n: string, d: { action: string }) => d.action === "list" ? { accounts: [live] } : live);
+    const now = Date.now();
+    const rules = { startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22, consistencyPercent: 40 };
+    const store = new MemoryStore();
+    // After a restart the server has the EUR/USD price but not the GBP/JPY one yet.
+    await store.save({ ...newAccount(live.accountId, rules, now - 3_600_000), positions: [{ id: "gj", symbol: "GBPJPY", side: "buy", lots: 1, entryPrice: 190, openedAt: now - 3_600_000, commission: 0 }] }, -1);
+    const venue = new LocalVenue(buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 50 }), store, async () => rules, { maxQuoteAgeMs: 60_000 });
+    venue.quotes.EURUSD = { symbol: "EURUSD", bid: 1.08, ask: 1.0801, time: now };
+    render(<MemoryRouter initialEntries={["/trade"]}><Routes><Route path="/trade" element={<TradeAccess gateway={new LocalGatewayAdapter(venue)} />} /></Routes></MemoryRouter>);
+    const note = await screen.findByTestId("strip-prices-missing");
+    expect(note).toHaveTextContent("Waiting for the trading server's price to value your open GBPJPY trade");
+    const strip = screen.getByLabelText("Account summary");
+    expect(strip).toHaveTextContent("Balance$10,000.00");
+    expect(strip).toHaveTextContent("EquityWaiting…");
+    expect(strip).toHaveTextContent("Room to loss limitWaiting…");
+    expect(strip).not.toHaveTextContent("Equity$");
   });
 });

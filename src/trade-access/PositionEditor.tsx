@@ -40,6 +40,8 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
   const atStop = outcome(slValue), atTarget = outcome(tpValue);
   const floating = useMemo(() => (pair && closing !== undefined ? levelOutcome(pair, p.side, p.lots, p.entryPrice, closing, snapshot.quotes).dollars : null), [pair, closing, p, snapshot.quotes]);
   const moreLoss = atStop?.dollars !== null && atStop?.dollars !== undefined && floating !== null ? Math.max(0, floating - atStop.dollars) : null;
+  // Room before the loss limit is only shown while every open trade has a price (see metricsGaps).
+  const roomKnown = !snapshot.metrics.unpriced?.length;
   const room = snapshot.metrics.roomToFloor;
   const canBreakEven = closing !== undefined && (p.side === 'buy' ? closing > p.entryPrice : closing < p.entryPrice);
   const id = `edit-${p.id}`;
@@ -100,7 +102,7 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
     <div className="space-y-1 md:col-span-3" aria-live="polite">
       {closed && hours && <p data-testid="editor-market-closed" role="note" className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-foreground">{closedSentence(p.symbol, hours, now)} You can prepare new levels now; saving and closing unlock when the market opens. Until then this position keeps its current stop loss, take profit and trailing stop.</p>}
       <p className="text-muted-foreground">Current {p.side === 'buy' ? 'bid' : 'ask'} (closing price): <span className="font-mono">{closing === undefined ? 'no price' : closing.toFixed(digits)}</span> · entry <span className="font-mono">{p.entryPrice.toFixed(digits)}</span> · {p.lots.toFixed(2)} lots</p>
-      {moreLoss !== null && moreLoss > 0 && <p data-testid="stop-vs-room" className={moreLoss > room ? 'text-red-500' : 'text-muted-foreground'}>From here the stop would cost up to {money(moreLoss)} more; room before the loss limit is {money(room)}.{moreLoss > room ? ' This stop is beyond the loss limit: the account would be stopped out first.' : ''}</p>}
+      {roomKnown && moreLoss !== null && moreLoss > 0 && <p data-testid="stop-vs-room" className={moreLoss > room ? 'text-red-500' : 'text-muted-foreground'}>From here the stop would cost up to {money(moreLoss)} more; room before the loss limit is {money(room)}.{moreLoss > room ? ' This stop is beyond the loss limit: the account would be stopped out first.' : ''}</p>}
       {errors.map(e => <p key={e} role="alert" className="text-red-500">{e}</p>)}
       {closeError && <p role="alert" className="text-red-500">{closeError}</p>}
     </div>
