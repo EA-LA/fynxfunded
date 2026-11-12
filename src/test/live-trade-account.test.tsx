@@ -133,6 +133,34 @@ describe("Live on FYNX Trade card", () => {
     expect(within(card).getByTestId("target-progress")).toHaveTextContent("Trading days");    expect(within(card).getByTestId("daily-statement")).toHaveTextContent("Recent trading days");
   });
 
+  it("says the close-to-limit warning is off, with a way to turn it on", async () => {
+    const { venue } = await venueWithTrade();
+    render(<Harness gateway={new LocalGatewayAdapter(venue)} />);
+    const status = await screen.findByTestId("live-near-status");
+    expect(status).toHaveTextContent("Close-to-limit warning is off.");
+    expect(within(status).getByRole("link", { name: /Turn it on in FYNX Trade/ })).toHaveAttribute("href", "/trade/access?account=acc-1");
+    expect(screen.queryByTestId("live-near-warnings")).toBeNull();
+  });
+
+  it("shows today's close-to-limit warning next to the lowest equity, from the engine's own record", async () => {
+    const { venue, feed } = await venueWithTrade({});
+    await venue.setNotices("acc-1", { near: true });
+    render(<Harness gateway={new LocalGatewayAdapter(venue)} />);
+    expect(await screen.findByTestId("live-near-status")).toHaveTextContent("Close-to-limit warning: on, at 25% of a loss allowance left. No warning so far today.");
+    // 1 lot bought at 1.0801 without a stop; bid 1.0763 → equity $9,616.50, $116.50 above the $9,500 daily level (23.3% of $500).
+    feed.push({ symbol: "EURUSD", bid: 1.0763, ask: 1.0764, time: Date.now() });
+    expect((await venue.snapshot("acc-1")).state.nearWarnings?.[0]).toMatchObject({ limit: "daily", room: 116.5 });
+    cleanup();
+    render(<Harness gateway={new LocalGatewayAdapter(venue)} />);
+    const box = await screen.findByTestId("live-near-warnings");
+    expect(box).toHaveTextContent("Close to a loss limit today");
+    expect(box).toHaveTextContent("Daily loss limit: $116.50 left (23.3% of $500.00)");
+    expect(box).toHaveTextContent("equity $9,616.50");
+    expect(box).toHaveTextContent("Warned when 25% or less of a limit's allowance is left.");
+    expect(screen.queryByTestId("live-near-status")).toBeNull();
+    expect(screen.getByTestId("daily-today-low")).toBeInTheDocument();
+  });
+
   it("explains when the account can't be loaded from the engine", async () => {
     const { venue } = await venueWithTrade();
     const gateway = new LocalGatewayAdapter(venue);

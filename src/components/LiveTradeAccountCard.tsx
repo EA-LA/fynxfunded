@@ -8,6 +8,9 @@ import { todayLow } from "@/trade-access/daily-statement";
 import { engineLabel, type EngineHandle } from "@/trade-access/useEngine";
 import { liveAccountSummary, type LossRoom } from "@/trade-access/live-account";
 import { findPair } from "@/trade-access/instruments";
+import { todaysWarnings, warningSentence } from "@/trade-access/near-limit";
+import { nearLimitPercent, noticePrefs } from "@/engine/core";
+import type { AccountState } from "@/engine/types";
 
 const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
 const signed = (n: number) => (n > 0 ? `+${money(n)}` : money(n));
@@ -80,9 +83,32 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
       {s.positions.some(p => p.stopLoss === undefined) && <p className="mt-2 text-xs text-muted-foreground">A trade without a stop loss can lose until the loss limit closes the account.</p>}
     </div>}
     {snapshot.report && <TargetProgress report={snapshot.report} />}
+    <NearLimitToday state={snapshot.state} terminal={terminal} />
     <DailyStatement accountId={accountId} closes={snapshot.state.dayCloses} now={updatedAt ?? Date.now()} compact today={todayLow(snapshot.state, snapshot.metrics)} />
     <p className="text-xs text-muted-foreground">These are the figures the trading engine uses for your rules. The official result of an evaluation is confirmed by review. <Link to={terminal} className="underline">Trade or manage positions in FYNX Trade</Link></p>
   </section>;
+}
+
+/**
+ * Today's "close to a loss limit" warnings (the same ones the engine emails and
+ * the terminal pops up), or where the warning stands when there is none.
+ */
+function NearLimitToday({ state, terminal }: { state: AccountState; terminal: string }) {
+  if (state.status !== "active") return null;
+  const on = noticePrefs(state).near;
+  const percent = nearLimitPercent(state);
+  const warnings = todaysWarnings(state);
+  const local = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (warnings.length) return <div role="status" data-testid="live-near-warnings" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-5">
+    <p className="font-semibold">Close to a loss limit today</p>
+    <ul className="mt-1 space-y-0.5">{warnings.map(w => <li key={w.limit}>{warningSentence(w, local)} (your time).</li>)}</ul>
+    <p className="mt-1 text-muted-foreground">Warned when {percent}% or less of a limit's allowance is left. Check open trades and stops before trading on.</p>
+  </div>;
+  return <p className="text-xs text-muted-foreground" data-testid="live-near-status">
+    {on
+      ? <>Close-to-limit warning: on, at {percent}% of a loss allowance left. No warning so far today.</>
+      : <>Close-to-limit warning is off. <Link to={terminal} className="underline">Turn it on in FYNX Trade (Alerts tab)</Link> to be told before a loss limit is reached.</>}
+  </p>;
 }
 
 function Room({ title, term, r, closer, what, known = true }: { title: string; term: string; r: LossRoom; closer: boolean; what: string; known?: boolean }) {

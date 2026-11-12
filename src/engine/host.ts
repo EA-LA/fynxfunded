@@ -3,6 +3,7 @@ import type { OrderChange, PositionChange } from "./core";
 import type { AlertRequest, NoticeChange, OrderRequest } from "./types";
 import { NEAR_LIMIT_MAX_PERCENT, NEAR_LIMIT_MIN_PERCENT, NOTICE_KINDS } from "./core";
 import { EngineError } from "./types";
+import { requestClass, type RequestLimiter } from "./rate-limit";
 
 /**
  * Server-side skeleton for the HTTP contract in docs/ENGINE-READINESS.md.
@@ -35,6 +36,8 @@ export interface HostRequest {
 export interface HostResponse {
   status: number;
   body: unknown;
+  /** Extra response headers (e.g. Retry-After on 429). */
+  headers?: Record<string, string>;
 }
 
 export interface HostOptions {
@@ -54,12 +57,18 @@ export interface HostOptions {
    * step. Opening places no order. Set false if accounts are created elsewhere.
    */
   openOnFirstVisit?: boolean;
+  /**
+   * Request limits per signed-in user (src/engine/rate-limit.ts). Checked right
+   * after the sign-in, before anything reaches the venue; a refused request is
+   * 429 `rate_limited` with `retryAfterSeconds` and changes nothing.
+   */
+  limiter?: RequestLimiter;
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
   not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404, no_alert: 404,
-  method_not_allowed: 405, conflict: 409, price_moved: 409, bad_request: 400,
+  method_not_allowed: 405, conflict: 409, price_moved: 409, bad_request: 400, rate_limited: 429,
 };
 
 const fail = (code: string, message: string): HostResponse => ({ status: STATUS_BY_CODE[code] ?? 422, body: { error: { code, message } } });
@@ -191,6 +200,18 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     if (!token) return fail("unauthorized", "Sign in again to trade.");
     const userId = await opts.verifyToken(token);
     if (!userId) return fail("unauthorized", "Sign in again to trade.");
+    if (opts.limiter) {
+      const cls = requestClass(method, path);
+      const r = opts.limiter.take(userId, cls);
+      if (!r.ok) {
+        const wait = r.retryAfterSeconds ?? 1;
+        const what = cls === "read" ? "Too many requests in a short time" : cls === "reduce" ? "Too many close or cancel requests in a short time" : "Too many orders or changes in a short time";
+        return {
+          status: 429, headers: { "Retry-After": String(wait) },
+          body: { error: { code: "rate_limited", message: `${what}. Nothing was sent; try again in ${wait} second${wait === 1 ? "" : "s"}.`, retryAfterSeconds: wait } },
+        };
+      }
+    }
 
     if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } } : fail("method_not_allowed", "Use GET.");
 

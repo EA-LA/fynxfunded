@@ -140,7 +140,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     onError: (e, info) => log("WARNING", "Trade record not written yet; retrying.", { account: info.engineAccountId, deal: info.dealId, attempt: info.attempt, error: errorText(e) }),
   });
   const engine = createEngineServer({
-    pairs: d.pairs, settings: config.settings, feed, store,
+    pairs: d.pairs, settings: config.settings, feed, store, rateLimits: config.rateLimits,
     ...directory.engineOptions(),
     verifyToken: async token => {
       try { return (await d.verifyIdToken(token)).uid || null; } catch { return null; }
@@ -173,6 +173,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     emailNotices: emailNotices ? "on (mail collection)" : "off",
     tradeCatchUp: catchUpDays ? `last ${catchUpDays} day(s)` : "off",
     allowedOrigins: config.http.allowedOrigins,
+    requestLimits: config.rateLimits ? "on" : "off",
   });
 
   // Catch-up: trades closed just before the last stop (or whose write failed) still reach the dashboard.
@@ -214,6 +215,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
       priceFeed: s.priceFeed, execution: s.execution, watched: s.runner.watched,
       ...(s.ledger ? { tradesPending: s.ledger.pending, tradesFailed: s.ledger.failed.length } : {}),
       ...(s.notifier ? { noticesFailed: s.notifier.failed.length } : {}),
+      ...(s.limits ? { requestsRefused: s.limits.refused.trade + s.limits.refused.reduce + s.limits.refused.read } : {}),
     });
   }, every) : null;
   (timer as { unref?: () => void } | null)?.unref?.();

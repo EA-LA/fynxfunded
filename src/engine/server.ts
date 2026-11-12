@@ -4,6 +4,7 @@ import { EngineRunner, executionMessage, type RunnerHealth, type RunnerOptions }
 import type { EngineEvent, RuleSet } from "./types";
 import type { EngineLedger, LedgerHealth } from "./ledger";
 import type { EngineNotifier, NotifierHealth } from "./notifier";
+import { DEFAULT_RATE_LIMITS, RequestLimiter, type LimiterHealth, type RateLimits } from "./rate-limit";
 
 /**
  * Everything a trading server needs, wired in one call ("add gas and it runs").
@@ -55,6 +56,11 @@ export interface EngineServerOptions {
    * GET /v1/status says `notices: true` and the terminal lets traders choose.
    */
   notifier?: EngineNotifier;
+  /**
+   * Request limits per signed-in user (src/engine/rate-limit.ts). Default
+   * DEFAULT_RATE_LIMITS; `false` turns them off (not recommended in production).
+   */
+  rateLimits?: RateLimits | false;
   /** Timer step tuning and error reporting (intervalMs, idleEveryMs, onError…). */
   runner?: Omit<RunnerOptions, "venue" | "accounts" | "ready" | "clock">;
   clock?: () => number;
@@ -70,6 +76,8 @@ export interface EngineServerStatus {
   ledger?: LedgerHealth;
   /** Notice sender health when a notifier is connected (sent, switched off, failed…). */
   notifier?: NotifierHealth;
+  /** Requests refused for being too many (absent when limits are off). */
+  limits?: LimiterHealth;
 }
 
 export interface EngineServer {
@@ -96,13 +104,14 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
   if (o.onEvents) venue.onEvents(o.onEvents);
   if (o.ledger) venue.onEvents(o.ledger.listener);
   if (o.notifier) venue.onEvents(o.notifier.listener);
+  const limiter = o.rateLimits === false ? null : new RequestLimiter(o.rateLimits ?? DEFAULT_RATE_LIMITS, clock);
   let disconnect: (() => void) | null = null, offQuote: (() => void) | null = null;
 
   const status = (): EngineServerStatus => {
     const priceFeed = priceFeedLive();
     const health = runner.health();
     const base = { priceFeed, execution: priceFeed && health.healthy, message: executionMessage(priceFeed, health), runner: health };
-    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}) };
+    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}), ...(limiter ? { limits: limiter.health() } : {}) };
   };
 
   return {
@@ -110,6 +119,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
     async handle(request) {
       const response = await handleEngineRequest(request, {
         venue, verifyToken: o.verifyToken, canAccess: o.canAccess, tradingEnabled: o.tradingEnabled, openOnFirstVisit: o.openOnFirstVisit,
+        ...(limiter ? { limiter } : {}),
         status: () => { const s = status(); return { priceFeed: s.priceFeed, execution: s.execution, message: s.message, ...(o.notifier ? { notices: true } : {}) }; },
       });
       // An account that just placed or changed something (or set a price alert) is checked every round from now on.

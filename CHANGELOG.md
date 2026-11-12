@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-12 16:21 UTC — [autopilot] Trading server: protection against request floods; close-to-limit warning on the dashboard
+
+- Added: the trading server now limits how many requests one signed-in trader can send in a short time (for example a stuck browser tab or a script sending hundreds of orders). Normal trading is never slowed: up to 20 orders or changes at once, then 2 per second; closing trades and cancelling orders get a much wider allowance (100 at once, 20 per second) so "Close all" and getting out always work. Anyone over the limit gets a plain message ("Too many orders or changes in a short time. Nothing was sent; try again in 1 second.") and nothing is recorded.
+- The limits can be changed with one setting (FYNX_ENGINE_RATE_LIMITS) and are listed in the engine readiness check; refused requests are counted in the server's health line.
+- Added: the "Live on FYNX Trade" card in the dashboard account page now shows today's close-to-a-loss-limit warning (how many dollars were left, the share of the allowance, the time and the equity), right above the lowest equity of the day. With no warning it says whether the warning is on and at which distance, or how to switch it on in FYNX Trade.
+- See it at https://www.fynxfunded.com/dashboard/accounts (open a FYNX Trade account; figures appear once the trading server is connected).
+
 ## 2026-11-12 12:40 UTC — [autopilot] FYNX Trade: a warning before you reach a loss limit
 
 - New choice in the terminal's Alerts tab: "Equity comes close to a loss limit". Pick how close (10%, 25% or 50% of the loss allowance still left) and the box tells you what that means in dollars on your account today, and how much room you have right now.

@@ -145,8 +145,9 @@ export function createHttpHandler(engine: Pick<EngineServer, "handle" | "status"
     let path = rawPath;
     let code: string | undefined;
 
-    const send = (status: number, body?: unknown) => {
+    const send = (status: number, body?: unknown, extra?: Record<string, string>) => {
       res.statusCode = status;
+      for (const [name, value] of Object.entries(extra ?? {})) if (/^[A-Za-z-]{1,40}$/.test(name)) res.setHeader(name, value);
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("X-Content-Type-Options", "nosniff");
       if (body === undefined) res.end();
@@ -195,7 +196,7 @@ export function createHttpHandler(engine: Pick<EngineServer, "handle" | "status"
       const response = await engine.handle({ method, path: query ? `${path}?${query}` : path, headers, body });
       const err = (response.body as { error?: { code?: unknown } } | null)?.error;
       if (err && typeof err.code === "string") code = err.code;
-      return send(response.status, response.body);
+      return send(response.status, response.body, response.headers);
     } catch (e) {
       if (e instanceof BodyError) return error(e.status, e.code, e.message);
       return error(500, "server_error", "The trading server had a problem. Refresh to see whether the request went through.");

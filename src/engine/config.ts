@@ -2,6 +2,7 @@ import { buildSpecs, type PairLike, type SpecOptions, type VenueSettings } from 
 import { FOREX_HOURS, type Closure } from "./hours";
 import { checkAllowedOrigins } from "./http-adapter";
 import { EngineError, type SwapRates } from "./types";
+import { parseRateLimits, type RateLimits } from "./rate-limit";
 
 /**
  * Reads the engine host's settings from environment variables, so the owner
@@ -20,11 +21,14 @@ import { EngineError, type SwapRates } from "./types";
  * | FYNX_ENGINE_SWAP | {"EURUSD":{"longPerLot":-6.2,"shortPerLot":1.1}} | no (no swap) |
  * | FYNX_ENGINE_CLOSURES | [{"from":"2026-12-25T00:00:00Z","to":"2026-12-26T00:00:00Z","reason":"Christmas Day"}] | no |
  * | FYNX_ENGINE_BASE_PATH | /engine | no |
+ * | FYNX_ENGINE_RATE_LIMITS | trade=20/2,reduce=100/20,read=120/10 or off | no (these defaults) |
  */
 
 export interface EngineConfig {
   settings: VenueSettings & SpecOptions;
   http: { allowedOrigins: string[]; basePath?: string };
+  /** Request limits per signed-in user, or false when switched off. */
+  rateLimits: RateLimits | false;
 }
 
 export const ENGINE_ENV = {
@@ -36,6 +40,7 @@ export const ENGINE_ENV = {
   swap: "FYNX_ENGINE_SWAP",
   closures: "FYNX_ENGINE_CLOSURES",
   basePath: "FYNX_ENGINE_BASE_PATH",
+  rateLimits: "FYNX_ENGINE_RATE_LIMITS",
 } as const;
 
 type Env = Record<string, string | undefined>;
@@ -121,6 +126,9 @@ export function readEngineConfig(env: Env, pairs: PairLike[]): EngineConfig {
   const basePath = env[ENGINE_ENV.basePath]?.trim() || undefined;
   if (basePath && !/^\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(basePath)) problems.push(`${ENGINE_ENV.basePath} must look like /engine.`);
 
+  const rate = parseRateLimits(env[ENGINE_ENV.rateLimits]);
+  for (const p of rate.problems) problems.push(`${ENGINE_ENV.rateLimits}: ${p}`);
+
   const settings: VenueSettings & SpecOptions = {
     leverage, commissionPerLotPerSide, maxLots, maxQuoteAgeMs,
     ...(closures && closures.length ? { hours: { ...FOREX_HOURS, closures } } : {}),
@@ -131,5 +139,5 @@ export function readEngineConfig(env: Env, pairs: PairLike[]): EngineConfig {
     try { buildSpecs(pairs, settings); } catch (e) { problems.push((e as Error).message); }
   }
   if (problems.length) throw new EngineError("bad_settings", `The trading engine is not configured yet:\n- ${problems.join("\n- ")}`);
-  return { settings, http: { allowedOrigins, ...(basePath ? { basePath } : {}) } };
+  return { settings, http: { allowedOrigins, ...(basePath ? { basePath } : {}) }, rateLimits: rate.limits };
 }
