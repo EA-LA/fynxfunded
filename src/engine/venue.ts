@@ -3,6 +3,7 @@ import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEv
 import { newsStatus, type NewsState } from "./news";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
+import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
 
 /**
  * Plug-in points ("ports") for running the engine. A host provides:
@@ -120,6 +121,10 @@ export interface PurchasedRules {
   min_trading_days: number | string;
   consistency_percent?: number | string | null;
   reset_hour_utc?: number | string;
+  /** false = trades may not be held over the weekend (closed before the weekend close). Missing/true = allowed. */
+  weekend_holding?: boolean | string;
+  /** With weekend_holding false: minutes before the weekend close (1–240, default 15). */
+  weekend_close_minutes?: number | string;
 }
 
 const percentField = (v: unknown, name: string, optional = false): number | null => {
@@ -135,6 +140,7 @@ const percentField = (v: unknown, name: string, optional = false): number | null
  * anything malformed rather than guessing.
  */
 export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, opts: { funded?: boolean } = {}): RuleSet {
+  const weekendCloseMinutes = weekendField(r);
   if (!Number.isFinite(startingBalance) || startingBalance <= 0) throw new EngineError("bad_rules", "Starting balance must be a positive number.");
   const days = Number(r.min_trading_days), reset = r.reset_hour_utc === undefined ? 22 : Number(r.reset_hour_utc);
   if (!Number.isInteger(days) || days < 0) throw new EngineError("bad_rules", "Minimum trading days must be a whole number.");
@@ -147,7 +153,20 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
     minTradingDays: days,
     resetHourUtc: reset,
     consistencyPercent: percentField(r.consistency_percent, "Consistency", true),
+    // Only present when the agreement forbids weekend holding.
+    ...(weekendCloseMinutes !== null ? { weekendCloseMinutes } : {}),
   };
+}
+
+/** The weekend rule from the purchase: null when holding is allowed; unclear values are refused (the account goes to review). */
+function weekendField(r: PurchasedRules): number | null {
+  const h = r.weekend_holding;
+  if (h === undefined || h === null || h === true || h === "true") return null;
+  if (h !== false && h !== "false") throw new EngineError("bad_rules", "Weekend holding must be true or false.");
+  const raw = r.weekend_close_minutes;
+  const minutes = raw === undefined || raw === null || raw === "" ? DEFAULT_WEEKEND_CLOSE_MINUTES : Number(raw);
+  if (!validWeekendMinutes(minutes)) throw new EngineError("bad_rules", `Weekend close must be a whole number of minutes from ${WEEKEND_CLOSE_MIN_MINUTES} to ${WEEKEND_CLOSE_MAX_MINUTES}.`);
+  return minutes;
 }
 
 export interface MemoryArchiveOptions {
@@ -189,6 +208,12 @@ export interface Snapshot {
   quotes: QuoteBook;
   /** Target, minimum days and consistency progress. Optional in the HTTP contract; LocalVenue always sends it. */
   report?: TargetReport;
+  /**
+   * Present only when the account may not hold trades over the weekend:
+   * open trades are closed this many minutes before the weekend close (see
+   * src/engine/weekend.ts). Optional in the HTTP contract.
+   */
+  weekendClose?: { minutesBefore: number };
 }
 
 export class LocalVenue {
@@ -280,7 +305,8 @@ export class LocalVenue {
       const events = [...ticked.events, ...step.events];
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
-      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules) };
+      const weekend = ctx.rules.weekendCloseMinutes;
+      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}) };
     });
     this.queue = job.catch(() => undefined);
     return job;

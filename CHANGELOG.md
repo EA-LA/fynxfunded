@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-13 15:20 UTC — [autopilot] FYNX Trade: ready for a "no trades over the weekend" rule
+
+- If an account agreement says trades may not be held over the weekend, the trading server now handles it by itself: a few minutes before the market closes on Friday (15 minutes unless you choose another number, 1 to 240), it closes that account's open trades at the market price. The account stays open; it is not a rule breach. Long holiday closures of a day or more count too.
+- In those last minutes new market orders are refused with a plain explanation; pending orders can still be placed and simply wait for Sunday's reopen. Closing trades and cancelling orders always work.
+- The trader gets one email listing every trade closed and the result (part of the "loss limit" email choice, which is on by default).
+- In the terminal (https://www.fynxfunded.com/trade/access): from a day before, the order panel says when trades will close in the trader's own time (amber in the last hour), the Positions tab shows the same reminder while trades are open, the Account tab lists "Weekend holding: Not allowed", and closed trades show "Closed before the weekend" in History, the statement download and the dashboard Trades page.
+- Nothing changes for today's accounts: the rule only applies when the purchased rules contain `weekend_holding: false`. Steps in docs/ENGINE-READINESS.md ("No weekend holding").
+
 ## 2026-11-13 08:45 UTC — [autopilot] FYNX Trade: choose whether waiting orders are held during a pause or big news
 
 - Two open owner decisions are now simple on/off switches, already built and tested: whether pending orders that traders placed earlier (for example "buy if the price drops to …") should also wait during an emergency pause, and during a restricted news window.

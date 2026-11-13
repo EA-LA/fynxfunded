@@ -8,7 +8,7 @@ import type { TradingHours } from "./hours";
 
 export type Side = "buy" | "sell";
 export type OrderType = "market" | "limit" | "stop";
-export type CloseReason = "manual" | "stop_loss" | "take_profit" | "daily_loss_limit" | "maximum_loss_limit" | "target_reached";
+export type CloseReason = "manual" | "stop_loss" | "take_profit" | "daily_loss_limit" | "maximum_loss_limit" | "target_reached" | "weekend_close";
 
 export interface InstrumentSpec {
   symbol: string;
@@ -226,6 +226,13 @@ export interface RuleSet {
    * profit (FYNX Funded uses 40). null or missing = no consistency rule.
    */
   consistencyPercent?: number | null;
+  /**
+   * "No weekend holding": minutes before the market closes for the weekend
+   * (any closure of a day or more, see src/engine/weekend.ts) at which open
+   * trades are closed (`weekend_close`) and new market orders refused.
+   * null or missing = trades may be held over the weekend.
+   */
+  weekendCloseMinutes?: number | null;
 }
 
 /** Where an account stands against its profit target, minimum days and consistency rule. */

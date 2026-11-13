@@ -25,6 +25,7 @@ export function timestamp(value: unknown): string {
 export const CLOSE_REASON_LABELS: Record<string, string> = {
   manual: "Closed by you", stop_loss: "Stop loss", take_profit: "Take profit",
   daily_loss_limit: "Daily loss limit", maximum_loss_limit: "Maximum loss limit", target_reached: "Target reached",
+  weekend_close: "Closed before the weekend",
 };
 
 export function mapClosedTrade(id: string, data: DocumentData): Trade | null {

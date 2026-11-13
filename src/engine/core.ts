@@ -5,6 +5,7 @@ import type {
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
 import { activeNewsWindow, newsWindowMessage, type NewsState } from "./news";
+import { inWeekendCutoff, weekendCloseMessage } from "./weekend";
 
 /**
  * FYNX trading engine core: pure, deterministic functions. Every function takes
@@ -87,6 +88,22 @@ export function assertNoNewsWindow(s: InstrumentSpec, ctx: Pick<EngineContext, "
   if (!ctx.news?.enforce) return;
   const w = activeNewsWindow(ctx.news.windows, s, ctx.now);
   if (w) throw new EngineError("news_window", newsWindowMessage(w, s.symbol));
+}
+
+/**
+ * "No weekend holding" (RuleSet.weekendCloseMinutes): from the cutoff before
+ * the weekend close, new market orders are refused with `weekend_close`.
+ * Pending orders may still be placed; they do not fill until the reopen.
+ */
+export function assertWeekendOpen(s: InstrumentSpec, ctx: Pick<EngineContext, "rules" | "now">) {
+  const c = inWeekendCutoff(s.hours, ctx.now, ctx.rules.weekendCloseMinutes);
+  if (c) throw new EngineError("weekend_close", weekendCloseMessage(s.symbol, c, formatUtc));
+}
+
+/** Whether the account's weekend rule says this symbol must be flat right now. */
+export function weekendFlat(symbol: string, ctx: Pick<EngineContext, "specs" | "rules" | "now">): boolean {
+  const s = ctx.specs[symbol];
+  return !!s && !!inWeekendCutoff(s.hours, ctx.now, ctx.rules.weekendCloseMinutes);
 }
 
 const mid = (q: Quote) => (q.bid + q.ask) / 2;
@@ -272,6 +289,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   if (req.expiresAt !== undefined && req.type === "market") throw new EngineError("bad_expiry", "Only pending orders can have an expiry time.");
   checkExpiry(req.expiresAt, ctx.now);
   checkDeviation(s, req);
+  if (req.type === "market") assertWeekendOpen(s, ctx);
   if (req.ocoWith !== undefined) {
     if (req.type === "market") throw new EngineError("bad_oco", "Only pending orders can be linked (one cancels the other).");
     checkOcoPartner(state, req.ocoWith, undefined);
@@ -666,6 +684,8 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs || !tradable(o.symbol)) continue;
     // The owner's pause or a news window can hold waiting orders (see pendingFillHold).
     if (pendingFillHold(o.symbol, ctx)) continue;
+    // No weekend holding: a waiting order does not fill in the last minutes before the weekend close.
+    if (weekendFlat(o.symbol, ctx)) continue;
     const market = openingPrice(o.side, q);
     const hit = o.type === "limit" ? (o.side === "buy" ? market <= o.price : market >= o.price) : (o.side === "buy" ? market >= o.price : market <= o.price);
     if (!hit) continue;
@@ -695,6 +715,9 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     const targetHit = p.takeProfit !== undefined && (p.side === "buy" ? price >= p.takeProfit : price <= p.takeProfit);
     if (stopHit) apply(closeAt(current, ctx, p.id, p.lots, price, "stop_loss"));
     else if (targetHit) apply(closeAt(current, ctx, p.id, p.lots, price, "take_profit"));
+    // No weekend holding: from the cutoff the position closes at the market,
+    // on a fresh price (with no fresh price it is tried again every step).
+    else if (weekendFlat(p.symbol, ctx)) apply(closeAt(current, ctx, p.id, p.lots, price, "weekend_close"));
   }
 
   // Trailing stops follow the price that was just checked; a trailed stop is

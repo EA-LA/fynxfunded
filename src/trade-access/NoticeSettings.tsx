@@ -11,7 +11,7 @@ export const NOTICE_LABELS: Record<NoticeKind, string> = {
   alert: 'A price alert fires',
   fill: 'A pending order is filled',
   stop: 'A stop loss or take profit closes a trade',
-  limit: 'A loss limit is reached',
+  limit: 'A loss limit is reached, or trades are closed before the weekend',
   target: 'The profit target is reached',
   expiry: 'A pending order expires',
   near: 'Equity comes close to a loss limit',

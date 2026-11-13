@@ -52,6 +52,7 @@ export function statementSummary(deals: readonly Deal[]): StatementSummary {
 const REASONS: Record<string, string> = {
   manual: "Closed by you", stop_loss: "Stop loss", take_profit: "Take profit",
   daily_loss_limit: "Daily loss limit", maximum_loss_limit: "Maximum loss limit", target_reached: "Profit target reached",
+  weekend_close: "Closed before the weekend",
 };
 
 /** Plain name for how a trade closed. */

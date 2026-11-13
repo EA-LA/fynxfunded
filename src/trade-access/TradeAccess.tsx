@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -15,6 +15,7 @@ import {
 import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type AccountRules } from './ticket';
 import { orderCosts, weekdayName } from './costs';
 import { reasonLabel } from './statement';
+import { pairWeekendCutoff, weekendNote, weekendRule, weekendRuleText } from './weekend-close';
 import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
@@ -349,8 +350,12 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const spread = spreadOf(pair, quote, engine.snapshot?.quotes);
   const news = pairNews(engine.status, pair, now);
   const newsNote = newsNoteSentence(news, pair.symbol, now);
-  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && engine.snapshot && quote);
-  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now, undefined, news.holdPending) : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
+  // "No weekend holding" (from the account's purchased rules on the trading server).
+  const weekendMinutes = weekendRule(engine.snapshot);
+  const weekend = weekendMinutes !== null && marketOpen ? weekendNote(pairWeekendCutoff(engine.status, pair.symbol, now, weekendMinutes), weekendMinutes, pair.symbol, now) : null;
+  const weekendBlocks = !!weekend?.inCutoff && type === 'market';
+  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && !weekendBlocks && engine.snapshot && quote);
+  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now, undefined, news.holdPending) : weekendBlocks ? weekend!.text : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
     if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok || !deviation.ok) return;
     // "End of today" is worked out at the moment of sending.
@@ -372,6 +377,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       </div>
     </div>
     {!marketOpen && <MarketClosedNote market={market} now={now} symbol={pair.symbol} />}
+    {weekend && <p role="status" data-testid="weekend-note" className={`flex items-start gap-1.5 rounded-md p-2 text-xs ${weekend.warn ? 'bg-amber-500/10' : 'bg-secondary/60 text-muted-foreground'}`}><CalendarClock size={13} className={`mt-0.5 shrink-0 ${weekend.warn ? 'text-amber-600' : ''}`} aria-hidden="true" /><span>{weekend.text}</span></p>}
     {marketOpen && newsNote && <p role="status" data-testid="news-note" className={`flex items-start gap-1.5 rounded-md p-2 text-xs ${newsBlocks(news) ? 'bg-amber-500/10' : 'bg-secondary/60 text-muted-foreground'}`}><Newspaper size={13} className={`mt-0.5 shrink-0 ${newsBlocks(news) ? 'text-amber-600' : ''}`} aria-hidden="true" /><span>{newsNote}</span></p>}
 
     <label className="text-xs text-muted-foreground">Order type
@@ -480,6 +486,7 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
             ['Daily loss limit', `${account.rules.daily_loss_percent}%${rules.dailyLossAmount !== null ? ` · ${money(rules.dailyLossAmount)} from the 22:00 UTC balance` : ''}`],
             ['Maximum loss', `${account.rules.max_loss_percent}%${rules.maxLossFloor !== null ? ` · equity must not fall below ${money(rules.maxLossFloor)}` : ''}`],
             ['Minimum trading days', String(account.rules.min_trading_days)],
+            ...(weekendRule(engine.snapshot) !== null ? [['Weekend holding', weekendRuleText(weekendRule(engine.snapshot)!)]] : []),
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right">{v}</dd></div>)}</dl>
           <p className="mt-2 text-xs text-muted-foreground">Rules recorded with your purchase. Viewing prices does not start a trading day.</p></div>}
         {engine.snapshot?.report && <TargetProgress report={engine.snapshot.report} />}
@@ -488,6 +495,18 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
       {engine.snapshot && <div className="md:col-span-2"><DailyStatement accountId={engine.snapshot.state.accountId} closes={engine.snapshot.state.dayCloses} now={now} today={todayLow(engine.snapshot.state, engine.snapshot.metrics)} /></div>}
     </div>}
   </div>;
+}
+
+/** Positions tab: the "no weekend holding" reminder while trades are open, from a day before the cutoff. */
+function WeekendBanner({ engine, now }: { engine: EngineHandle; now: number }) {
+  const snap = engine.snapshot, minutes = weekendRule(snap);
+  if (!snap || minutes === null || !snap.state.positions.length) return null;
+  const symbols = [...new Set(snap.state.positions.map(p => p.symbol))];
+  // The earliest cutoff among the pairs held (they usually share the forex week).
+  const first = symbols.map(sym => ({ sym, c: pairWeekendCutoff(engine.status, sym, now, minutes) })).filter(x => x.c).sort((a, b) => a.c!.cutoffAt - b.c!.cutoffAt)[0];
+  const note = first ? weekendNote(first.c, minutes, symbols.join(', '), now) : null;
+  if (!note) return null;
+  return <p role="status" data-testid="weekend-banner" className={`m-2 flex items-start gap-1.5 rounded-md p-2 text-xs ${note.warn ? 'bg-amber-500/10' : 'bg-secondary/60 text-muted-foreground'}`}><CalendarClock size={13} className={`mt-0.5 shrink-0 ${note.warn ? 'text-amber-600' : ''}`} aria-hidden="true" /><span>{note.text}</span></p>;
 }
 
 function MarketClosedNote({ market, now, symbol }: { market: PairMarket; now: number; symbol: string }) {
@@ -523,6 +542,7 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
     : ['Symbol', 'Closed', 'Type', 'Volume', 'Open', 'Close', 'Commission', 'Swap', 'Profit', 'Result (R)', 'Reason'];
   const rows = tab === 'positions' ? snap?.state.positions ?? [] : tab === 'orders' ? snap?.state.orders ?? [] : [...(snap?.state.history ?? [])].reverse();
   return <div className="overflow-x-auto" role="tabpanel" data-testid={`engine-${tab}`}>
+    {tab === 'positions' && snap && <WeekendBanner engine={engine} now={now} />}
     {tab === 'positions' && snap && <BulkClose snapshot={snap} engine={engine} now={now} />}
     {tab === 'history' && snap && <StatementBar accountId={snap.state.accountId} deals={[...snap.state.history, ...archive.pages.flatMap(p => p.deals)]} archivedNotLoaded={Math.max(0, (snap.state.archived?.deals ?? 0) - archive.shown)} />}
     <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
