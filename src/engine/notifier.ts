@@ -134,6 +134,14 @@ export function noticesFor(accountId: string, events: EngineEvent[], at: number,
     add("limit", `weekend:${weekend[0].id}`, `${weekend.length} trade${weekend.length === 1 ? "" : "s"} closed before the weekend: ${signed(net)}`,
       `Your account may not hold trades over the weekend, so the trading server closed ${weekend.length === 1 ? "this trade" : "these trades"} at ${utc(weekend[0].closedAt)}, shortly before the market close:\n${lines}\nResult after commission and swap: ${signed(net)}.\n\nThe account stays open. Pending orders keep waiting and can fill after the market reopens.`);
   }
+  // Margin stop out: one notice for all trades it closed in this batch.
+  const stopped = events.filter((x): x is Extract<EngineEvent, { type: "position_closed" }> => x.type === "position_closed" && x.deal.reason === "stop_out").map(x => x.deal);
+  if (stopped.length) {
+    const net = stopped.reduce((s, d) => s + d.netProfit, 0);
+    const lines = stopped.map(d => `- ${d.side} ${d.lots.toFixed(2)} lots ${d.symbol}: opened at ${px(d.symbol, d.entryPrice)}, closed at ${px(d.symbol, d.exitPrice)}, ${signed(d.netProfit)}`).join("\n");
+    add("limit", `stop_out:${stopped[0].id}`, `Margin stop out: ${stopped.length} trade${stopped.length === 1 ? "" : "s"} closed, ${signed(net)}`,
+      `The margin level on your account fell to the stop-out level, so the trading server closed ${stopped.length === 1 ? "this trade" : "these trades"} at ${utc(stopped[0].closedAt)}, the largest loss first, until the margin level was above the level again:\n${lines}\nResult after commission and swap: ${signed(net)}.\n\nThe account stays open. Your other trades and pending orders are unchanged.`);
+  }
   return out;
 }
 

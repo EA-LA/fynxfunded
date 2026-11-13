@@ -194,6 +194,9 @@ describe("History tab statement", () => {
   });
 
   afterEach(cleanup);
+  // A fixed weekday: with the real clock this test failed whenever it ran while the forex market was closed (Friday 22:00 to Sunday 22:00 UTC).
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(Date.parse("2026-11-11T10:00:00Z"))); });
+  afterEach(() => { vi.useRealTimers(); });
   it("shows totals and a download in the terminal's History tab", async () => {
     const rules: RuleSet = { startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 5, resetHourUtc: 22 };
     const account = { accountId: "acc-1234567890", challengeId: "ch-1", orderId: "o1", platform: "FYNX Trade", status: "active", activationStatus: "active", currentPhase: 1, startingBalance: 10000, balance: 10000, equity: 10000, tradingEnabled: true, tradingHoldReason: "", rules: { profit_target_percent: "8", daily_loss_percent: "5", max_loss_percent: "10", min_trading_days: 5 } };

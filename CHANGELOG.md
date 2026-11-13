@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-13 22:40 UTC — [autopilot] FYNX Trade: ready for a broker-style "margin stop out"
+
+- If an account agreement sets a margin stop out (for example at 50 %), the trading server now handles it by itself: when the account's margin level falls to that level, it closes the trade with the biggest loss at the market price, then checks again, until the margin level is back above the level. It is not a rule breach: the account stays open and waiting orders are untouched.
+- The daily and maximum loss limits still come first. Nothing is ever closed on an old or missing price, or while the market is closed.
+- The trader gets one email listing every trade the stop out closed and the result (part of the "loss limit" email choice, which is on by default).
+- In the terminal (https://www.fynxfunded.com/trade/access): a warning appears under the account bar when the margin level gets close (amber) or reaches the level (red), the Account tab lists "Margin stop out", and closed trades show "Margin stop out" in History, the statement download and the dashboard Trades page.
+- Nothing changes for today's accounts: the rule only applies when the purchased rules contain `stop_out_level`. Steps in docs/ENGINE-READINESS.md ("Margin stop out").
+
 ## 2026-11-13 18:17 UTC — [autopilot] FYNX Trade: ready for "most lots / most trades open at once" limits
 
 - If an account agreement caps how much a trader may have in the market at once (for example "at most 10 lots" or "at most 5 trades open together"), the trading server now enforces it by itself. An order that would go past the limit is refused with a plain explanation, including how much can still be added. Nothing is sent in that case.

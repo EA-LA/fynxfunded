@@ -4,6 +4,7 @@ import { newsStatus, type NewsState } from "./news";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 import { exposureLimits, OPEN_LOTS_MAX, OPEN_LOTS_MIN, OPEN_TRADES_MAX, OPEN_TRADES_MIN, validOpenLots, validOpenTrades, type ExposureLimits } from "./exposure";
+import { STOP_OUT_MAX_PERCENT, STOP_OUT_MIN_PERCENT, validStopOut } from "./stop-out";
 import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
 
 /**
@@ -130,6 +131,8 @@ export interface PurchasedRules {
   max_open_lots?: number | string | null;
   /** Most trades open at once (open trades + waiting orders), whole 1–500. Missing/null/"" = no limit. */
   max_open_trades?: number | string | null;
+  /** Margin stop-out level in percent (10–100, e.g. 50 or "50%"). Missing/null/"" = no stop out. */
+  stop_out_level?: number | string | null;
 }
 
 const percentField = (v: unknown, name: string, optional = false): number | null => {
@@ -148,6 +151,7 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
   const weekendCloseMinutes = weekendField(r);
   const maxOpenLots = limitField(r.max_open_lots, validOpenLots, `Maximum open lots must be a number of lots from ${OPEN_LOTS_MIN} to ${OPEN_LOTS_MAX} in steps of 0.01.`);
   const maxOpenTrades = limitField(r.max_open_trades, validOpenTrades, `Maximum open trades must be a whole number from ${OPEN_TRADES_MIN} to ${OPEN_TRADES_MAX}.`);
+  const stopOutPercent = stopOutField(r.stop_out_level);
   if (!Number.isFinite(startingBalance) || startingBalance <= 0) throw new EngineError("bad_rules", "Starting balance must be a positive number.");
   const days = Number(r.min_trading_days), reset = r.reset_hour_utc === undefined ? 22 : Number(r.reset_hour_utc);
   if (!Number.isInteger(days) || days < 0) throw new EngineError("bad_rules", "Minimum trading days must be a whole number.");
@@ -165,8 +169,19 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
     // Only present when the agreement caps open exposure.
     ...(maxOpenLots !== null ? { maxOpenLots } : {}),
     ...(maxOpenTrades !== null ? { maxOpenTrades } : {}),
+    // Only present when the agreement sets a margin stop out.
+    ...(stopOutPercent !== null ? { stopOutPercent } : {}),
   };
 }
+
+/** The margin stop-out level from the purchase: null when missing; unclear values are refused (the account goes to review). */
+function stopOutField(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = typeof raw === "string" ? Number(raw.trim().replace(/%$/, "").trim()) : raw;
+  if (!validStopOut(n)) throw new EngineError("bad_rules", STOP_OUT_MESSAGE);
+  return n;
+}
+const STOP_OUT_MESSAGE = `Stop-out level must be a percent from ${STOP_OUT_MIN_PERCENT} to ${STOP_OUT_MAX_PERCENT} (at most one decimal).`;
 
 /** An optional numeric limit from the purchase: null when missing; unclear values are refused (the account goes to review). */
 function limitField(raw: unknown, valid: (v: unknown) => v is number, message: string): number | null {
@@ -238,6 +253,12 @@ export interface Snapshot {
    * Optional in the HTTP contract.
    */
   exposure?: ExposureLimits;
+  /**
+   * Present only when the account's agreement sets a margin stop out (see
+   * src/engine/stop-out.ts): the margin level in percent at which trades are
+   * closed, largest loss first. Optional in the HTTP contract.
+   */
+  stopOut?: { level: number };
 }
 
 export class LocalVenue {
@@ -330,7 +351,7 @@ export class LocalVenue {
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
       const weekend = ctx.rules.weekendCloseMinutes, exposure = exposureLimits(ctx.rules);
-      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}) };
+      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}), ...(validStopOut(ctx.rules.stopOutPercent) ? { stopOut: { level: ctx.rules.stopOutPercent } } : {}) };
     });
     this.queue = job.catch(() => undefined);
     return job;

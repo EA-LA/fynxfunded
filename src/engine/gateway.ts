@@ -203,7 +203,7 @@ export interface TradingGateway {
 }
 
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-const CLOSE_REASONS = new Set<string>(["manual", "stop_loss", "take_profit", "daily_loss_limit", "maximum_loss_limit", "target_reached", "weekend_close"] satisfies CloseReason[]);
+const CLOSE_REASONS = new Set<string>(["manual", "stop_loss", "take_profit", "daily_loss_limit", "maximum_loss_limit", "target_reached", "weekend_close", "stop_out"] satisfies CloseReason[]);
 function validDeal(d: unknown): d is Deal {
   if (typeof d !== "object" || d === null) return false;
   const x = d as Record<string, unknown>;

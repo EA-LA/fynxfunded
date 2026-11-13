@@ -8,7 +8,7 @@ import type { TradingHours } from "./hours";
 
 export type Side = "buy" | "sell";
 export type OrderType = "market" | "limit" | "stop";
-export type CloseReason = "manual" | "stop_loss" | "take_profit" | "daily_loss_limit" | "maximum_loss_limit" | "target_reached" | "weekend_close";
+export type CloseReason = "manual" | "stop_loss" | "take_profit" | "daily_loss_limit" | "maximum_loss_limit" | "target_reached" | "weekend_close" | "stop_out";
 
 export interface InstrumentSpec {
   symbol: string;
@@ -240,6 +240,12 @@ export interface RuleSet {
    */
   maxOpenLots?: number;
   maxOpenTrades?: number;
+  /**
+   * Margin stop out (src/engine/stop-out.ts): when the margin level falls to
+   * this percent (10–100), open trades are closed at the market, largest loss
+   * first, until it is above again (`stop_out`). Missing = no stop out.
+   */
+  stopOutPercent?: number;
 }
 
 /** Where an account stands against its profit target, minimum days and consistency rule. */

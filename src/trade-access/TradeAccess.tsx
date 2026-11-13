@@ -18,6 +18,8 @@ import { reasonLabel } from './statement';
 import { pairWeekendCutoff, weekendNote, weekendRule, weekendRuleText } from './weekend-close';
 import { exposureRule, ticketExposure } from './exposure-limit';
 import { exposureRuleText } from '@/engine/exposure';
+import { stopOutNote, stopOutRuleText } from '@/engine/stop-out';
+import { stopOutRule } from './stop-out';
 import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
@@ -225,6 +227,8 @@ function AccountStrip({ account, loading, snapshot }: { account: Account | null;
   const tone = (v: number) => (v < 0 ? 'text-red-500' : v > 0 ? 'text-emerald-500' : '');
   const wait = 'Waiting…';
   const eq = !!gaps?.equityKnown, mg = eq && !!gaps?.marginKnown;
+  // Optional margin stop out: a note while the margin level is close to (or at) the level.
+  const stopOut = m && mg ? stopOutNote(m.marginLevel, stopOutRule(snapshot)) : null;
   const items: [string, string, string?][] = m
     ? [['Balance', money(m.balance)], ['Equity', eq ? money(m.equity) : wait], ['Floating P/L', eq ? money(m.floatingProfit) : wait, eq ? tone(m.floatingProfit) : ''], ['Margin', gaps?.marginKnown ? money(m.margin) : wait], ['Free margin', mg ? money(m.freeMargin) : wait], ['Margin level', !mg ? wait : m.marginLevel === null ? '—' : `${m.marginLevel.toFixed(0)}%`], ['Room to loss limit', eq ? money(m.roomToFloor) : wait, eq && m.roomToFloor < 0 ? 'text-red-500' : '']]
     : account
@@ -234,6 +238,7 @@ function AccountStrip({ account, loading, snapshot }: { account: Account | null;
     <dl className="flex gap-px overflow-x-auto bg-border text-xs" aria-label="Account summary">
       {items.map(([label, value, t]) => <div key={label} className="min-w-[110px] flex-1 bg-card px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${t ?? ''}`}>{value}</dd></div>)}
     </dl>
+    {stopOut && <p role="status" data-testid="stop-out-note" className={`px-3 py-1 text-[11px] ${stopOut.reached ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>{stopOut.text}</p>}
     {gaps?.message && <p role="status" data-testid="strip-prices-missing" className="bg-amber-500/10 px-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">{gaps.message}</p>}
   </div>;
 }
@@ -494,6 +499,7 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
             ['Minimum trading days', String(account.rules.min_trading_days)],
             ...(weekendRule(engine.snapshot) !== null ? [['Weekend holding', weekendRuleText(weekendRule(engine.snapshot)!)]] : []),
             ...(exposureRule(engine.snapshot) ? [['Open at once', exposureRuleText(exposureRule(engine.snapshot)!)]] : []),
+            ...(stopOutRule(engine.snapshot) !== null ? [['Margin stop out', stopOutRuleText(stopOutRule(engine.snapshot)!)]] : []),
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right">{v}</dd></div>)}</dl>
           <p className="mt-2 text-xs text-muted-foreground">Rules recorded with your purchase. Viewing prices does not start a trading day.</p></div>}
         {engine.snapshot?.report && <TargetProgress report={engine.snapshot.report} />}

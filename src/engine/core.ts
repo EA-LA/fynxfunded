@@ -6,6 +6,7 @@ import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
 import { activeNewsWindow, newsWindowMessage, type NewsState } from "./news";
 import { inWeekendCutoff, weekendCloseMessage } from "./weekend";
+import { stopOutFirst, stoppedOut } from "./stop-out";
 import { exposureLimits, stateExposureBreach, type ExposureState } from "./exposure";
 
 /**
@@ -778,10 +779,41 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     return { state: current, events };
   }
 
+  // Margin stop out (optional rule): on fresh, fully priced figures, close the
+  // trade with the largest loss at the market until the margin level is above
+  // the stop-out level again. Not a breach: the account stays open.
+  if (ctx.rules.stopOutPercent !== undefined) apply(stopOut(current, ctx));
+
   // Reaching the target is reported once; passing a phase stays an official review (KYC, trade review…).
   if (!current.targetReachedAt && targetReport(current, ctx.rules).ready) {
     current = { ...current, targetReachedAt: ctx.now, sequence: current.sequence + 1 };
     events.push({ type: "target_reached" });
+  }
+  return { state: current, events };
+}
+
+/**
+ * The margin stop out for `tick`: while the margin level is at or below
+ * `rules.stopOutPercent`, closes the open trade with the largest loss (open
+ * P/L plus swap; oldest first on a tie) at the market, then looks again.
+ * Waits (closes nothing) unless every open trade has a fresh price on an open
+ * market and the equity and margin can be fully valued.
+ */
+export function stopOut(state: AccountState, ctx: Pick<EngineContext, "specs" | "quotes" | "rules" | "now" | "maxQuoteAgeMs">): Step {
+  let current = state;
+  const events: EngineEvent[] = [];
+  const level = ctx.rules.stopOutPercent;
+  const fresh = (symbol: string) => { const q = ctx.quotes[symbol], s = ctx.specs[symbol]; return !!q && !!s && ctx.now - q.time <= ctx.maxQuoteAgeMs && isMarketOpen(s.hours, ctx.now); };
+  // At most one close per open trade, so the loop always ends.
+  for (let guard = current.positions.length; guard > 0; guard--) {
+    if (!current.positions.length || !current.positions.every(p => fresh(p.symbol))) break;
+    const m = metrics(current, ctx);
+    if (missingPrices(m).length || !stoppedOut(m.marginLevel, level)) break;
+    const worst = stopOutFirst(current.positions.map(p => ({ position: p, result: new Decimal(profitUsd(spec(ctx, p.symbol), p.side, p.lots, p.entryPrice, closingPrice(p.side, ctx.quotes[p.symbol]), ctx.quotes)).plus(p.swap ?? 0).toNumber() })));
+    if (!worst) break;
+    const step = closeAt(current, ctx, worst.id, worst.lots, closingPrice(worst.side, ctx.quotes[worst.symbol]), "stop_out");
+    current = step.state;
+    events.push(...step.events);
   }
   return { state: current, events };
 }
