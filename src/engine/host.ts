@@ -4,6 +4,7 @@ import type { AlertRequest, NoticeChange, OrderRequest } from "./types";
 import { NEAR_LIMIT_MAX_PERCENT, NEAR_LIMIT_MIN_PERCENT, NOTICE_KINDS } from "./core";
 import { EngineError } from "./types";
 import { requestClass, type RequestLimiter } from "./rate-limit";
+import { pausedMessage, type TradingPauseState } from "./trading-pause";
 
 /**
  * Server-side skeleton for the HTTP contract in docs/ENGINE-READINESS.md.
@@ -63,11 +64,18 @@ export interface HostOptions {
    * 429 `rate_limited` with `retryAfterSeconds` and changes nothing.
    */
   limiter?: RequestLimiter;
+  /**
+   * The owner's "pause new trading" switch for the whole server
+   * (src/engine/trading-pause.ts). While it returns a pause, opening or
+   * changing orders is refused with 503 `trading_paused`; closing, cancelling,
+   * alerts and notices still work, and GET /v1/status carries `paused`.
+   */
+  pause?: () => TradingPauseState | null;
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
-  not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404, no_alert: 404,
+  trading_paused: 503, not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404, no_alert: 404,
   method_not_allowed: 405, conflict: 409, price_moved: 409, bad_request: 400, rate_limited: 429,
 };
 
@@ -213,7 +221,11 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
       }
     }
 
-    if (path === "/v1/status") return method === "GET" ? { status: 200, body: { ...opts.status(), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } } : fail("method_not_allowed", "Use GET.");
+    if (path === "/v1/status") {
+      if (method !== "GET") return fail("method_not_allowed", "Use GET.");
+      const p = opts.pause?.();
+      return { status: 200, body: { ...opts.status(), ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } };
+    }
 
     const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts|notices)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
     if (!m) return fail("not_found", "Unknown address.");
@@ -221,7 +233,10 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     const accountId = decodeURIComponent(rawAccount), itemId = rawItem === undefined ? undefined : decodeURIComponent(rawItem);
     if (!(await opts.canAccess(userId, accountId))) return fail("forbidden", "This account belongs to someone else.");
     const ok = (s: Snapshot): HostResponse => ({ status: 200, body: s });
-    const needsTrading = async () => { if (!(await opts.tradingEnabled(accountId))) throw new EngineError("trading_disabled", "Trading isn't switched on for this account yet, so no order was sent."); };
+    const needsTrading = async () => {
+      const p = opts.pause?.();
+      if (p) throw new EngineError("trading_paused", pausedMessage(p));
+      if (!(await opts.tradingEnabled(accountId))) throw new EngineError("trading_disabled", "Trading isn't switched on for this account yet, so no order was sent."); };
 
     if (!collection) return method === "GET" ? ok(await snapshotOrOpen(opts, accountId)) : fail("method_not_allowed", "Use GET.");
     if (collection === "history") {

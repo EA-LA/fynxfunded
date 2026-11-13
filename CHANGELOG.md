@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-13 00:45 UTC — [autopilot] Trading server: one emergency switch to pause new trading for everyone
+
+- Added: an emergency "pause new trading" switch for the whole FYNX Trade server. If the broker or price provider has a problem, you flip one switch in the Firebase console (document engineControl/trading: paused = true, with an optional reason and end time) and within 10 seconds no trader can open or change an order. No redeploy, no account changes.
+- During a pause traders can still close trades and cancel orders, and stops, targets and loss limits keep working. Anyone who tries to trade gets a plain message ("New trading is paused: … No order was sent; closing trades and cancelling orders still work.").
+- The FYNX Trade terminal shows a yellow banner with your reason and the expected end time in the trader's own time, the order panel explains why it is locked, and the account's "Live on FYNX Trade" card on the dashboard says so too. Set paused = false (or delete the document) to resume; with an end time it resumes by itself.
+- Safe by design: if the switch can't be read clearly it stays paused, and the readiness check (npm run engine:check) says whether the server starts paused.
+- Where to see it: https://www.fynxfunded.com/trade/access and the account page in https://www.fynxfunded.com/dashboard once the trading server is connected; steps in docs/ENGINE-READINESS.md ("Pause new trading").
+
 ## 2026-11-12 20:30 UTC — [autopilot] Trading server: protection against password-guessing floods
 
 - The FYNX Trade server can now protect itself when someone keeps trying to sign in with wrong or stolen sign-in details: after 30 failed attempts from the same network within 5 minutes, that network is paused for 15 minutes and is told so in plain words ("Too many failed sign-ins from this network…"). Traders on other networks are not affected, and getting out of trades from a normal session is never slowed by this.

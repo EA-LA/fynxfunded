@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, PauseCircle, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -18,6 +18,7 @@ import { reasonLabel } from './statement';
 import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
+import { pausedSentence, pausedUntilText } from './paused';
 import type { TradingGateway } from '@/engine/gateway';
 import type { Snapshot } from '@/engine/venue';
 import { profitUsd } from '@/engine/core';
@@ -161,6 +162,10 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
       <LockKeyhole size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
       <p><span className="font-medium">Trading opens soon.</span> <span className="text-muted-foreground">Prices, charts and the order panel are ready. Order placement unlocks when FYNX switches on trading for your account; until then no order is sent.</span></p>
     </div>
+    {engine.status?.paused && <div data-testid="trading-paused" role="status" className="flex items-start gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs sm:px-5">
+      <PauseCircle size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+      <p><span className="font-medium">New trading is paused by FYNX.</span> <span className="text-muted-foreground">{engine.status.paused.reason} {pausedUntilText(engine.status.paused, now.getTime())} Your open trades, stops and loss limits keep working; you can still close trades and cancel orders. New orders and changes are refused until trading resumes.</span></p>
+    </div>}
     {error && <div role="alert" className="border-b border-red-500/40 bg-red-500/5 px-3 py-2 text-sm sm:px-5">{error} <Link className="underline" to="/dashboard/support">Contact support</Link></div>}
 
     {live && <TvWidget title="Live forex ticker" script="ticker-tape" className="hidden h-[46px] overflow-hidden border-b sm:block" config={{ symbols: TICKER.map(s => ({ proName: `OANDA:${s}`, title: s })), showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: dark ? 'dark' : 'light', locale: 'en' }} />}
@@ -340,8 +345,8 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
   const spread = spreadOf(pair, quote, engine.snapshot?.quotes);
-  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && engine.snapshot && quote);
-  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
+  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && engine.snapshot && quote);
+  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
     if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok || !deviation.ok) return;
     // "End of today" is worked out at the moment of sending.

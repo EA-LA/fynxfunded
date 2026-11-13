@@ -349,3 +349,44 @@ describe("npm run engine:build", () => {
     }
   }, 30_000);
 });
+
+describe("engine host program: pause new trading", () => {
+  it("reads engineControl/trading before the first request: orders refused (503), closing still works, resumes when lifted", async () => {
+    const docs = purchaseDocs(true);
+    docs.set("engineControl/trading", { paused: true, reason: "Liquidity provider outage." });
+    const { d, lines, sockets } = deps({ docs, env: { ...ENV, FYNX_ENGINE_ALLOW_TRADING: "true" } });
+    running = await startEngineHost(d);
+    price(sockets);
+    const logs = () => lines.map(l => JSON.parse(l));
+    expect(logs().find(l => l.message === "FYNX trading engine started.")).toMatchObject({ newTrading: "paused (Liquidity provider outage.)" });
+    expect(logs().find(l => l.message.startsWith("New trading paused"))).toMatchObject({ severity: "WARNING", reason: "Liquidity provider outage.", source: "control" });
+
+    const gw = gateway(running.port);
+    await gw.snapshot(ID);
+    expect((await gw.status()).paused).toMatchObject({ reason: "Liquidity provider outage.", until: null });
+    await expect(gw.placeOrder(ID, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "p-1" })).rejects.toMatchObject({ code: "trading_paused" });
+    const raw = await fetch(`http://127.0.0.1:${running.port}/v1/accounts/${ID}/orders`, { method: "POST", headers: { Origin: SITE, Authorization: "Bearer good-token", "Content-Type": "application/json" }, body: JSON.stringify({ symbol: "EURUSD", side: "buy", type: "market", lots: 1 }) });
+    expect(raw.status).toBe(503);
+    // A refused order is expected behaviour, not a server failure.
+    expect(logs().some(l => l.message === "Request failed.")).toBe(false);
+
+    docs.set("engineControl/trading", { paused: false });
+    await running.pause.refresh();
+    expect(logs().some(l => l.message === "New trading resumed.")).toBe(true);
+    const placed = await gw.placeOrder(ID, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "p-2" });
+    expect(placed.state.positions).toHaveLength(1);
+
+    docs.set("engineControl/trading", { paused: true, until: new Date(T0 + 3_600_000).toISOString() });
+    await running.pause.refresh();
+    await expect(gw.modifyPosition(ID, placed.state.positions[0].id, { stopLoss: 1.09 })).rejects.toMatchObject({ code: "trading_paused" });
+    expect((await gw.closePosition(ID, placed.state.positions[0].id)).state.positions).toEqual([]);
+    expect(running.engine.status().pause).toMatchObject({ paused: true, source: "control", until: T0 + 3_600_000 });
+  });
+
+  it("FYNX_ENGINE_PAUSE starts paused whatever the document says", async () => {
+    const { d, lines } = deps({ docs: purchaseDocs(true), env: { ...ENV, FYNX_ENGINE_ALLOW_TRADING: "true", FYNX_ENGINE_PAUSE: "Start-up checks." } });
+    running = await startEngineHost(d);
+    expect(running.pause.current()).toMatchObject({ reason: "Start-up checks.", source: "settings" });
+    expect(lines.map(l => JSON.parse(l)).find(l => l.message === "FYNX trading engine started.")).toMatchObject({ newTrading: "paused (Start-up checks.)" });
+  });
+});

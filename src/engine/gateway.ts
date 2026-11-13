@@ -4,6 +4,7 @@ import type { OrderChange, PositionChange } from "./core";
 import { EngineError } from "./types";
 import type { MarketState, Schedule } from "./hours";
 import type { TradingConditions } from "./venue";
+import { pausedMessage } from "./trading-pause";
 
 /**
  * What the FYNX Trade terminal talks to. Three implementations:
@@ -45,6 +46,27 @@ export interface GatewayStatus {
    * the terminal says notices start once the sender is connected.
    */
   notices?: boolean;
+  /**
+   * Present while the owner has paused new trading on the whole server
+   * (src/engine/trading-pause.ts): opening or changing orders is refused,
+   * closing and cancelling still work. `until` is when it ends by itself (ms)
+   * or null.
+   */
+  paused?: PausedStatus;
+}
+
+export interface PausedStatus { reason: string; since: number | null; until: number | null }
+
+/** Keeps a well-formed `paused` from a server answer. A pause flag whose details are unreadable still counts as paused (with a general sentence). */
+export function parsePaused(raw: unknown): PausedStatus | undefined {
+  if (raw === undefined || raw === null || raw === false) return undefined;
+  const fallback: PausedStatus = { reason: "The trading server has paused new trading.", since: null, until: null };
+  if (typeof raw !== "object" || Array.isArray(raw)) return fallback;
+  const { reason, since, until } = raw as Record<string, unknown>;
+  const time = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+  // eslint-disable-next-line no-control-regex
+  const text = typeof reason === "string" ? reason.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 200) : "";
+  return { reason: text || fallback.reason, since: time(since), until: time(until) };
 }
 
 /** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
@@ -228,8 +250,9 @@ export class HttpGateway implements TradingGateway {
   async status(): Promise<GatewayStatus> {
     try {
       const s = await this.call<Partial<GatewayStatus> & { markets?: unknown; instruments?: unknown; schedule?: unknown }>("GET", "/v1/status");
+      const paused = parsePaused((s as { paused?: unknown } | null)?.paused);
       const markets = parseMarkets(s?.markets), instruments = parseInstruments(s?.instruments), schedule = parseSchedule(s?.schedule);
-      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}), ...(s?.notices === true ? { notices: true } : {}) };
+      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}), ...(s?.notices === true ? { notices: true } : {}), ...(paused ? { paused } : {}) };
     } catch (e) {
       return { connected: false, priceFeed: false, execution: false, message: e instanceof Error ? e.message : "Not connected." };
     }
@@ -251,14 +274,18 @@ export class HttpGateway implements TradingGateway {
 
 export class LocalGatewayAdapter implements TradingGateway {
   readonly mode = "local" as const;
-  /** `notices`: whether a notice sender is connected next to this venue (default false). */
-  constructor(private venue: LocalVenue, private options: { notices?: boolean } = {}) {}
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; return { connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}) }; }
+  /** `notices`: whether a notice sender is connected next to this venue (default false). `pause`: the server's pause switch. */
+  constructor(private venue: LocalVenue, private options: { notices?: boolean; pause?: () => { reason: string; since: number; until: number | null } | null } = {}) {}
+  private refuseWhilePaused() {
+    const p = this.options.pause?.();
+    if (p) throw new EngineError("trading_paused", pausedMessage(p));
+  }
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; const p = this.options.pause?.(); return { ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}) }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
-  placeOrder(id: string, order: OrderRequest) { return this.venue.place(id, order); }
+  async placeOrder(id: string, order: OrderRequest) { this.refuseWhilePaused(); return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }
-  modifyPosition(id: string, positionId: string, p: PositionChange) { return this.venue.modify(id, positionId, p); }
-  modifyOrder(id: string, orderId: string, change: OrderChange) { return this.venue.modifyOrder(id, orderId, change); }
+  async modifyPosition(id: string, positionId: string, p: PositionChange) { this.refuseWhilePaused(); return this.venue.modify(id, positionId, p); }
+  async modifyOrder(id: string, orderId: string, change: OrderChange) { this.refuseWhilePaused(); return this.venue.modifyOrder(id, orderId, change); }
   cancelOrder(id: string, orderId: string) { return this.venue.cancel(id, orderId); }
   archivedDeals(id: string, index: number) { return this.venue.history(id, index); }
   addAlert(id: string, alert: AlertRequest) { return this.venue.addAlert(id, alert); }

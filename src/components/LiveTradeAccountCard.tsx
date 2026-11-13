@@ -6,6 +6,7 @@ import TargetProgress from "@/trade-access/TargetProgress";
 import DailyStatement from "@/trade-access/DailyStatement";
 import { todayLow } from "@/trade-access/daily-statement";
 import { engineLabel, type EngineHandle } from "@/trade-access/useEngine";
+import { pausedUntilText } from "@/trade-access/paused";
 import { liveAccountSummary, type LossRoom } from "@/trade-access/live-account";
 import { findPair } from "@/trade-access/instruments";
 import { todaysWarnings, warningSentence } from "@/trade-access/near-limit";
@@ -58,6 +59,7 @@ export default function LiveTradeAccountCard({ engine, accountId, startingBalanc
       {updatedAt !== null && <> · updated {clock(updatedAt)}</>}
       {s.pricesAt !== null && <> · latest price {clock(s.pricesAt)}</>}
     </p>
+    {status.paused && <p role="status" data-testid="live-trading-paused" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-5"><span className="font-semibold">New trading is paused by FYNX:</span> {status.paused.reason} {pausedUntilText(status.paused, Date.now())} Open trades, stops and loss limits keep working, and you can still close trades or cancel orders in FYNX Trade.</p>}
     {s.gaps.missing.length > 0 && <p role="status" data-testid="live-prices-missing" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-5">{s.gaps.message}</p>}
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">{tiles.map(([k, v, cls, term]) => <div key={k} className="rounded-lg border p-3">
       <dt className="flex items-center gap-1 text-xs text-muted-foreground">{k}{term && <GlossaryTip term={term} />}</dt>

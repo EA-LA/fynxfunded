@@ -3,6 +3,7 @@ import type { Quote } from "./types";
 import { readEngineConfig } from "./config";
 import { describeRateLimits } from "./rate-limit";
 import { describeSignInGuard } from "./sign-in-guard";
+import { PAUSE_ENV, readPauseSetting } from "./trading-pause";
 import { createFeedFromEnv, readFeedConfig, type SocketFactory } from "./feed-config";
 import type { FeedHealth, RejectReason } from "./quote-feed";
 
@@ -22,6 +23,14 @@ export interface CheckItem { name: string; status: CheckStatus; detail: string[]
 
 const lines = (e: unknown) => String((e as Error)?.message ?? e).split("\n").slice(1).map(l => l.replace(/^- /, ""));
 
+/** One line about the "pause new trading" switch for the readiness list. */
+export function describePauseSetting(env: Env): string {
+  const p = readPauseSetting(env[PAUSE_ENV], 0);
+  return p
+    ? `New trading starts PAUSED (${PAUSE_ENV}: "${p.reason}"); closing and cancelling work. Remove the setting and restart to resume.`
+    : `New trading not paused. To pause every account without a restart, set the Firestore document engineControl/trading to { paused: true, reason: "..." } (read every 10 s).`;
+}
+
 export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
   const items: CheckItem[] = [];
 
@@ -35,6 +44,7 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
       `Websites allowed to call the engine: ${c.http.allowedOrigins.join(", ")}.`,
       describeRateLimits(c.rateLimits) + (c.rateLimits && !env.FYNX_ENGINE_RATE_LIMITS?.trim() ? " (defaults; change with FYNX_ENGINE_RATE_LIMITS)" : ""),
       describeSignInGuard(c.signInGuard),
+      describePauseSetting(env),
     ] });
   } catch (e) {
     items.push({ name: "Trading settings", status: "missing", detail: lines(e) });

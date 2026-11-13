@@ -4,6 +4,7 @@ import { EngineRunner, executionMessage, type RunnerHealth, type RunnerOptions }
 import type { EngineEvent, RuleSet } from "./types";
 import type { EngineLedger, LedgerHealth } from "./ledger";
 import type { EngineNotifier, NotifierHealth } from "./notifier";
+import type { PauseHealth, TradingPause } from "./trading-pause";
 import { DEFAULT_RATE_LIMITS, RequestLimiter, type LimiterHealth, type RateLimits } from "./rate-limit";
 
 /**
@@ -61,6 +62,13 @@ export interface EngineServerOptions {
    * DEFAULT_RATE_LIMITS; `false` turns them off (not recommended in production).
    */
   rateLimits?: RateLimits | false;
+  /**
+   * The owner's "pause new trading" switch (src/engine/trading-pause.ts):
+   * while paused, opening or changing orders is refused for every account
+   * (closing, cancelling, alerts and the timer step keep working) and
+   * GET /v1/status says why. `start()` begins reading its control document.
+   */
+  pause?: TradingPause;
   /** Timer step tuning and error reporting (intervalMs, idleEveryMs, onError…). */
   runner?: Omit<RunnerOptions, "venue" | "accounts" | "ready" | "clock">;
   clock?: () => number;
@@ -78,6 +86,8 @@ export interface EngineServerStatus {
   notifier?: NotifierHealth;
   /** Requests refused for being too many (absent when limits are off). */
   limits?: LimiterHealth;
+  /** The pause switch (absent when none is connected). */
+  pause?: PauseHealth;
 }
 
 export interface EngineServer {
@@ -111,7 +121,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
     const priceFeed = priceFeedLive();
     const health = runner.health();
     const base = { priceFeed, execution: priceFeed && health.healthy, message: executionMessage(priceFeed, health), runner: health };
-    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}), ...(limiter ? { limits: limiter.health() } : {}) };
+    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}), ...(limiter ? { limits: limiter.health() } : {}), ...(o.pause ? { pause: o.pause.health() } : {}) };
   };
 
   return {
@@ -120,6 +130,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
       const response = await handleEngineRequest(request, {
         venue, verifyToken: o.verifyToken, canAccess: o.canAccess, tradingEnabled: o.tradingEnabled, openOnFirstVisit: o.openOnFirstVisit,
         ...(limiter ? { limiter } : {}),
+        ...(o.pause ? { pause: () => o.pause!.current() } : {}),
         status: () => { const s = status(); return { priceFeed: s.priceFeed, execution: s.execution, message: s.message, ...(o.notifier ? { notices: true } : {}) }; },
       });
       // An account that just placed or changed something (or set a price alert) is checked every round from now on.
@@ -132,9 +143,11 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
       offQuote = venue.onQuote(q => { lastQuoteAt = clock(); runner.nudge(); });
       disconnect = venue.connect(o.feed);
       runner.start();
+      void o.pause?.start();
     },
     async stop() {
       disconnect?.(); offQuote?.();
+      o.pause?.stop();
       disconnect = offQuote = null;
       await runner.stop();
       // Trades closed in the last round still reach the dashboard before the process exits.

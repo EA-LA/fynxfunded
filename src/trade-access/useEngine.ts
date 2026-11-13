@@ -66,6 +66,7 @@ export function useEngine(accountId: string | null, gatewayOverride?: TradingGat
 /** Short label for the engine status pill. The full sentence from the server is its tooltip. */
 export function engineLabel(status: GatewayStatus | null): string {
   if (!status?.connected) return "Engine not connected";
+  if (status.paused) return "Engine connected · new trading paused";
   if (status.execution) return "Trading engine live";
   return status.priceFeed ? "Engine connected · order checks paused" : "Engine connected · waiting for prices";
 }

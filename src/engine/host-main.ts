@@ -7,6 +7,7 @@ import { catchUpLedger, EngineLedger, firestoreTradeWriter, type CatchUpReport, 
 import { EngineNotifier, firestoreMailSender, storePrefs } from "./notifier";
 import { createEngineServer, type EngineServer } from "./server";
 import { SignInGuard } from "./sign-in-guard";
+import { PAUSE_CONTROL_DOC, PAUSE_ENV, readPauseSetting, TradingPause } from "./trading-pause";
 import { createHttpHandler, type NodeLikeRequest, type NodeLikeResponse } from "./http-adapter";
 import { engineChecklist, formatReport } from "./preflight";
 
@@ -57,6 +58,8 @@ export interface HostDeps {
   ledgerRetryDelaysMs?: number[];
   /** How often a health line is logged, and unwritten trade records tried again (default 5 minutes, 0 = never). */
   healthLogEveryMs?: number;
+  /** How often the pause switch document (engineControl/trading) is read (default 10 s). */
+  pauseEveryMs?: number;
   clock?: () => number;
 }
 
@@ -73,6 +76,8 @@ export interface RunningHost {
   ledgerCatchUp: Promise<CatchUpReport | null>;
   /** Failed sign-in protection (null when FYNX_ENGINE_CLIENT_ADDRESS is not set or the limit is off). */
   signInGuard: SignInGuard | null;
+  /** The "pause new trading" switch (FYNX_ENGINE_PAUSE and the engineControl/trading document). */
+  pause: TradingPause;
   /** Stops taking requests, then stops the feed and timer and waits for trades/notices to be written. */
   stop(): Promise<void>;
 }
@@ -81,6 +86,7 @@ export const HOST_ENV = {
   allowTrading: "FYNX_ENGINE_ALLOW_TRADING",
   emailNotices: "FYNX_ENGINE_EMAIL_NOTICES",
   ledgerCatchUpDays: "FYNX_ENGINE_LEDGER_CATCHUP_DAYS",
+  pause: PAUSE_ENV,
   port: "PORT",
 } as const;
 
@@ -142,8 +148,21 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     ...(d.ledgerRetryDelaysMs ? { retryDelaysMs: d.ledgerRetryDelaysMs } : {}),
     onError: (e, info) => log("WARNING", "Trade record not written yet; retrying.", { account: info.engineAccountId, deal: info.dealId, attempt: info.attempt, error: errorText(e) }),
   });
+  const now0 = (d.clock ?? Date.now)();
+  const pause = new TradingPause({
+    initial: readPauseSetting(d.env[HOST_ENV.pause], now0),
+    control: d.db.collection(PAUSE_CONTROL_DOC.collection).doc(PAUSE_CONTROL_DOC.id),
+    ...(d.pauseEveryMs ? { everyMs: d.pauseEveryMs } : {}),
+    clock: d.clock,
+    onChange: state => state
+      ? log("WARNING", "New trading paused for every account (closing and cancelling still work).", { reason: state.reason, source: state.source, ...(state.until ? { until: new Date(state.until).toISOString() } : {}) })
+      : log("INFO", "New trading resumed."),
+    onError: (e, n) => { if (n === 1 || n % 30 === 0) log("WARNING", "Could not read the pause switch (engineControl/trading); keeping the last known state.", { failuresInARow: n, error: errorText(e) }); },
+  });
+  // Read the switch before the first request, so a paused server never accepts an order on start.
+  await pause.refresh();
   const engine = createEngineServer({
-    pairs: d.pairs, settings: config.settings, feed, store, rateLimits: config.rateLimits,
+    pairs: d.pairs, settings: config.settings, feed, store, rateLimits: config.rateLimits, pause,
     ...directory.engineOptions(),
     verifyToken: async token => {
       try { return (await d.verifyIdToken(token)).uid || null; } catch { return null; }
@@ -170,7 +189,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
         onBlock: address => log("WARNING", "Too many failed sign-ins: address refused for a while.", { address, seconds: config.signInGuard!.limits.blockSeconds }),
       },
     } : {}),
-    log: entry => { if (entry.status >= 500) log("ERROR", "Request failed.", { ...entry }); },
+    log: entry => { if (entry.status >= 500 && entry.code !== "trading_paused") log("ERROR", "Request failed.", { ...entry }); },
   });
   const server = await d.listen(handler, port);
   engine.start();
@@ -184,6 +203,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     tradeCatchUp: catchUpDays ? `last ${catchUpDays} day(s)` : "off",
     allowedOrigins: config.http.allowedOrigins,
     requestLimits: config.rateLimits ? "on" : "off",
+    newTrading: pause.current() ? `paused (${pause.current()!.reason})` : "not paused (switch: engineControl/trading document or FYNX_ENGINE_PAUSE)",
     failedSignInProtection: config.signInGuard ? (config.signInGuard.address.from === "socket" ? "on (connection address)" : `on (X-Forwarded-For, ${config.signInGuard.address.trustedHops} hop(s))`) : "off (set FYNX_ENGINE_CLIENT_ADDRESS)",
   });
 
@@ -227,6 +247,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
       ...(s.ledger ? { tradesPending: s.ledger.pending, tradesFailed: s.ledger.failed.length } : {}),
       ...(s.notifier ? { noticesFailed: s.notifier.failed.length } : {}),
       ...(s.limits ? { requestsRefused: s.limits.refused.trade + s.limits.refused.reduce + s.limits.refused.read } : {}),
+      ...(pause.current() ? { newTradingPaused: true } : {}),
       ...(signInGuard ? { signInRefused: signInGuard.health().refused, addressesBlocked: signInGuard.health().blockedNow } : {}),
     });
   }, every) : null;
@@ -234,7 +255,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
 
   let stopping: Promise<void> | null = null;
   return {
-    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard,
+    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard, pause,
     stop() {
       stopRequested = true;
       stopping ??= (async () => {
