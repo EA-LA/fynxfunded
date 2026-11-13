@@ -3,6 +3,7 @@ import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEv
 import { newsStatus, type NewsState } from "./news";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
+import { exposureLimits, OPEN_LOTS_MAX, OPEN_LOTS_MIN, OPEN_TRADES_MAX, OPEN_TRADES_MIN, validOpenLots, validOpenTrades, type ExposureLimits } from "./exposure";
 import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
 
 /**
@@ -125,6 +126,10 @@ export interface PurchasedRules {
   weekend_holding?: boolean | string;
   /** With weekend_holding false: minutes before the weekend close (1–240, default 15). */
   weekend_close_minutes?: number | string;
+  /** Most lots open at once (open trades + waiting orders), 0.01–10000. Missing/null/"" = no limit. */
+  max_open_lots?: number | string | null;
+  /** Most trades open at once (open trades + waiting orders), whole 1–500. Missing/null/"" = no limit. */
+  max_open_trades?: number | string | null;
 }
 
 const percentField = (v: unknown, name: string, optional = false): number | null => {
@@ -141,6 +146,8 @@ const percentField = (v: unknown, name: string, optional = false): number | null
  */
 export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, opts: { funded?: boolean } = {}): RuleSet {
   const weekendCloseMinutes = weekendField(r);
+  const maxOpenLots = limitField(r.max_open_lots, validOpenLots, `Maximum open lots must be a number of lots from ${OPEN_LOTS_MIN} to ${OPEN_LOTS_MAX} in steps of 0.01.`);
+  const maxOpenTrades = limitField(r.max_open_trades, validOpenTrades, `Maximum open trades must be a whole number from ${OPEN_TRADES_MIN} to ${OPEN_TRADES_MAX}.`);
   if (!Number.isFinite(startingBalance) || startingBalance <= 0) throw new EngineError("bad_rules", "Starting balance must be a positive number.");
   const days = Number(r.min_trading_days), reset = r.reset_hour_utc === undefined ? 22 : Number(r.reset_hour_utc);
   if (!Number.isInteger(days) || days < 0) throw new EngineError("bad_rules", "Minimum trading days must be a whole number.");
@@ -155,7 +162,18 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
     consistencyPercent: percentField(r.consistency_percent, "Consistency", true),
     // Only present when the agreement forbids weekend holding.
     ...(weekendCloseMinutes !== null ? { weekendCloseMinutes } : {}),
+    // Only present when the agreement caps open exposure.
+    ...(maxOpenLots !== null ? { maxOpenLots } : {}),
+    ...(maxOpenTrades !== null ? { maxOpenTrades } : {}),
   };
+}
+
+/** An optional numeric limit from the purchase: null when missing; unclear values are refused (the account goes to review). */
+function limitField(raw: unknown, valid: (v: unknown) => v is number, message: string): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = typeof raw === "string" ? Number(raw.trim()) : raw;
+  if (!valid(n)) throw new EngineError("bad_rules", message);
+  return n;
 }
 
 /** The weekend rule from the purchase: null when holding is allowed; unclear values are refused (the account goes to review). */
@@ -214,6 +232,12 @@ export interface Snapshot {
    * src/engine/weekend.ts). Optional in the HTTP contract.
    */
   weekendClose?: { minutesBefore: number };
+  /**
+   * Present only when the account's agreement caps open exposure (see
+   * src/engine/exposure.ts): most lots and/or most trades open at once.
+   * Optional in the HTTP contract.
+   */
+  exposure?: ExposureLimits;
 }
 
 export class LocalVenue {
@@ -305,8 +329,8 @@ export class LocalVenue {
       const events = [...ticked.events, ...step.events];
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
-      const weekend = ctx.rules.weekendCloseMinutes;
-      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}) };
+      const weekend = ctx.rules.weekendCloseMinutes, exposure = exposureLimits(ctx.rules);
+      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}) };
     });
     this.queue = job.catch(() => undefined);
     return job;

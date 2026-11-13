@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, Layers, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -16,6 +16,8 @@ import { parsePips, protectionPrices, rulesInDollars, ticketFigures, type Accoun
 import { orderCosts, weekdayName } from './costs';
 import { reasonLabel } from './statement';
 import { pairWeekendCutoff, weekendNote, weekendRule, weekendRuleText } from './weekend-close';
+import { exposureRule, ticketExposure } from './exposure-limit';
+import { exposureRuleText } from '@/engine/exposure';
 import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
@@ -354,8 +356,11 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const weekendMinutes = weekendRule(engine.snapshot);
   const weekend = weekendMinutes !== null && marketOpen ? weekendNote(pairWeekendCutoff(engine.status, pair.symbol, now, weekendMinutes), weekendMinutes, pair.symbol, now) : null;
   const weekendBlocks = !!weekend?.inCutoff && type === 'market';
-  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && !weekendBlocks && engine.snapshot && quote);
-  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now, undefined, news.holdPending) : weekendBlocks ? weekend!.text : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
+  // Optional open-exposure limits (most lots / trades open at once) from the account's purchased rules.
+  const exposure = ticketExposure(engine.snapshot, { lots, type, ...(ocoWith ? { ocoWith } : {}) });
+  const exposureBlocks = !!exposure?.breach;
+  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && !weekendBlocks && !exposureBlocks && engine.snapshot && quote);
+  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now, undefined, news.holdPending) : weekendBlocks ? weekend!.text : exposureBlocks ? exposure!.text : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
     if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok || !deviation.ok) return;
     // "End of today" is worked out at the moment of sending.
@@ -394,6 +399,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       </div>
       <div className="mt-1.5 flex gap-1">{['0.01', '0.10', '0.50', '1.00'].map(v => <button key={v} type="button" onClick={() => setLotsText(v)} className={`flex-1 rounded border py-1 font-mono text-xs ${lotsText === v ? 'border-primary bg-primary/10' : 'hover:bg-secondary'}`}>{v}</button>)}</div>
       <p className="mt-1 text-[11px] text-muted-foreground">{lots ? `${f.units?.toLocaleString()} ${pair.base} · ${LOT_MIN}–${LOT_MAX} lots, step ${LOT_STEP}` : `Enter a volume from ${LOT_MIN} to ${LOT_MAX} lots.`}</p>
+      {exposure && <p role="status" data-testid="exposure-note" className={`mt-1.5 flex items-start gap-1.5 rounded-md p-2 text-[11px] ${exposure.breach ? 'bg-red-500/10 text-red-600 dark:text-red-400' : exposure.warn ? 'bg-amber-500/10' : 'bg-secondary/60 text-muted-foreground'}`}><Layers size={12} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{exposure.text}</span></p>}
       <TicketRiskSize pair={pair} slPips={sl} balance={balance} quotes={engine.snapshot?.quotes} roomToFloor={figuresKnown ? engine.snapshot?.metrics.roomToFloor : null} dailyLossAmount={dailyLossAmount} currentLots={lots} onUse={v => setLotsText(v.toFixed(2))} />
     </div>
 
@@ -487,6 +493,7 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
             ['Maximum loss', `${account.rules.max_loss_percent}%${rules.maxLossFloor !== null ? ` · equity must not fall below ${money(rules.maxLossFloor)}` : ''}`],
             ['Minimum trading days', String(account.rules.min_trading_days)],
             ...(weekendRule(engine.snapshot) !== null ? [['Weekend holding', weekendRuleText(weekendRule(engine.snapshot)!)]] : []),
+            ...(exposureRule(engine.snapshot) ? [['Open at once', exposureRuleText(exposureRule(engine.snapshot)!)]] : []),
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right">{v}</dd></div>)}</dl>
           <p className="mt-2 text-xs text-muted-foreground">Rules recorded with your purchase. Viewing prices does not start a trading day.</p></div>}
         {engine.snapshot?.report && <TargetProgress report={engine.snapshot.report} />}

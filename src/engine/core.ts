@@ -6,6 +6,7 @@ import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
 import { activeNewsWindow, newsWindowMessage, type NewsState } from "./news";
 import { inWeekendCutoff, weekendCloseMessage } from "./weekend";
+import { exposureLimits, stateExposureBreach, type ExposureState } from "./exposure";
 
 /**
  * FYNX trading engine core: pure, deterministic functions. Every function takes
@@ -98,6 +99,16 @@ export function assertNoNewsWindow(s: InstrumentSpec, ctx: Pick<EngineContext, "
 export function assertWeekendOpen(s: InstrumentSpec, ctx: Pick<EngineContext, "rules" | "now">) {
   const c = inWeekendCutoff(s.hours, ctx.now, ctx.rules.weekendCloseMinutes);
   if (c) throw new EngineError("weekend_close", weekendCloseMessage(s.symbol, c, formatUtc));
+}
+
+/**
+ * Open-exposure limits (RuleSet.maxOpenLots / maxOpenTrades): refuses a change
+ * that would take the account past a limit (`exposure_limit`). Fills of
+ * waiting orders are never checked: they already count while waiting.
+ */
+export function assertExposure(before: ExposureState, after: ExposureState, rules: Pick<RuleSet, "maxOpenLots" | "maxOpenTrades">) {
+  const b = stateExposureBreach(before, after, exposureLimits(rules));
+  if (b) throw new EngineError("exposure_limit", b.message);
 }
 
 /** Whether the account's weekend rule says this symbol must be flat right now. */
@@ -307,6 +318,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
       if (moved > req.maxDeviationPips) throw new EngineError("price_moved", `The ${req.symbol} price moved ${moved.toFixed(1)} pips against you (from ${req.expectedPrice.toFixed(s.digits)} to ${price.toFixed(s.digits)}), ${req.maxDeviationPips === 0 ? "and you allowed no move against you" : `more than the ${req.maxDeviationPips.toFixed(1)} pips you allowed`}. Nothing was opened.`);
     }
     checkProtection(req.side, price, req.stopLoss, req.takeProfit);
+    assertExposure(state, { positions: [...state.positions, { lots: req.lots }], orders: state.orders }, ctx.rules);
     return open(state, ctx, req, price);
   }
   checkPrice(s, req.price, "Order price");
@@ -314,8 +326,9 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   checkPendingSide(req.side, req.type, req.price, openingPrice(req.side, q));
   checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
   const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), ...(req.expiresAt !== undefined ? { expiresAt: req.expiresAt } : {}), ...(req.ocoWith !== undefined ? { ocoWith: req.ocoWith } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
-  if (req.ocoWith === undefined) return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
-  const partner: PendingOrder = { ...state.orders.find(o => o.id === req.ocoWith)!, ocoWith: order.id };
+  const partner: PendingOrder | null = req.ocoWith === undefined ? null : { ...state.orders.find(o => o.id === req.ocoWith)!, ocoWith: order.id };
+  assertExposure(state, { positions: state.positions, orders: [...state.orders.map(o => (partner && o.id === partner.id ? partner : o)), order] }, ctx.rules);
+  if (!partner) return { state: { ...state, orders: [...state.orders, order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }] };
   return { state: { ...state, orders: [...state.orders.map(o => (o.id === partner.id ? partner : o)), order], sequence: state.sequence + 1 }, events: [{ type: "order_placed", order }, { type: "order_modified", order: partner }] };
 }
 
@@ -505,6 +518,8 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
     // The old partner loses its link; the new partner points back at this order.
     if (o.ocoWith !== undefined) orders = orders.map(x => { if (x.id !== o.ocoWith || x.ocoWith !== o.id) return x; const { ocoWith: _x, ...r } = x; partners.push(r); return r; });
     if (oco !== undefined) orders = orders.map(x => { if (x.id !== oco) return x; const linked = { ...x, ocoWith: o.id }; partners.push(linked); return linked; });
+    // Unlinking makes two orders count separately again.
+    assertExposure(state, { positions: state.positions, orders }, ctx.rules);
   }
   return { state: { ...state, orders, sequence: state.sequence + 1 }, events: [{ type: "order_modified", order: next }, ...partners.map(order => ({ type: "order_modified" as const, order }))] };
 }

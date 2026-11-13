@@ -233,6 +233,13 @@ export interface RuleSet {
    * null or missing = trades may be held over the weekend.
    */
   weekendCloseMinutes?: number | null;
+  /**
+   * Open-exposure limits (src/engine/exposure.ts): most lots / most trades
+   * open at once, counting open trades and waiting pending orders (a linked
+   * OCO pair counts once). Missing = no limit.
+   */
+  maxOpenLots?: number;
+  maxOpenTrades?: number;
 }
 
 /** Where an account stands against its profit target, minimum days and consistency rule. */

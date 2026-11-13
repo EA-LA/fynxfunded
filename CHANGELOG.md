@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13 18:17 UTC — [autopilot] FYNX Trade: ready for "most lots / most trades open at once" limits
+
+- If an account agreement caps how much a trader may have in the market at once (for example "at most 10 lots" or "at most 5 trades open together"), the trading server now enforces it by itself. An order that would go past the limit is refused with a plain explanation, including how much can still be added. Nothing is sent in that case.
+- Pending orders that are waiting count too, so once accepted they can always fill. Two orders linked "one cancels the other" count once, because only one of them can ever open. Closing trades and cancelling orders always work.
+- In the terminal (https://www.fynxfunded.com/trade/access): under the volume the order panel shows how much is open against the limit (for example "2.95 of 3.00 lots · 1 of 3 trades") and what it would be after this order, turns amber close to the limit, locks Confirm with the reason when the order would go past it, and the Account tab lists the limit under "Open at once".
+- Nothing changes for today's accounts: the limits only apply when the purchased rules contain `max_open_lots` and/or `max_open_trades`. Steps in docs/ENGINE-READINESS.md ("Open-exposure limits").
+
 ## 2026-11-13 15:20 UTC — [autopilot] FYNX Trade: ready for a "no trades over the weekend" rule
 
 - If an account agreement says trades may not be held over the weekend, the trading server now handles it by itself: a few minutes before the market closes on Friday (15 minutes unless you choose another number, 1 to 240), it closes that account's open trades at the market price. The account stays open; it is not a rule breach. Long holiday closures of a day or more count too.
