@@ -28,7 +28,7 @@ export function describePauseSetting(env: Env): string {
   const p = readPauseSetting(env[PAUSE_ENV], 0);
   return p
     ? `New trading starts PAUSED (${PAUSE_ENV}: "${p.reason}"); closing and cancelling work. Remove the setting and restart to resume.`
-    : `New trading not paused. To pause every account without a restart, set the Firestore document engineControl/trading to { paused: true, reason: "..." } (read every 10 s).`;
+    : `New trading not paused. To pause every account without a restart, set the Firestore document engineControl/trading to { paused: true, reason: "..." } (read every 10 s); add holdPending: true to keep waiting pending orders from filling during the pause.`;
 }
 
 export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
@@ -45,7 +45,7 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
       describeRateLimits(c.rateLimits) + (c.rateLimits && !env.FYNX_ENGINE_RATE_LIMITS?.trim() ? " (defaults; change with FYNX_ENGINE_RATE_LIMITS)" : ""),
       describeSignInGuard(c.signInGuard),
       describePauseSetting(env),
-      "News windows: read from the Firestore document engineControl/news every 60 s (release title, time, currencies; information only until it says enforce: true). Fill it from your economic calendar.",
+      "News windows: read from the Firestore document engineControl/news every 60 s (release title, time, currencies; information only until it says enforce: true; with holdPending: true waiting pending orders on the affected pairs also wait until the window ends). Fill it from your economic calendar.",
     ] });
   } catch (e) {
     items.push({ name: "Trading settings", status: "missing", detail: lines(e) });

@@ -160,7 +160,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     ...(d.pauseEveryMs ? { everyMs: d.pauseEveryMs } : {}),
     clock: d.clock,
     onChange: state => state
-      ? log("WARNING", "New trading paused for every account (closing and cancelling still work).", { reason: state.reason, source: state.source, ...(state.until ? { until: new Date(state.until).toISOString() } : {}) })
+      ? log("WARNING", state.holdPending ? "New trading paused for every account; waiting pending orders are held too (closing and cancelling still work)." : "New trading paused for every account (closing and cancelling still work; waiting pending orders can still fill).", { reason: state.reason, source: state.source, ...(state.holdPending ? { holdPending: true } : {}), ...(state.until ? { until: new Date(state.until).toISOString() } : {}) })
       : log("INFO", "New trading resumed."),
     onError: (e, n) => { if (n === 1 || n % 30 === 0) log("WARNING", "Could not read the pause switch (engineControl/trading); keeping the last known state.", { failuresInARow: n, error: errorText(e) }); },
   });
@@ -171,7 +171,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     ...(d.newsEveryMs ? { everyMs: d.newsEveryMs } : {}),
     clock: d.clock,
     onChange: (state, problems) => log(problems.length ? "WARNING" : "INFO", state.enforce
-      ? "News calendar read: new orders are refused inside the restricted windows."
+      ? (state.holdPending ? "News calendar read: new orders are refused and waiting pending orders are held inside the restricted windows." : "News calendar read: new orders are refused inside the restricted windows (waiting pending orders can still fill).")
       : "News calendar read: windows shown to traders as information only (enforce is off).", {
       windows: state.windows.length,
       ...(state.windows[0] ? { next: `${state.windows[0].title} at ${new Date(state.windows[0].at).toISOString()}` } : {}),

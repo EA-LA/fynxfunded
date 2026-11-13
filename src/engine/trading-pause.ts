@@ -18,7 +18,11 @@
  * with `trading_paused` (HTTP 503) and nothing is recorded. Closing positions,
  * cancelling orders, price alerts and notice choices keep working, and the
  * timer step keeps checking stops, targets and loss limits. Pending orders
- * already waiting still fill at their price; cancel them if they should not.
+ * already waiting still fill at their price, unless the document also says
+ * `holdPending: true`: then they wait in the book until the pause ends, and
+ * the first fresh price after it decides the fill (a limit at its price or
+ * better, a stop at the market, like after a weekend gap). Expiry still
+ * applies; traders can cancel them at any time.
  * GET /v1/status carries `paused` so the terminal can say so before a trader
  * clicks.
  *
@@ -36,6 +40,8 @@ export interface TradingPauseState {
   until: number | null;
   /** Where it came from: the FYNX_ENGINE_PAUSE setting, the control document, or code. */
   source: "settings" | "control" | "code";
+  /** true = pending orders already waiting do not fill during the pause either. */
+  holdPending?: boolean;
 }
 
 export const PAUSE_REASON_MAX = 200;
@@ -90,7 +96,14 @@ export function readPauseDocument(data: Record<string, unknown> | undefined | nu
   if (until !== null && until <= now) return { state: null, problems };
   const rawSince = readTime(data.since);
   const since = rawSince === "bad" || rawSince === null || rawSince > now ? now : rawSince;
-  return { state: { reason: cleanReason(data.reason), since, until, source: "control" }, problems };
+  const hold = data.holdPending;
+  let holdPending = false;
+  if (hold === true || hold === "true") holdPending = true;
+  else if (!(hold === false || hold === "false" || hold === undefined || hold === null)) {
+    holdPending = true;
+    problems.push(`"holdPending" should be true or false (got ${JSON.stringify(hold)?.slice(0, 40)}); waiting pending orders are held during the pause.`);
+  }
+  return { state: { reason: cleanReason(data.reason), since, until, source: "control", ...(holdPending ? { holdPending } : {}) }, problems };
 }
 
 /** The FYNX_ENGINE_PAUSE setting: empty/missing/"false"/"off" → not paused; "true"/"on" → standard sentence; other text → that sentence. */
@@ -102,6 +115,8 @@ export function readPauseSetting(raw: string | undefined, now: number): TradingP
 
 export interface PauseHealth {
   paused: boolean;
+  /** Waiting pending orders are held too. */
+  holdPending: boolean;
   source: TradingPauseState["source"] | null;
   reason: string | null;
   until: number | null;
@@ -130,7 +145,7 @@ export interface TradingPauseOptions {
 }
 
 const same = (a: TradingPauseState | null, b: TradingPauseState | null) =>
-  a === b || (!!a && !!b && a.reason === b.reason && a.until === b.until && a.source === b.source);
+  a === b || (!!a && !!b && a.reason === b.reason && a.until === b.until && a.source === b.source && !!a.holdPending === !!b.holdPending);
 
 export class TradingPause {
   private settings: TradingPauseState | null;
@@ -159,9 +174,9 @@ export class TradingPause {
     return state;
   }
 
-  /** Pause from code (tests, an admin tool). `until` in ms or null. */
-  pause(reason: string, until: number | null = null): void {
-    this.manual = { reason: cleanReason(reason), since: this.clock(), until, source: "code" };
+  /** Pause from code (tests, an admin tool). `until` in ms or null; `holdPending` also holds waiting pending orders. */
+  pause(reason: string, until: number | null = null, holdPending = false): void {
+    this.manual = { reason: cleanReason(reason), since: this.clock(), until, source: "code", ...(holdPending ? { holdPending } : {}) };
     this.current();
   }
 
@@ -207,7 +222,7 @@ export class TradingPause {
 
   health(): PauseHealth {
     const s = this.current();
-    return { paused: !!s, source: s?.source ?? null, reason: s?.reason ?? null, until: s?.until ?? null, lastReadAt: this.lastReadAt, readFailures: this.failures, problems: [...this.problems] };
+    return { paused: !!s, holdPending: !!s?.holdPending, source: s?.source ?? null, reason: s?.reason ?? null, until: s?.until ?? null, lastReadAt: this.lastReadAt, readFailures: this.failures, problems: [...this.problems] };
   }
 }
 

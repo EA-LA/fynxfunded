@@ -10,6 +10,7 @@
  *
  *      {
  *        enforce: false,            // true = refuse new orders in the windows
+ *        holdPending: false,        // true = waiting pending orders on the pair do not fill in a window either
  *        beforeMinutes: 2,          // default window around every release
  *        afterMinutes: 2,
  *        events: [
@@ -28,8 +29,14 @@
  *    cancelling orders, changing stop loss / take profit, price alerts and the
  *    timer step (stops, targets, loss limits, pending fills) keep working:
  *    the rule never stops a trader from reducing risk.
+ *  - Pending orders placed before a window still fill inside it unless the
+ *    owner also sets `holdPending: true` (only with `enforce: true`): then
+ *    they wait in the book until the window ends, and the first fresh price
+ *    after it decides the fill (a limit at its price or better, a stop at the
+ *    market, like after a weekend gap). Expiry still applies; traders can
+ *    cancel them at any time.
  *
- * Fail-safe reading: an `enforce` that is neither true nor false enforces; an
+ * Fail-safe reading: an `enforce` (or `holdPending`) that is neither true nor false counts as true; an
  * event that cannot be read is dropped and named in `problems`; a failed read
  * keeps the last calendar. Pure apart from the clock and the injected reader;
  * no imports from Firebase.
@@ -54,6 +61,12 @@ export interface NewsWindow {
 export interface NewsState {
   /** true = new orders are refused inside the windows; false = information only. */
   enforce: boolean;
+  /**
+   * true = inside an enforced window, pending orders on the affected pairs do
+   * not fill either (they wait until the window ends). Missing/false = they
+   * fill at their price as usual. Only meaningful with `enforce: true`.
+   */
+  holdPending?: boolean;
   windows: NewsWindow[];
 }
 
@@ -114,6 +127,13 @@ export function readNewsDocument(data: Record<string, unknown> | undefined | nul
     enforce = true;
     problems.push(`"enforce" should be true or false (got ${JSON.stringify(flag)?.slice(0, 40)}); new orders are refused in the windows until it is fixed.`);
   }
+  const holdFlag = data.holdPending;
+  let holdPending = false;
+  if (holdFlag === true || holdFlag === "true") holdPending = true;
+  else if (!(holdFlag === false || holdFlag === "false" || holdFlag === undefined || holdFlag === null)) {
+    holdPending = true;
+    problems.push(`"holdPending" should be true or false (got ${JSON.stringify(holdFlag)?.slice(0, 40)}); waiting pending orders are held in the windows until it is fixed.`);
+  }
   const before = readMinutes(data.beforeMinutes, NEWS_DEFAULT_MINUTES);
   const after = readMinutes(data.afterMinutes, NEWS_DEFAULT_MINUTES);
   if (before === null) problems.push(`"beforeMinutes" should be a whole number from 0 to ${NEWS_MAX_MINUTES}; ${NEWS_DEFAULT_MINUTES} is used.`);
@@ -146,7 +166,7 @@ export function readNewsDocument(data: Record<string, unknown> | undefined | nul
     windows.push({ id, title, at, from: at - b * 60_000, to, currencies });
   });
   windows.sort((x, y) => x.from - y.from || x.at - y.at || x.id.localeCompare(y.id));
-  return { state: { enforce, windows }, problems };
+  return { state: { enforce, ...(holdPending ? { holdPending } : {}), windows }, problems };
 }
 
 /** Whether a window touches the pair (its base or quote currency is listed). */
@@ -170,11 +190,13 @@ export function newsWindowMessage(w: Pick<NewsWindow, "title" | "at" | "to" | "c
 /** What GET /v1/status carries: the rule and the windows from now to `days` ahead (active ones included). */
 export function newsStatus(state: NewsState, now: number, days = NEWS_STATUS_DAYS): NewsState {
   const end = now + days * 86_400_000;
-  return { enforce: state.enforce, windows: state.windows.filter(w => w.to > now && w.from < end).slice(0, NEWS_STATUS_MAX) };
+  return { enforce: state.enforce, ...(state.holdPending ? { holdPending: true } : {}), windows: state.windows.filter(w => w.to > now && w.from < end).slice(0, NEWS_STATUS_MAX) };
 }
 
 export interface NewsHealth {
   enforce: boolean;
+  /** Pending orders are held inside enforced windows. */
+  holdPending: boolean;
   /** Windows still to come or in force now. */
   windows: number;
   /** Windows in force right now. */
@@ -198,7 +220,7 @@ export interface NewsCalendarOptions {
 }
 
 const sameState = (a: NewsState, b: NewsState) =>
-  a.enforce === b.enforce && a.windows.length === b.windows.length && a.windows.every((w, i) => {
+  a.enforce === b.enforce && !!a.holdPending === !!b.holdPending && a.windows.length === b.windows.length && a.windows.every((w, i) => {
     const v = b.windows[i];
     return w.id === v.id && w.from === v.from && w.to === v.to && w.title === v.title && w.currencies.join() === v.currencies.join();
   });
@@ -220,11 +242,11 @@ export class NewsCalendar {
   /** The rule and the windows not yet over. */
   current(): NewsState {
     const now = this.clock();
-    return { enforce: this.state.enforce, windows: this.state.windows.filter(w => w.to > now) };
+    return { enforce: this.state.enforce, ...(this.state.holdPending ? { holdPending: true } : {}), windows: this.state.windows.filter(w => w.to > now) };
   }
 
   /** Replaces the calendar from code (tests, an admin tool). */
-  set(state: NewsState): void { this.state = { enforce: state.enforce, windows: [...state.windows].sort((x, y) => x.from - y.from) }; }
+  set(state: NewsState): void { this.state = { enforce: state.enforce, ...(state.holdPending ? { holdPending: true } : {}), windows: [...state.windows].sort((x, y) => x.from - y.from) }; }
 
   /** Reads the document once (no-op without one). Never throws. */
   refresh(): Promise<void> {
@@ -264,6 +286,6 @@ export class NewsCalendar {
 
   health(): NewsHealth {
     const s = this.current(), now = this.clock();
-    return { enforce: s.enforce, windows: s.windows.length, activeNow: s.windows.filter(w => w.from <= now).length, lastReadAt: this.lastReadAt, readFailures: this.failures, problems: [...this.problems] };
+    return { enforce: s.enforce, holdPending: !!s.holdPending, windows: s.windows.length, activeNow: s.windows.filter(w => w.from <= now).length, lastReadAt: this.lastReadAt, readFailures: this.failures, problems: [...this.problems] };
   }
 }

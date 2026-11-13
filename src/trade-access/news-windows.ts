@@ -10,6 +10,8 @@ export interface PairNews {
   connected: boolean;
   /** Windows refuse new orders (true) or are information only (false). */
   enforce: boolean;
+  /** Inside an enforced window, waiting pending orders on the pair are held too. */
+  holdPending: boolean;
   /** The window in force for this pair now, or null. */
   active: NewsWindow | null;
   /** Windows for this pair not yet started, soonest first (next 7 days as the server lists them). */
@@ -19,9 +21,9 @@ export interface PairNews {
 /** The restricted news windows that touch this pair, from the trading server's status. */
 export function pairNews(status: Pick<GatewayStatus, 'news'> | null | undefined, pair: { base: string; quote: string }, now: number): PairNews {
   const news = status?.news;
-  if (!news) return { connected: false, enforce: false, active: null, upcoming: [] };
+  if (!news) return { connected: false, enforce: false, holdPending: false, active: null, upcoming: [] };
   const mine = news.windows.filter(w => w.to > now && affects(w, pair));
-  return { connected: true, enforce: news.enforce, active: activeNewsWindow(mine, pair, now), upcoming: mine.filter(w => w.from > now).sort((a, b) => a.from - b.from) };
+  return { connected: true, enforce: news.enforce, holdPending: !!news.holdPending, active: activeNewsWindow(mine, pair, now), upcoming: mine.filter(w => w.from > now).sort((a, b) => a.from - b.from) };
 }
 
 /** Whether a new order on this pair would be refused right now because of a window. */
@@ -33,21 +35,21 @@ export function localClock(ms: number, now: number, locale?: string): string {
 }
 
 /** The order panel's hold sentence inside an enforced window. */
-export function newsHoldSentence(w: NewsWindow, symbol: string, now: number, locale?: string): string {
-  return `New ${symbol} orders are paused around ${w.title} (${w.currencies.join(', ')}) at ${localClock(w.at, now, locale)} your time. They reopen at ${localClock(w.to, now, locale)} (in ${untilLabel(w.to - now)}). Closing trades, cancelling orders and changing stop loss or take profit still work.`;
+export function newsHoldSentence(w: NewsWindow, symbol: string, now: number, locale?: string, holdPending?: boolean): string {
+  return `New ${symbol} orders are paused around ${w.title} (${w.currencies.join(', ')}) at ${localClock(w.at, now, locale)} your time. They reopen at ${localClock(w.to, now, locale)} (in ${untilLabel(w.to - now)}). Closing trades, cancelling orders and changing stop loss or take profit still work. ${holdPending ? 'Pending orders already waiting on this pair are held until the window ends.' : 'Pending orders already waiting can still fill at their price; cancel any you no longer want.'}`;
 }
 
 /** One line for a window in force now or coming soon, saying whether orders are refused. */
 export function newsNoteSentence(n: PairNews, symbol: string, now: number, locale?: string): string | null {
   if (n.active) {
     return n.enforce
-      ? newsHoldSentence(n.active, symbol, now, locale)
+      ? newsHoldSentence(n.active, symbol, now, locale, n.holdPending)
       : `High-impact release now: ${n.active.title} (${n.active.currencies.join(', ')}) at ${localClock(n.active.at, now, locale)} your time. Prices can jump and spreads widen; orders are still accepted.`;
   }
   const next = n.upcoming[0];
   if (!next || next.from - now > NEWS_SOON_MS) return null;
   return n.enforce
-    ? `${next.title} (${next.currencies.join(', ')}) at ${localClock(next.at, now, locale)} your time: new ${symbol} orders are refused from ${localClock(next.from, now, locale)} to ${localClock(next.to, now, locale)} (starts in ${untilLabel(next.from - now)}).`
+    ? `${next.title} (${next.currencies.join(', ')}) at ${localClock(next.at, now, locale)} your time: new ${symbol} orders are refused from ${localClock(next.from, now, locale)} to ${localClock(next.to, now, locale)} (starts in ${untilLabel(next.from - now)})${n.holdPending ? '; waiting pending orders on this pair are held then too' : ''}.`
     : `${next.title} (${next.currencies.join(', ')}) at ${localClock(next.at, now, locale)} your time (in ${untilLabel(next.at - now)}). Prices can jump and spreads widen around it.`;
 }
 

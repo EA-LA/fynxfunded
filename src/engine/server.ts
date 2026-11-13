@@ -121,6 +121,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
   const priceFeedLive = () => (o.feed.health ? o.feed.health().live : lastQuoteAt !== null && clock() - lastQuoteAt <= o.settings.maxQuoteAgeMs);
   const runner = new EngineRunner({ ...o.runner, venue, accounts: o.accounts, ready: priceFeedLive, clock });
   if (o.news) venue.useNews(() => o.news!.current());
+  if (o.pause) venue.usePause(() => o.pause!.current());
   if (o.onEvents) venue.onEvents(o.onEvents);
   if (o.ledger) venue.onEvents(o.ledger.listener);
   if (o.notifier) venue.onEvents(o.notifier.listener);

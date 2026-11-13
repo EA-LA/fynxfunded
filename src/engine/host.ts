@@ -225,7 +225,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
       if (method !== "GET") return fail("method_not_allowed", "Use GET.");
       const p = opts.pause?.();
       const news = opts.venue.newsStatus();
-      return { status: 200, body: { ...opts.status(), ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule(), ...(news ? { news } : {}) } };
+      return { status: 200, body: { ...opts.status(), ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until, ...(p.holdPending ? { holdPending: true } : {}) } } : {}), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule(), ...(news ? { news } : {}) } };
     }
 
     const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts|notices)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);

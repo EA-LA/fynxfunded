@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-13 08:45 UTC — [autopilot] FYNX Trade: choose whether waiting orders are held during a pause or big news
+
+- Two open owner decisions are now simple on/off switches, already built and tested: whether pending orders that traders placed earlier (for example "buy if the price drops to …") should also wait during an emergency pause, and during a restricted news window.
+- Switch them on in the Firebase console by adding `holdPending: true` to the pause document (`engineControl/trading`) or the news calendar (`engineControl/news`). Left off, everything works exactly as today: waiting orders can still fill.
+- When an order is held it stays in place and fills only after the pause or the news window ends, at the first real price after it (like after a weekend). Stop losses, take profits, loss limits and order expiry are never held, and traders can always cancel.
+- In the terminal (https://www.fynxfunded.com/trade/access): held orders get a "Held" or "Held · news" tag in the Pending orders tab with a plain explanation, and the pause banner, order panel and each pair's Specification say whether waiting orders are held or can still fill.
+- Ready for when the APIs are connected: exact steps in docs/ENGINE-READINESS.md ("Pause new trading" and "Restricted news windows").
+
 ## 2026-11-13 04:40 UTC — [autopilot] FYNX Trade: ready for "no new trades around big news" rules
 
 - The trading server can now hold back new orders around high-impact economic releases (for example a US jobs report), pair by pair, if your account agreement says so. You keep the list of releases in one place in the Firebase console (`engineControl/news`); nothing is invented, and until you switch it on the list is shown to traders as information only.

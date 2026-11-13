@@ -29,6 +29,13 @@ export interface EngineContext {
    * window on the pairs it affects. Missing = no news rule.
    */
   news?: NewsState;
+  /**
+   * The owner's "pause new trading" switch with `holdPending: true`
+   * (src/engine/trading-pause.ts): while true, pending orders already waiting
+   * do not fill. Stops, targets, trailing stops, expiry and loss limits keep
+   * working. Missing/false = pending orders fill at their price as usual.
+   */
+  holdPendingFills?: boolean;
 }
 
 export interface Step {
@@ -58,6 +65,21 @@ export function assertMarketOpen(s: InstrumentSpec, now: number) {
   if (isMarketOpen(s.hours, now)) return;
   const st = marketState(s.hours, now);
   throw new EngineError("market_closed", `The ${s.symbol} market is closed${st.reason && st.reason !== "Outside trading hours" ? ` (${st.reason})` : ""}${st.nextChange ? `; it opens ${formatUtc(st.nextChange)}` : ""}. Nothing was sent.`);
+}
+
+/**
+ * Why a waiting pending order on this symbol must not fill right now, or null:
+ * "paused" = the owner paused new trading and chose to hold pending orders too;
+ * "news" = an enforced restricted news window with `holdPending` is in force on
+ * the pair. The order stays in the book and is checked again on every step;
+ * when the hold ends the first fresh price decides, like after a weekend gap
+ * (a limit fills at its price or better, a stop at the market).
+ */
+export function pendingFillHold(symbol: string, ctx: Pick<EngineContext, "specs" | "news" | "now" | "holdPendingFills">): "paused" | "news" | null {
+  if (ctx.holdPendingFills) return "paused";
+  const s = ctx.specs[symbol];
+  if (s && ctx.news?.enforce && ctx.news.holdPending && activeNewsWindow(ctx.news.windows, s, ctx.now)) return "news";
+  return null;
 }
 
 /** Refuses opening trades on a pair inside an enforced restricted news window (closing and risk changes are never refused). */
@@ -642,6 +664,8 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     if (!current.orders.some(x => x.id === o.id)) continue;
     const q = ctx.quotes[o.symbol];
     if (!q || ctx.now - q.time > ctx.maxQuoteAgeMs || !tradable(o.symbol)) continue;
+    // The owner's pause or a news window can hold waiting orders (see pendingFillHold).
+    if (pendingFillHold(o.symbol, ctx)) continue;
     const market = openingPrice(o.side, q);
     const hit = o.type === "limit" ? (o.side === "buy" ? market <= o.price : market >= o.price) : (o.side === "buy" ? market >= o.price : market <= o.price);
     if (!hit) continue;

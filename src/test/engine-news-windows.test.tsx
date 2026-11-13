@@ -303,7 +303,7 @@ describe("news windows: terminal", () => {
 
   it("inside an enforced window: note, badge in Market Watch, Confirm replaced by the reason; the calendar in the specification", async () => {
     const { ticket } = await terminal({ enforce: true, windows: [usdAt(T0, { title: "Test payrolls" })] });
-    expect(await within(ticket).findByTestId("news-note")).toHaveTextContent(/^New EURUSD orders are paused around Test payrolls \(USD\) at .* your time\. They reopen at .* \(in 2m\)\. Closing trades, cancelling orders and changing stop loss or take profit still work\.$/);
+    expect(await within(ticket).findByTestId("news-note")).toHaveTextContent(/^New EURUSD orders are paused around Test payrolls \(USD\) at .* your time\. They reopen at .* \(in 2m\)\. Closing trades, cancelling orders and changing stop loss or take profit still work\. Pending orders already waiting can still fill at their price; cancel any you no longer want\.$/);
     expect(screen.getByTestId("news-EURUSD")).toHaveTextContent("News now");
     expect(screen.queryByTestId("news-EURGBP")).toBeNull();
     fireEvent.click(within(ticket).getByTestId("buy-button"));
@@ -330,7 +330,7 @@ describe("news windows: terminal", () => {
     fireEvent.click(within(ticket).getByTestId("spec-button"));
     expect(within(await screen.findByTestId("contract-spec")).getByTestId("spec-news-none")).toHaveTextContent("No releases listed for EUR or USD in the next 7 days.");
     // A status without `news` at all:
-    expect(pairNews({}, { base: "EUR", quote: "USD" }, T0)).toEqual({ connected: false, enforce: false, active: null, upcoming: [] });
+    expect(pairNews({}, { base: "EUR", quote: "USD" }, T0)).toEqual({ connected: false, enforce: false, holdPending: false, active: null, upcoming: [] });
   });
 
   it("sentences for a coming enforced window and pairNews helpers", () => {

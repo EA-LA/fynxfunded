@@ -197,6 +197,7 @@ export class LocalVenue {
   private quoteListeners = new Set<(q: Quote) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   private newsSource: (() => NewsState | null) | null = null;
+  private pauseSource: (() => { holdPending?: boolean } | null) | null = null;
   constructor(
     private specs: Record<string, InstrumentSpec>,
     private store: AccountStore,
@@ -246,6 +247,14 @@ export class LocalVenue {
    */
   useNews(source: (() => NewsState | null) | null) { this.newsSource = source; }
 
+  /**
+   * Connects the owner's "pause new trading" switch (src/engine/trading-pause.ts,
+   * e.g. `() => pause.current()`) to the timer step: while the pause says
+   * `holdPending: true`, pending orders already waiting do not fill. Refusing
+   * new orders during a pause is the host's job (host.ts), not the venue's.
+   */
+  usePause(source: (() => { holdPending?: boolean } | null) | null) { this.pauseSource = source; }
+
   /** The news rule and the windows for the next 7 days for `/v1/status`, or undefined without a calendar. */
   newsStatus(): NewsState | undefined {
     const s = this.newsSource?.();
@@ -256,7 +265,8 @@ export class LocalVenue {
 
   private async context(accountId: string): Promise<EngineContext> {
     const news = this.newsSource?.() ?? null;
-    return { specs: this.specs, quotes: this.quotes, rules: await this.rulesFor(accountId), now: this.clock(), maxQuoteAgeMs: this.settings.maxQuoteAgeMs, newId: this.ids, ...(news ? { news } : {}) };
+    const hold = !!this.pauseSource?.()?.holdPending;
+    return { ...(hold ? { holdPendingFills: true } : {}), specs: this.specs, quotes: this.quotes, rules: await this.rulesFor(accountId), now: this.clock(), maxQuoteAgeMs: this.settings.maxQuoteAgeMs, newId: this.ids, ...(news ? { news } : {}) };
   }
 
   /** Serialises commands so two requests never race on one account. */

@@ -62,18 +62,22 @@ export interface GatewayStatus {
   news?: NewsState;
 }
 
-export interface PausedStatus { reason: string; since: number | null; until: number | null }
+export interface PausedStatus {
+  reason: string; since: number | null; until: number | null;
+  /** true = pending orders already waiting do not fill during the pause either. */
+  holdPending?: boolean;
+}
 
 /** Keeps a well-formed `paused` from a server answer. A pause flag whose details are unreadable still counts as paused (with a general sentence). */
 export function parsePaused(raw: unknown): PausedStatus | undefined {
   if (raw === undefined || raw === null || raw === false) return undefined;
   const fallback: PausedStatus = { reason: "The trading server has paused new trading.", since: null, until: null };
   if (typeof raw !== "object" || Array.isArray(raw)) return fallback;
-  const { reason, since, until } = raw as Record<string, unknown>;
+  const { reason, since, until, holdPending } = raw as Record<string, unknown>;
   const time = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
   // eslint-disable-next-line no-control-regex
   const text = typeof reason === "string" ? reason.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 200) : "";
-  return { reason: text || fallback.reason, since: time(since), until: time(until) };
+  return { reason: text || fallback.reason, since: time(since), until: time(until), ...(holdPending === true ? { holdPending: true } : {}) };
 }
 
 /**
@@ -84,7 +88,7 @@ export function parsePaused(raw: unknown): PausedStatus | undefined {
  */
 export function parseNews(raw: unknown): NewsState | undefined {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
-  const { enforce, windows } = raw as Record<string, unknown>;
+  const { enforce, windows, holdPending } = raw as Record<string, unknown>;
   if (!Array.isArray(windows)) return undefined;
   const time = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
   const out: NewsWindow[] = [];
@@ -99,7 +103,7 @@ export function parseNews(raw: unknown): NewsState | undefined {
     // eslint-disable-next-line no-control-regex
     out.push({ id: w.id, title: w.title.replace(/[\u0000-\u001f\u007f]+/g, " ").trim(), at: w.at as number, from: w.from as number, to: w.to as number, currencies: [...(w.currencies as string[])] });
   }
-  return { enforce: enforce !== false, windows: out.sort((a, b) => a.from - b.from) };
+  return { enforce: enforce !== false, ...(holdPending === true ? { holdPending: true } : {}), windows: out.sort((a, b) => a.from - b.from) };
 }
 
 /** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
@@ -309,12 +313,12 @@ export class HttpGateway implements TradingGateway {
 export class LocalGatewayAdapter implements TradingGateway {
   readonly mode = "local" as const;
   /** `notices`: whether a notice sender is connected next to this venue (default false). `pause`: the server's pause switch. */
-  constructor(private venue: LocalVenue, private options: { notices?: boolean; pause?: () => { reason: string; since: number; until: number | null } | null } = {}) {}
+  constructor(private venue: LocalVenue, private options: { notices?: boolean; pause?: () => { reason: string; since: number; until: number | null; holdPending?: boolean } | null } = {}) {}
   private refuseWhilePaused() {
     const p = this.options.pause?.();
     if (p) throw new EngineError("trading_paused", pausedMessage(p));
   }
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; const p = this.options.pause?.(); const news = this.venue.newsStatus(); return { ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}), ...(news ? { news } : {}) }; }
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; const p = this.options.pause?.(); const news = this.venue.newsStatus(); return { ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until, ...(p.holdPending ? { holdPending: true } : {}) } } : {}), connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}), ...(news ? { news } : {}) }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
   async placeOrder(id: string, order: OrderRequest) { this.refuseWhilePaused(); return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }
