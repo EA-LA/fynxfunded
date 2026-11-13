@@ -45,6 +45,7 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
       describeRateLimits(c.rateLimits) + (c.rateLimits && !env.FYNX_ENGINE_RATE_LIMITS?.trim() ? " (defaults; change with FYNX_ENGINE_RATE_LIMITS)" : ""),
       describeSignInGuard(c.signInGuard),
       describePauseSetting(env),
+      "News windows: read from the Firestore document engineControl/news every 60 s (release title, time, currencies; information only until it says enforce: true). Fill it from your economic calendar.",
     ] });
   } catch (e) {
     items.push({ name: "Trading settings", status: "missing", detail: lines(e) });

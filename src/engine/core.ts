@@ -4,6 +4,7 @@ import type {
 } from "./types";
 import { EngineError } from "./types";
 import { formatUtc, isMarketOpen, marketState } from "./hours";
+import { activeNewsWindow, newsWindowMessage, type NewsState } from "./news";
 
 /**
  * FYNX trading engine core: pure, deterministic functions. Every function takes
@@ -22,6 +23,12 @@ export interface EngineContext {
   /** Quotes older than this are refused for execution. */
   maxQuoteAgeMs: number;
   newId: (prefix: string) => string;
+  /**
+   * The owner's restricted news windows (src/engine/news.ts). Only with
+   * `enforce: true` are new orders and pending-price moves refused inside a
+   * window on the pairs it affects. Missing = no news rule.
+   */
+  news?: NewsState;
 }
 
 export interface Step {
@@ -51,6 +58,13 @@ export function assertMarketOpen(s: InstrumentSpec, now: number) {
   if (isMarketOpen(s.hours, now)) return;
   const st = marketState(s.hours, now);
   throw new EngineError("market_closed", `The ${s.symbol} market is closed${st.reason && st.reason !== "Outside trading hours" ? ` (${st.reason})` : ""}${st.nextChange ? `; it opens ${formatUtc(st.nextChange)}` : ""}. Nothing was sent.`);
+}
+
+/** Refuses opening trades on a pair inside an enforced restricted news window (closing and risk changes are never refused). */
+export function assertNoNewsWindow(s: InstrumentSpec, ctx: Pick<EngineContext, "news" | "now">) {
+  if (!ctx.news?.enforce) return;
+  const w = activeNewsWindow(ctx.news.windows, s, ctx.now);
+  if (w) throw new EngineError("news_window", newsWindowMessage(w, s.symbol));
 }
 
 const mid = (q: Quote) => (q.bid + q.ask) / 2;
@@ -228,6 +242,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   }
   const s = spec(ctx, req.symbol);
   assertMarketOpen(s, ctx.now);
+  assertNoNewsWindow(s, ctx);
   checkLots(s, req.lots);
   checkPrice(s, req.stopLoss, "Stop loss");
   checkPrice(s, req.takeProfit, "Take profit");
@@ -436,6 +451,7 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   const expires = change.expiresAt === null ? undefined : change.expiresAt ?? o.expiresAt;
   checkPrice(s, price, "Order price"); checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit"); checkTrailing(trail);
   if (change.expiresAt != null && change.expiresAt !== o.expiresAt) checkExpiry(change.expiresAt, ctx.now);
+  if (change.price !== undefined && change.price !== o.price) assertNoNewsWindow(s, ctx);
   if (change.price !== undefined) checkPendingSide(o.side, o.type, price, openingPrice(o.side, executableQuote(ctx, o.symbol)));
   checkProtection(o.side, price, sl, tp);
   const oco = change.ocoWith === null ? undefined : change.ocoWith ?? o.ocoWith;

@@ -49,7 +49,7 @@ export interface HostOptions {
   canAccess: (userId: string, accountId: string) => Promise<boolean>;
   /** The owner's per-account switch. Until it returns true no order is opened or changed. */
   tradingEnabled: (accountId: string) => Promise<boolean>;
-  /** What GET /v1/status reports. `markets` (open/closed per symbol), `instruments` (leverage, lot limits, commission, swap) and `schedule` (open stretches and closures for the next 7 days) are added from the venue. */
+  /** What GET /v1/status reports. `markets` (open/closed per symbol), `instruments` (leverage, lot limits, commission, swap), `schedule` (open stretches and closures for the next 7 days) and `news` (restricted news windows for the next 7 days, when a calendar is connected) are added from the venue. */
   status: () => { priceFeed: boolean; execution: boolean; message: string; notices?: boolean };
   /**
    * Opens the engine account the first time its owner loads it (GET
@@ -76,7 +76,7 @@ export interface HostOptions {
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
   trading_paused: 503, not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404, no_alert: 404,
-  method_not_allowed: 405, conflict: 409, price_moved: 409, bad_request: 400, rate_limited: 429,
+  method_not_allowed: 405, conflict: 409, price_moved: 409, news_window: 409, bad_request: 400, rate_limited: 429,
 };
 
 const fail = (code: string, message: string): HostResponse => ({ status: STATUS_BY_CODE[code] ?? 422, body: { error: { code, message } } });
@@ -224,7 +224,8 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
     if (path === "/v1/status") {
       if (method !== "GET") return fail("method_not_allowed", "Use GET.");
       const p = opts.pause?.();
-      return { status: 200, body: { ...opts.status(), ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule() } };
+      const news = opts.venue.newsStatus();
+      return { status: 200, body: { ...opts.status(), ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule(), ...(news ? { news } : {}) } };
     }
 
     const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts|notices)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);

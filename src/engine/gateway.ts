@@ -5,6 +5,7 @@ import { EngineError } from "./types";
 import type { MarketState, Schedule } from "./hours";
 import type { TradingConditions } from "./venue";
 import { pausedMessage } from "./trading-pause";
+import type { NewsState, NewsWindow } from "./news";
 
 /**
  * What the FYNX Trade terminal talks to. Three implementations:
@@ -53,6 +54,12 @@ export interface GatewayStatus {
    * or null.
    */
   paused?: PausedStatus;
+  /**
+   * The owner's restricted news windows for the next days (src/engine/news.ts).
+   * `enforce: false` = information only; `enforce: true` = new orders on an
+   * affected pair are refused inside its window. Missing: no calendar connected.
+   */
+  news?: NewsState;
 }
 
 export interface PausedStatus { reason: string; since: number | null; until: number | null }
@@ -67,6 +74,32 @@ export function parsePaused(raw: unknown): PausedStatus | undefined {
   // eslint-disable-next-line no-control-regex
   const text = typeof reason === "string" ? reason.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 200) : "";
   return { reason: text || fallback.reason, since: time(since), until: time(until) };
+}
+
+/**
+ * Keeps only well-formed news windows from a server answer (at most 200, each
+ * with a short title, valid times and three-letter currencies). An `enforce`
+ * that is not plainly false counts as enforced, so the terminal never promises
+ * an order the server would refuse.
+ */
+export function parseNews(raw: unknown): NewsState | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const { enforce, windows } = raw as Record<string, unknown>;
+  if (!Array.isArray(windows)) return undefined;
+  const time = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
+  const out: NewsWindow[] = [];
+  for (const x of windows.slice(0, 200)) {
+    if (typeof x !== "object" || x === null) continue;
+    const w = x as Record<string, unknown>;
+    if (typeof w.id !== "string" || !w.id || w.id.length > 100) continue;
+    if (typeof w.title !== "string" || !w.title.trim() || w.title.length > 120) continue;
+    if (!time(w.at) || !time(w.from) || !time(w.to) || (w.to as number) <= (w.from as number) || (w.at as number) < (w.from as number) || (w.at as number) > (w.to as number)) continue;
+    if ((w.to as number) - (w.from as number) > 5 * 3_600_000) continue;
+    if (!Array.isArray(w.currencies) || !w.currencies.length || w.currencies.length > 20 || !w.currencies.every(c => typeof c === "string" && /^[A-Z]{3}$/.test(c))) continue;
+    // eslint-disable-next-line no-control-regex
+    out.push({ id: w.id, title: w.title.replace(/[\u0000-\u001f\u007f]+/g, " ").trim(), at: w.at as number, from: w.from as number, to: w.to as number, currencies: [...(w.currencies as string[])] });
+  }
+  return { enforce: enforce !== false, windows: out.sort((a, b) => a.from - b.from) };
 }
 
 /** Keeps only well-formed per-symbol market states from a server answer; anything else is dropped. */
@@ -251,8 +284,9 @@ export class HttpGateway implements TradingGateway {
     try {
       const s = await this.call<Partial<GatewayStatus> & { markets?: unknown; instruments?: unknown; schedule?: unknown }>("GET", "/v1/status");
       const paused = parsePaused((s as { paused?: unknown } | null)?.paused);
+      const news = parseNews((s as { news?: unknown } | null)?.news);
       const markets = parseMarkets(s?.markets), instruments = parseInstruments(s?.instruments), schedule = parseSchedule(s?.schedule);
-      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}), ...(s?.notices === true ? { notices: true } : {}), ...(paused ? { paused } : {}) };
+      return { connected: true, priceFeed: !!s?.priceFeed, execution: !!s?.execution, message: (typeof s?.message === "string" && s.message) || "Connected.", ...(markets ? { markets } : {}), ...(instruments ? { instruments } : {}), ...(schedule ? { schedule } : {}), ...(s?.notices === true ? { notices: true } : {}), ...(paused ? { paused } : {}), ...(news ? { news } : {}) };
     } catch (e) {
       return { connected: false, priceFeed: false, execution: false, message: e instanceof Error ? e.message : "Not connected." };
     }
@@ -280,7 +314,7 @@ export class LocalGatewayAdapter implements TradingGateway {
     const p = this.options.pause?.();
     if (p) throw new EngineError("trading_paused", pausedMessage(p));
   }
-  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; const p = this.options.pause?.(); return { ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}) }; }
+  async status(): Promise<GatewayStatus> { const live = Object.keys(this.venue.quotes).length > 0; const p = this.options.pause?.(); const news = this.venue.newsStatus(); return { ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until } } : {}), connected: true, priceFeed: live, execution: live, message: live ? "Local engine running." : "Local engine waiting for prices.", markets: this.venue.markets(), instruments: this.venue.conditions(), schedule: this.venue.schedule(), ...(this.options.notices ? { notices: true } : {}), ...(news ? { news } : {}) }; }
   snapshot(id: string) { return this.venue.snapshot(id); }
   async placeOrder(id: string, order: OrderRequest) { this.refuseWhilePaused(); return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }

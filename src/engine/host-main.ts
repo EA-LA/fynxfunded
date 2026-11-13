@@ -8,6 +8,7 @@ import { EngineNotifier, firestoreMailSender, storePrefs } from "./notifier";
 import { createEngineServer, type EngineServer } from "./server";
 import { SignInGuard } from "./sign-in-guard";
 import { PAUSE_CONTROL_DOC, PAUSE_ENV, readPauseSetting, TradingPause } from "./trading-pause";
+import { NEWS_CONTROL_DOC, NewsCalendar } from "./news";
 import { createHttpHandler, type NodeLikeRequest, type NodeLikeResponse } from "./http-adapter";
 import { engineChecklist, formatReport } from "./preflight";
 
@@ -60,6 +61,8 @@ export interface HostDeps {
   healthLogEveryMs?: number;
   /** How often the pause switch document (engineControl/trading) is read (default 10 s). */
   pauseEveryMs?: number;
+  /** How often the news calendar document (engineControl/news) is read (default 60 s). */
+  newsEveryMs?: number;
   clock?: () => number;
 }
 
@@ -78,6 +81,8 @@ export interface RunningHost {
   signInGuard: SignInGuard | null;
   /** The "pause new trading" switch (FYNX_ENGINE_PAUSE and the engineControl/trading document). */
   pause: TradingPause;
+  /** The restricted news windows (engineControl/news document). */
+  news: NewsCalendar;
   /** Stops taking requests, then stops the feed and timer and waits for trades/notices to be written. */
   stop(): Promise<void>;
 }
@@ -161,8 +166,23 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
   });
   // Read the switch before the first request, so a paused server never accepts an order on start.
   await pause.refresh();
+  const news = new NewsCalendar({
+    control: d.db.collection(NEWS_CONTROL_DOC.collection).doc(NEWS_CONTROL_DOC.id),
+    ...(d.newsEveryMs ? { everyMs: d.newsEveryMs } : {}),
+    clock: d.clock,
+    onChange: (state, problems) => log(problems.length ? "WARNING" : "INFO", state.enforce
+      ? "News calendar read: new orders are refused inside the restricted windows."
+      : "News calendar read: windows shown to traders as information only (enforce is off).", {
+      windows: state.windows.length,
+      ...(state.windows[0] ? { next: `${state.windows[0].title} at ${new Date(state.windows[0].at).toISOString()}` } : {}),
+      ...(problems.length ? { problems: problems.slice(0, 10) } : {}),
+    }),
+    onError: (e, n) => { if (n === 1 || n % 30 === 0) log("WARNING", "Could not read the news calendar (engineControl/news); keeping the last known windows.", { failuresInARow: n, error: errorText(e) }); },
+  });
+  // Read the calendar before the first request, so an enforced window applies from the start.
+  await news.refresh();
   const engine = createEngineServer({
-    pairs: d.pairs, settings: config.settings, feed, store, rateLimits: config.rateLimits, pause,
+    pairs: d.pairs, settings: config.settings, feed, store, rateLimits: config.rateLimits, pause, news,
     ...directory.engineOptions(),
     verifyToken: async token => {
       try { return (await d.verifyIdToken(token)).uid || null; } catch { return null; }
@@ -204,6 +224,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     allowedOrigins: config.http.allowedOrigins,
     requestLimits: config.rateLimits ? "on" : "off",
     newTrading: pause.current() ? `paused (${pause.current()!.reason})` : "not paused (switch: engineControl/trading document or FYNX_ENGINE_PAUSE)",
+    newsWindows: news.current().enforce ? `enforced (${news.current().windows.length} coming)` : `information only (${news.current().windows.length} coming; calendar: engineControl/news document)`,
     failedSignInProtection: config.signInGuard ? (config.signInGuard.address.from === "socket" ? "on (connection address)" : `on (X-Forwarded-For, ${config.signInGuard.address.trustedHops} hop(s))`) : "off (set FYNX_ENGINE_CLIENT_ADDRESS)",
   });
 
@@ -248,6 +269,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
       ...(s.notifier ? { noticesFailed: s.notifier.failed.length } : {}),
       ...(s.limits ? { requestsRefused: s.limits.refused.trade + s.limits.refused.reduce + s.limits.refused.read } : {}),
       ...(pause.current() ? { newTradingPaused: true } : {}),
+      ...(news.health().activeNow && news.health().enforce ? { newsWindowsNow: news.health().activeNow } : {}),
       ...(signInGuard ? { signInRefused: signInGuard.health().refused, addressesBlocked: signInGuard.health().blockedNow } : {}),
     });
   }, every) : null;
@@ -255,7 +277,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
 
   let stopping: Promise<void> | null = null;
   return {
-    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard, pause,
+    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard, pause, news,
     stop() {
       stopRequested = true;
       stopping ??= (async () => {

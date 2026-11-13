@@ -1,5 +1,6 @@
 import { addAlert, archiveHistory, setNotices, cancelOrder, removeAlert, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
 import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEvent, HistoryPage, NoticeChange, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
+import { newsStatus, type NewsState } from "./news";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
 import { EngineError } from "./types";
 
@@ -195,6 +196,7 @@ export class LocalVenue {
   private listeners = new Set<(accountId: string, events: EngineEvent[]) => void>();
   private quoteListeners = new Set<(q: Quote) => void>();
   private queue: Promise<unknown> = Promise.resolve();
+  private newsSource: (() => NewsState | null) | null = null;
   constructor(
     private specs: Record<string, InstrumentSpec>,
     private store: AccountStore,
@@ -237,10 +239,24 @@ export class LocalVenue {
     return Object.fromEntries(symbols.filter(s => this.specs[s]).map(s => [s, tradingConditions(this.specs[s])]));
   }
 
+  /**
+   * Connects the owner's restricted news windows (src/engine/news.ts, e.g.
+   * `() => calendar.current()`). Every command then sees them; with
+   * `enforce: true` new orders inside a window on an affected pair are refused.
+   */
+  useNews(source: (() => NewsState | null) | null) { this.newsSource = source; }
+
+  /** The news rule and the windows for the next 7 days for `/v1/status`, or undefined without a calendar. */
+  newsStatus(): NewsState | undefined {
+    const s = this.newsSource?.();
+    return s ? newsStatus(s, this.clock()) : undefined;
+  }
+
   onEvents(listener: (accountId: string, events: EngineEvent[]) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
 
   private async context(accountId: string): Promise<EngineContext> {
-    return { specs: this.specs, quotes: this.quotes, rules: await this.rulesFor(accountId), now: this.clock(), maxQuoteAgeMs: this.settings.maxQuoteAgeMs, newId: this.ids };
+    const news = this.newsSource?.() ?? null;
+    return { specs: this.specs, quotes: this.quotes, rules: await this.rulesFor(accountId), now: this.clock(), maxQuoteAgeMs: this.settings.maxQuoteAgeMs, newId: this.ids, ...(news ? { news } : {}) };
   }
 
   /** Serialises commands so two requests never race on one account. */

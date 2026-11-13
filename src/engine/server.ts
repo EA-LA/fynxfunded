@@ -5,6 +5,7 @@ import type { EngineEvent, RuleSet } from "./types";
 import type { EngineLedger, LedgerHealth } from "./ledger";
 import type { EngineNotifier, NotifierHealth } from "./notifier";
 import type { PauseHealth, TradingPause } from "./trading-pause";
+import type { NewsCalendar, NewsHealth } from "./news";
 import { DEFAULT_RATE_LIMITS, RequestLimiter, type LimiterHealth, type RateLimits } from "./rate-limit";
 
 /**
@@ -69,6 +70,12 @@ export interface EngineServerOptions {
    * GET /v1/status says why. `start()` begins reading its control document.
    */
   pause?: TradingPause;
+  /**
+   * The owner's restricted news windows (src/engine/news.ts): listed in
+   * GET /v1/status `news`; with `enforce: true` new orders on an affected pair
+   * are refused inside a window. `start()` begins reading its document.
+   */
+  news?: NewsCalendar;
   /** Timer step tuning and error reporting (intervalMs, idleEveryMs, onError…). */
   runner?: Omit<RunnerOptions, "venue" | "accounts" | "ready" | "clock">;
   clock?: () => number;
@@ -88,6 +95,8 @@ export interface EngineServerStatus {
   limits?: LimiterHealth;
   /** The pause switch (absent when none is connected). */
   pause?: PauseHealth;
+  /** The news calendar (absent when none is connected). */
+  news?: NewsHealth;
 }
 
 export interface EngineServer {
@@ -111,6 +120,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
   let lastQuoteAt: number | null = null;
   const priceFeedLive = () => (o.feed.health ? o.feed.health().live : lastQuoteAt !== null && clock() - lastQuoteAt <= o.settings.maxQuoteAgeMs);
   const runner = new EngineRunner({ ...o.runner, venue, accounts: o.accounts, ready: priceFeedLive, clock });
+  if (o.news) venue.useNews(() => o.news!.current());
   if (o.onEvents) venue.onEvents(o.onEvents);
   if (o.ledger) venue.onEvents(o.ledger.listener);
   if (o.notifier) venue.onEvents(o.notifier.listener);
@@ -121,7 +131,7 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
     const priceFeed = priceFeedLive();
     const health = runner.health();
     const base = { priceFeed, execution: priceFeed && health.healthy, message: executionMessage(priceFeed, health), runner: health };
-    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}), ...(limiter ? { limits: limiter.health() } : {}), ...(o.pause ? { pause: o.pause.health() } : {}) };
+    return { ...base, ...(o.ledger ? { ledger: o.ledger.health() } : {}), ...(o.notifier ? { notifier: o.notifier.health() } : {}), ...(limiter ? { limits: limiter.health() } : {}), ...(o.pause ? { pause: o.pause.health() } : {}), ...(o.news ? { news: o.news.health() } : {}) };
   };
 
   return {
@@ -144,10 +154,12 @@ export function createEngineServer(o: EngineServerOptions): EngineServer {
       disconnect = venue.connect(o.feed);
       runner.start();
       void o.pause?.start();
+      void o.news?.start();
     },
     async stop() {
       disconnect?.(); offQuote?.();
       o.pause?.stop();
+      o.news?.stop();
       disconnect = offQuote = null;
       await runner.stop();
       // Trades closed in the last round still reach the dashboard before the process exits.

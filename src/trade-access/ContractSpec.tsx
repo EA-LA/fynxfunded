@@ -1,4 +1,4 @@
-import { Info, LockKeyhole } from 'lucide-react';
+import { Info, LockKeyhole, Newspaper } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { GatewayStatus } from '@/engine/gateway';
 import type { QuoteBook } from '@/engine/types';
@@ -7,6 +7,7 @@ import { orderCosts, weekdayName } from './costs';
 import { pipValuePerLot } from './sizing';
 import { localTime, openHours, sessionRows, spreadOf, weekHours } from './contract-spec';
 import { untilLabel, type PairMarket } from './market-hours';
+import { localClock, pairNews, windowRange } from './news-windows';
 
 const usd = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const NOT_CONNECTED = 'Shown once trading is connected';
@@ -31,6 +32,8 @@ export default function ContractSpec({ pair, status, quotes, market, now, open, 
   const hours = weekHours(status, pair.symbol, now, market.open);
   const rows = sessionRows(hours.sessions, now);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const news = pairNews(status, pair, now);
+  const newsList = [...(news.active ? [news.active] : []), ...news.upcoming];
   return <Dialog {...(open !== undefined ? { open, onOpenChange } : {})}>
     {trigger && <DialogTrigger asChild>
       <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Contract specification for ${pair.symbol}`} data-testid="spec-button"><Info size={12} aria-hidden="true" />Specification</button>
@@ -78,6 +81,17 @@ export default function ContractSpec({ pair, status, quotes, market, now, open, 
         <p className="mt-2 text-[11px] text-muted-foreground" data-testid="spec-hours-source">
           {openHours(hours.sessions, now)} trading hours ahead. Times in your time zone ({zone}). {hours.source === 'server' ? 'From the trading server’s own hours, including its holiday and maintenance closures.' : 'The standard forex week (Sunday 17:00 to Friday 17:00 New York time). The trading server’s own hours and holiday closures replace this once trading is connected.'}
         </p>
+      </section>
+
+      <section aria-labelledby="spec-news">
+        <h3 id="spec-news" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Restricted news windows · next 7 days</h3>
+        {!news.connected
+          ? <p className="mt-1 rounded-md bg-secondary/60 p-2 text-sm text-muted-foreground" data-testid="spec-news-missing">{NOT_CONNECTED}: FYNX lists high-impact releases for {pair.base} and {pair.quote} here from its economic calendar. Whether orders are refused around them depends on your account agreement.</p>
+          : <>
+            <p className="mt-1 text-sm" data-testid="spec-news-rule">{news.enforce ? `New ${pair.symbol} orders are refused inside these windows. Closing trades, cancelling orders and changing stop loss or take profit always work.` : 'Shown for information: orders are accepted during these windows, but prices can jump and spreads widen.'}</p>
+            {newsList.length ? <ul className="mt-2 space-y-1 text-sm" data-testid="spec-news">{newsList.map(w => <li key={w.id} className={`flex items-start gap-1.5 rounded-md px-2 py-1 ${w.from <= now ? 'bg-amber-500/10 font-medium' : 'bg-secondary/40'}`}><Newspaper size={12} className="mt-1 shrink-0" aria-hidden="true" /><span><span className="block">{w.title} <span className="font-mono text-[11px] text-muted-foreground">{w.currencies.join(', ')}</span></span><span className="block text-[12px] text-muted-foreground">Release {localClock(w.at, now)} · window {windowRange(w, now)}{w.from <= now ? ' · in force now' : ''}</span></span></li>)}</ul>
+              : <p className="mt-2 text-sm text-muted-foreground" data-testid="spec-news-none">No releases listed for {pair.base} or {pair.quote} in the next 7 days.</p>}
+          </>}
       </section>
     </DialogContent>
   </Dialog>;

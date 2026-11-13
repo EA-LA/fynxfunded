@@ -383,6 +383,26 @@ describe("engine host program: pause new trading", () => {
     expect(running.engine.status().pause).toMatchObject({ paused: true, source: "control", until: T0 + 3_600_000 });
   });
 
+  it("reads the news calendar (engineControl/news) before the first request: enforced window refuses (409), logs say so", async () => {
+    const docs = purchaseDocs(true);
+    docs.set("engineControl/news", { enforce: true, events: [{ title: "Test USD release", at: new Date(T0 + 60_000).toISOString(), currencies: ["USD"] }, { title: "Broken" }] });
+    const { d, lines, sockets } = deps({ docs, env: { ...ENV, FYNX_ENGINE_ALLOW_TRADING: "true" } });
+    running = await startEngineHost(d);
+    price(sockets);
+    const logs = () => lines.map(l => JSON.parse(l));
+    expect(logs().find(l => l.message.startsWith("News calendar read"))).toMatchObject({ severity: "WARNING", windows: 1, problems: ['Event 2 ("Broken") has no readable "at" time (use an ISO time like 2026-12-04T13:30:00Z); skipped.'] });
+    expect(logs().find(l => l.message === "FYNX trading engine started.")).toMatchObject({ newsWindows: "enforced (1 coming)" });
+    const gw = gateway(running.port);
+    await gw.snapshot(ID);
+    expect((await gw.status()).news).toMatchObject({ enforce: true, windows: [{ title: "Test USD release", currencies: ["USD"] }] });
+    await expect(gw.placeOrder(ID, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "n-1" })).rejects.toMatchObject({ code: "news_window" });
+    docs.set("engineControl/news", { enforce: false, events: [] });
+    await running.news.refresh();
+    expect(logs().some(l => l.message.startsWith("News calendar read: windows shown to traders as information only"))).toBe(true);
+    expect((await gw.placeOrder(ID, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, clientId: "n-2" })).state.positions).toHaveLength(1);
+    expect(running.engine.status().news).toMatchObject({ enforce: false, windows: 0 });
+  });
+
   it("FYNX_ENGINE_PAUSE starts paused whatever the document says", async () => {
     const { d, lines } = deps({ docs: purchaseDocs(true), env: { ...ENV, FYNX_ENGINE_ALLOW_TRADING: "true", FYNX_ENGINE_PAUSE: "Start-up checks." } });
     running = await startEngineHost(d);

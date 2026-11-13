@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13 04:40 UTC — [autopilot] FYNX Trade: ready for "no new trades around big news" rules
+
+- The trading server can now hold back new orders around high-impact economic releases (for example a US jobs report), pair by pair, if your account agreement says so. You keep the list of releases in one place in the Firebase console (`engineControl/news`); nothing is invented, and until you switch it on the list is shown to traders as information only.
+- Inside a restricted window, new orders on the affected pairs (for a US release: EURUSD, USDJPY, GBPUSD…) are refused with a plain explanation; closing trades, cancelling orders and moving stop loss / take profit always keep working.
+- In the terminal (https://www.fynxfunded.com/trade/access): a note in the order panel when a release is happening or due within the hour (in the trader's own time), a "News now / News soon" tag next to the pair in Market Watch, and a "Restricted news windows · next 7 days" list in each pair's Specification. Before trading is connected it says so honestly.
+- Ready for when the APIs are connected: fill the calendar document and set `enforce: true` (exact steps in docs/ENGINE-READINESS.md, "Restricted news windows").
+
 ## 2026-11-13 00:45 UTC — [autopilot] Trading server: one emergency switch to pause new trading for everyone
 
 - Added: an emergency "pause new trading" switch for the whole FYNX Trade server. If the broker or price provider has a problem, you flip one switch in the Firebase console (document engineControl/trading: paused = true, with an optional reason and end time) and within 10 seconds no trader can open or change an order. No redeploy, no account changes.

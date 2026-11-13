@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, PauseCircle, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -19,6 +19,7 @@ import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
 import { pausedSentence, pausedUntilText } from './paused';
+import { newsBlocks, newsHoldSentence, newsNoteSentence, pairNews } from './news-windows';
 import type { TradingGateway } from '@/engine/gateway';
 import type { Snapshot } from '@/engine/venue';
 import { profitUsd } from '@/engine/core';
@@ -257,7 +258,7 @@ function MarketWatch({ selected, onSelect, status, quotes, now }: { selected: Fo
         const m = pairMarket(status, p.symbol, now), special = !m.open && m.reason && m.reason !== 'Outside trading hours' ? m.reason : '';
         return <li key={p.symbol} className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-b border-border/50 px-3 ${active ? 'bg-primary/10' : 'hover:bg-secondary/60'}`}>
           <button type="button" onClick={() => onSelect(p)} aria-current={active ? 'true' : undefined} className="min-w-0 py-2 text-left">
-            <span className="flex items-center gap-1.5 font-mono text-sm font-semibold">{p.symbol}{!m.open && <span data-testid={`closed-${p.symbol}`} title={closedSentence(p.symbol, m, now)} className="inline-flex items-center gap-0.5 rounded bg-secondary px-1 py-px font-sans text-[10px] font-normal text-muted-foreground"><LockKeyhole size={9} aria-hidden="true" />{special || 'Closed'}</span>}</span>
+            <span className="flex items-center gap-1.5 font-mono text-sm font-semibold">{p.symbol}{(() => { const n = pairNews(status, p, now); const soon = n.active ?? (n.upcoming[0] && n.upcoming[0].from - now <= 15 * 60_000 ? n.upcoming[0] : null); return soon && m.open ? <span data-testid={`news-${p.symbol}`} title={newsNoteSentence(n, p.symbol, now) ?? undefined} className={`inline-flex items-center gap-0.5 rounded px-1 py-px font-sans text-[10px] font-normal ${n.active && n.enforce ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-secondary text-muted-foreground'}`}><Newspaper size={9} aria-hidden="true" />{n.active ? 'News now' : 'News soon'}</span> : null; })()}{!m.open && <span data-testid={`closed-${p.symbol}`} title={closedSentence(p.symbol, m, now)} className="inline-flex items-center gap-0.5 rounded bg-secondary px-1 py-px font-sans text-[10px] font-normal text-muted-foreground"><LockKeyhole size={9} aria-hidden="true" />{special || 'Closed'}</span>}</span>
             <span className="block truncate text-[11px] text-muted-foreground">{pairName(p)}</span>
           </button>
           <span className="font-mono text-[11px] text-muted-foreground">{p.pipSize}</span>
@@ -345,8 +346,10 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
   const sizeLink = positionSizeLink({ accountSize: [5000, 10000, 25000, 50000, 100000, 200000].includes(account?.startingBalance ?? 0) ? account!.startingBalance : 10000, kind: calc.kind, quote: calc.quote, stop: sl ?? undefined });
   const quote = engine.snapshot?.quotes[pair.symbol];
   const spread = spreadOf(pair, quote, engine.snapshot?.quotes);
-  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && engine.snapshot && quote);
-  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
+  const news = pairNews(engine.status, pair, now);
+  const newsNote = newsNoteSentence(news, pair.symbol, now);
+  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && engine.snapshot && quote);
+  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now) : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
     if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok || !deviation.ok) return;
     // "End of today" is worked out at the moment of sending.
@@ -368,6 +371,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       </div>
     </div>
     {!marketOpen && <MarketClosedNote market={market} now={now} symbol={pair.symbol} />}
+    {marketOpen && newsNote && <p role="status" data-testid="news-note" className={`flex items-start gap-1.5 rounded-md p-2 text-xs ${newsBlocks(news) ? 'bg-amber-500/10' : 'bg-secondary/60 text-muted-foreground'}`}><Newspaper size={13} className={`mt-0.5 shrink-0 ${newsBlocks(news) ? 'text-amber-600' : ''}`} aria-hidden="true" /><span>{newsNote}</span></p>}
 
     <label className="text-xs text-muted-foreground">Order type
       <select value={type} onChange={e => setType(e.target.value as typeof type)} className={`${field} mt-1 font-sans`}>
