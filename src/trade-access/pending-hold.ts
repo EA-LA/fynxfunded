@@ -4,8 +4,8 @@ import { findPair } from './instruments';
 import { localClock } from './news-windows';
 
 export interface PendingHold {
-  /** "paused": the owner paused new trading and holds waiting orders; "news": an enforced news window holds them on this pair. */
-  kind: 'paused' | 'news';
+  /** "paused": the owner paused new trading and holds waiting orders; "news": an enforced news window holds them on this pair; "hedge": the account allows no hedging and a trade in the other direction is open (src/trade-access/hedging.ts). */
+  kind: 'paused' | 'news' | 'hedge';
   /** Short tag for the Pending orders row. */
   label: string;
   /** One plain sentence: why the order is waiting and until when. */

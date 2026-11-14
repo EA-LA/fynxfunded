@@ -10,11 +10,12 @@ import { buildSpecs, LocalVenue, MemoryStore, rulesFromPurchase, StaticQuoteFeed
 import { FOREX_PAIRS } from "@/trade-access/instruments";
 import { account } from "./stubs";
 
+// `?hedge=0` previews the optional "no hedging" rule.
 // `?risk=1&demo=empty` previews the optional "maximum risk per trade" rule (1 %).
 // Simulated prices (random walk) so every tab can be seen with live figures.
 const base: Record<string, number> = { EURUSD: 1.1022, GBPUSD: 1.3124, USDJPY: 151.42, USDCHF: 0.8812, AUDUSD: 0.6611, USDCAD: 1.3874, NZDUSD: 0.6012, EURGBP: 0.8398, EURJPY: 166.9, GBPJPY: 198.7 };
 const specs = buildSpecs(FOREX_PAIRS, { leverage: 100, commissionPerLotPerSide: 3.5, maxLots: 50 });
-const venue = new LocalVenue(specs, new MemoryStore(), async () => rulesFromPurchase(account.startingBalance, { ...(account.rules as never), ...(new URLSearchParams(location.search).get("risk") ? { max_risk_per_trade_percent: new URLSearchParams(location.search).get("risk") } : {}) }), { maxQuoteAgeMs: 60_000 });
+const venue = new LocalVenue(specs, new MemoryStore(), async () => rulesFromPurchase(account.startingBalance, { ...(account.rules as never), ...(new URLSearchParams(location.search).get("risk") ? { max_risk_per_trade_percent: new URLSearchParams(location.search).get("risk") } : {}), ...(new URLSearchParams(location.search).get("hedge") === "0" ? { hedging_allowed: false } : {}) }), { maxQuoteAgeMs: 60_000 });
 const feed = new StaticQuoteFeed(); venue.connect(feed);
 const mids: Record<string, number> = {};
 for (const p of FOREX_PAIRS) mids[p.symbol] = base[p.symbol] ?? (p.quote === "JPY" ? 120 + Math.random() * 60 : p.pipSize === 0.01 ? 20 + Math.random() * 40 : 0.6 + Math.random() * 1.2);
@@ -24,6 +25,8 @@ const gateway = new LocalGatewayAdapter(venue);
 (async () => {
   const id = account.accountId; await venue.open(id);
   if (new URLSearchParams(location.search).get("demo") !== "empty") {
+    // With ?hedge=0 a sell stop placed before the buy waits "Held · hedge" while the buy is open.
+    if (new URLSearchParams(location.search).get("hedge") === "0") await venue.place(id, { symbol: "EURUSD", side: "sell", type: "stop", lots: 0.5, price: +(mids.EURUSD - 0.003).toFixed(5) });
     await venue.place(id, { symbol: "EURUSD", side: "buy", type: "market", lots: 1, stopLoss: +(mids.EURUSD - 0.0025).toFixed(5), takeProfit: +(mids.EURUSD + 0.005).toFixed(5) });
     await venue.place(id, { symbol: "GBPJPY", side: "sell", type: "market", lots: 0.5 });
     const c = await venue.place(id, { symbol: "USDJPY", side: "buy", type: "market", lots: 2 });

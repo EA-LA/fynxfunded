@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-14 10:30 UTC — [autopilot] FYNX Trade: ready for a "no hedging" rule
+
+- The trading engine can now enforce a common prop-firm rule per account, switched on only if the account's agreement includes it (no account has it today, so nothing changes for traders yet): **no hedging**, meaning a pair cannot hold a buy trade and a sell trade at the same time.
+  - A new order in the other direction of an open trade on the same pair is refused with a plain explanation of what is open and what to do; nothing is sent. Adding to the trade in the same direction and trading other pairs always work.
+  - A waiting order placed earlier is never cancelled by the rule: it simply waits while the opposite trade is open, and fills on the first price after that trade is closed. Closing trades, moving stops and cancelling orders always work.
+- In the terminal (https://www.fynxfunded.com/trade/access), for such accounts: the order panel says which direction is still possible on the chosen pair, Confirm stays locked with the reason for the other direction, waiting orders show a "Held · hedge" tag with the explanation in the Pending orders tab, and the Account tab lists the rule.
+- To switch on later: add `hedging_allowed: false` to the account's rules (steps in docs/ENGINE-READINESS.md, "No hedging").
+
 ## 2026-11-14 02:25 UTC — [autopilot] FYNX Trade: ready for "stop loss required" and "maximum risk per trade" rules
 
 - The trading engine can now enforce two common prop-firm rules per account, switched on only if the account's agreement includes them (no account has them today, so nothing changes for traders yet):

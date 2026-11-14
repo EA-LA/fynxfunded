@@ -254,6 +254,13 @@ export interface RuleSet {
    */
   stopLossRequired?: boolean;
   maxRiskPercent?: number;
+  /**
+   * No hedging (src/engine/hedging.ts): `false` = a pair may not hold buy and
+   * sell trades at once. New orders against an open trade are refused
+   * (`hedging`); waiting orders in the other direction do not fill while it
+   * is open. Missing = hedging allowed (no such rule).
+   */
+  hedgingAllowed?: boolean;
 }
 
 /** Where an account stands against its profit target, minimum days and consistency rule. */

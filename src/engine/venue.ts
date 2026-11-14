@@ -5,6 +5,7 @@ import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Sched
 import { EngineError } from "./types";
 import { exposureLimits, OPEN_LOTS_MAX, OPEN_LOTS_MIN, OPEN_TRADES_MAX, OPEN_TRADES_MIN, validOpenLots, validOpenTrades, type ExposureLimits } from "./exposure";
 import { STOP_OUT_MAX_PERCENT, STOP_OUT_MIN_PERCENT, validStopOut } from "./stop-out";
+import { noHedging } from "./hedging";
 import { RISK_MAX_PERCENT, RISK_MIN_PERCENT, tradeRiskRule, validRiskPercent, type TradeRiskRule } from "./trade-risk";
 import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
 
@@ -138,6 +139,8 @@ export interface PurchasedRules {
   stop_loss_required?: boolean | string;
   /** Most a trade may lose at its stop loss, % of the balance (0.1–10, e.g. 1 or "1%"). Implies stop_loss_required. Missing/null/"" = no cap. */
   max_risk_per_trade_percent?: number | string | null;
+  /** false = a pair may not hold buy and sell trades at once (no hedging). Missing/true = allowed. */
+  hedging_allowed?: boolean | string;
 }
 
 const percentField = (v: unknown, name: string, optional = false): number | null => {
@@ -159,6 +162,7 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
   const stopOutPercent = stopOutField(r.stop_out_level);
   const stopLossRequired = stopLossField(r.stop_loss_required);
   const maxRiskPercent = riskField(r.max_risk_per_trade_percent);
+  const hedgingAllowed = hedgingField(r.hedging_allowed);
   if (!Number.isFinite(startingBalance) || startingBalance <= 0) throw new EngineError("bad_rules", "Starting balance must be a positive number.");
   const days = Number(r.min_trading_days), reset = r.reset_hour_utc === undefined ? 22 : Number(r.reset_hour_utc);
   if (!Number.isInteger(days) || days < 0) throw new EngineError("bad_rules", "Minimum trading days must be a whole number.");
@@ -181,7 +185,16 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
     // Only present when the agreement requires a stop loss or caps the risk per trade (a cap implies a stop loss).
     ...(stopLossRequired || maxRiskPercent !== null ? { stopLossRequired: true } : {}),
     ...(maxRiskPercent !== null ? { maxRiskPercent } : {}),
+    // Only present when the agreement does not allow hedging.
+    ...(hedgingAllowed ? {} : { hedgingAllowed: false }),
   };
+}
+
+/** "Hedging allowed" from the purchase: true when missing; unclear values are refused (the account goes to review). */
+function hedgingField(raw: unknown): boolean {
+  if (raw === undefined || raw === null || raw === "" || raw === true || raw === "true") return true;
+  if (raw === false || raw === "false") return false;
+  throw new EngineError("bad_rules", "Hedging allowed must be true or false.");
 }
 
 /** "Stop loss required" from the purchase: false when missing; unclear values are refused (the account goes to review). */
@@ -290,6 +303,12 @@ export interface Snapshot {
    * src/engine/trade-risk.ts). Optional in the HTTP contract.
    */
   tradeRisk?: TradeRiskRule;
+  /**
+   * Present only when the account's agreement does not allow buy and sell
+   * trades on the same pair at once (see src/engine/hedging.ts). Optional in
+   * the HTTP contract.
+   */
+  hedging?: { allowed: false };
 }
 
 export class LocalVenue {
@@ -382,7 +401,7 @@ export class LocalVenue {
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
       const weekend = ctx.rules.weekendCloseMinutes, exposure = exposureLimits(ctx.rules), tradeRisk = tradeRiskRule(ctx.rules);
-      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}), ...(validStopOut(ctx.rules.stopOutPercent) ? { stopOut: { level: ctx.rules.stopOutPercent } } : {}), ...(tradeRisk ? { tradeRisk } : {}) };
+      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}), ...(validStopOut(ctx.rules.stopOutPercent) ? { stopOut: { level: ctx.rules.stopOutPercent } } : {}), ...(tradeRisk ? { tradeRisk } : {}), ...(noHedging(ctx.rules) ? { hedging: { allowed: false as const } } : {}) };
     });
     this.queue = job.catch(() => undefined);
     return job;

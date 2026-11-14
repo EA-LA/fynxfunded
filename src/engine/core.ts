@@ -8,6 +8,7 @@ import { activeNewsWindow, newsWindowMessage, type NewsState } from "./news";
 import { inWeekendCutoff, weekendCloseMessage } from "./weekend";
 import { stopOutFirst, stoppedOut } from "./stop-out";
 import { exposureLimits, stateExposureBreach, type ExposureState } from "./exposure";
+import { hedgeHoldsFill, hedgeProblem } from "./hedging";
 import { changeRiskProblem, newOrderRiskProblem, tradeRiskRule, type RiskAtStop } from "./trade-risk";
 
 /**
@@ -332,6 +333,9 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   checkExpiry(req.expiresAt, ctx.now);
   checkDeviation(s, req);
   if (req.type === "market") assertWeekendOpen(s, ctx);
+  // No hedging: a new order against an open trade in the other direction on this pair.
+  const hedge = hedgeProblem(ctx.rules, state.positions, req.symbol, req.side);
+  if (hedge) throw new EngineError("hedging", hedge);
   if (req.ocoWith !== undefined) {
     if (req.type === "market") throw new EngineError("bad_oco", "Only pending orders can be linked (one cancels the other).");
     checkOcoPartner(state, req.ocoWith, undefined);
@@ -736,6 +740,8 @@ export function tick(state: AccountState, ctx: EngineContext): Step {
     if (pendingFillHold(o.symbol, ctx)) continue;
     // No weekend holding: a waiting order does not fill in the last minutes before the weekend close.
     if (weekendFlat(o.symbol, ctx)) continue;
+    // No hedging: a waiting order does not fill while a trade in the other direction is open on its pair.
+    if (hedgeHoldsFill(ctx.rules, current.positions, o)) continue;
     const market = openingPrice(o.side, q);
     const hit = o.type === "limit" ? (o.side === "buy" ? market <= o.price : market >= o.price) : (o.side === "buy" ? market >= o.price : market <= o.price);
     if (!hit) continue;
