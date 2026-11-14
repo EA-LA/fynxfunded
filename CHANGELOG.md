@@ -480,6 +480,13 @@
 - Each account's own page now has a much fuller Analysis tab: the same instruments-by-session table, "When you trade best" and "P/L by trading day", for that one account only (open an account from the dashboard, then choose Analysis).
 - Trading-day clock: new "Add the daily reset to my calendar" button with a reminder choice (none, 15, 30 or 60 minutes before). It adds one event that repeats every day at 22:00 UTC and shows in your own time in Google, Apple or Outlook calendars. https://www.fynxfunded.com/rules#trading-day
 
+## 2026-11-05 — FYNX Trade: account numbers in dollars, more markets, clearer access message, rules in the purchase email
+- FYNX Trade (https://www.fynxfunded.com/trade/access) now shows each account's numbers in dollars: progress to the profit target with a bar, target balance, daily loss allowance, maximum loss floor and how much room is left above it. These come from the rules recorded with the purchase; the official status stays on the challenge page.
+- A live countdown to the 22:00 UTC daily reset, in your own time, plus links to the trading-day clock and to the risk planner opened on your account size.
+- Market watch now covers 20 markets in groups (forex majors and crosses, gold, silver, oil, US 500, US Tech 100, US 30, Germany 40, Bitcoin, Ether, Solana) with 5m / 15m / 1h / 4h / 1D buttons. Your last market and timeframe are remembered.
+- When access is limited to private testing, the page now explains that in plain words (and that testers must sign in with email and password) instead of showing a red error with a code.
+- The "Your FYNX Trade account access is ready" email sent after a purchase now lists the profit target, daily loss limit, maximum loss floor and minimum trading days in dollars. If any rule value looks wrong, the list is left out rather than shown incorrectly.
+
 ## 2026-11-04 20:30 UTC — [autopilot] See when you trade best, day-by-day results, and readable trade times
 - Analytics has a new "When you trade best" panel: your closed profit and loss by day of the week or by hour, in your own time or UTC, with your strongest and weakest times called out (only once there are at least 3 trades, with a reminder that small samples can mislead). https://www.fynxfunded.com/dashboard/analytics
 - New "P/L by trading day" panel: each trading day runs 22:00–22:00 UTC like the daily loss limit. Shows up/down days, average day, best and worst day, a day-by-day chart, and how big your best day is compared with the 40% consistency rule (an estimate; the official status stays on Objectives).

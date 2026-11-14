@@ -54,6 +54,7 @@ import { FOREX_HOURS, marketState } from '@/engine/hours';
 import { closedSentence, localAt, pairMarket, untilLabel, useNow, type PairMarket } from './market-hours';
 import type { GatewayStatus } from '@/engine/gateway';
 import { metricsGaps } from './live-account';
+import { tradeAccessError } from './account-limits';
 
 interface Account {
   accountId: string; challengeId: string; orderId: string; platform: string; status: string;
@@ -78,6 +79,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
   const [params, setParams] = useSearchParams(), requested = params.get('account') || '';
   const [accounts, setAccounts] = useState<Account[]>([]), [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [refresh, setRefresh] = useState(0);
+  const [errorKind, setErrorKind] = useState<'private' | 'signin' | 'other'>('other');
   const [loadedFor, setLoadedFor] = useState('');
   const selection = useRef('');
   const reload = useCallback(() => setRefresh(n => n + 1), []);
@@ -85,7 +87,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
   // Account loading is unchanged from the previous portal: list, then open the selected account.
   useEffect(() => {
     let active = true;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setErrorKind('other');
     const key = `${uid}:${requested}`;
     if (selection.current !== key) { setAccount(null); setAccounts([]); setLoadedFor(''); selection.current = key; }
     if (!uid) return;
@@ -99,7 +101,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
         const opened = await fundedAccessCall<Account>('fundedTradeAccess', { action: 'open', accountId: selected });
         if (active) setAccount(opened);
       }
-    })().catch(e => { if (active) setError(e instanceof Error ? e.message : 'Account access could not be loaded. Please retry.'); }).finally(() => { if (active) setLoading(false); });
+    })().catch(e => { if (active) { const t = tradeAccessError(e); setError(t.message); setErrorKind(t.kind); } }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [uid, requested, refresh]);
   useEffect(() => {
@@ -184,7 +186,8 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
       <PauseCircle size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
       <p><span className="font-medium">New trading is paused by FYNX.</span> <span className="text-muted-foreground">{engine.status.paused.reason} {pausedUntilText(engine.status.paused, now.getTime())} Your open trades, stops and loss limits keep working; you can still close trades and cancel orders. New orders and changes are refused until trading resumes. {waitingOrdersSentence(engine.status.paused.holdPending, 'pause')}</span></p>
     </div>}
-    {error && <div role="alert" className="border-b border-red-500/40 bg-red-500/5 px-3 py-2 text-sm sm:px-5">{error} <Link className="underline" to="/dashboard/support">Contact support</Link></div>}
+    {error && errorKind === 'private' && <div role="status" className="border-b border-sky-500/40 bg-sky-500/5 px-3 py-2 text-sm sm:px-5"><p className="font-medium">{error}</p><p className="mt-1 text-muted-foreground">Testers sign in with their FYNX email and password. <button type="button" className="underline" onClick={() => void signOut().catch(() => setError('Sign out could not finish. Try again.'))}>Sign out and sign in again</button> · <Link className="underline" to="/dashboard/support">Contact support</Link></p></div>}
+    {error && errorKind !== 'private' && <div role="alert" className="border-b border-red-500/40 bg-red-500/5 px-3 py-2 text-sm sm:px-5">{error} <Link className="underline" to="/dashboard/support">Contact support</Link></div>}
 
     {live && <TvWidget title="Live forex ticker" script="ticker-tape" className="hidden h-[46px] overflow-hidden border-b sm:block" config={{ symbols: TICKER.map(s => ({ proName: `OANDA:${s}`, title: s })), showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: dark ? 'dark' : 'light', locale: 'en' }} />}
 
