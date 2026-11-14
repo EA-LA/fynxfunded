@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, Layers, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowLeft, ChevronDown, LogOut, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, Layers, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -63,6 +63,8 @@ type Side = 'buy' | 'sell';
 type MobileView = 'quotes' | 'chart' | 'trade' | 'history' | 'account';
 type ToolTab = 'positions' | 'orders' | 'history' | 'alerts' | 'account';
 
+// Phone tabs share one page: start each tab at the top (wide screens show everything, so no scrolling).
+const toTop = () => { if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches) window.scrollTo({ top: 0 }); };
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 const GROUPS: (ForexGroup | 'Favorites' | 'All')[] = ['All', 'Favorites', 'Majors', 'Minors', 'Exotics'];
 const INTERVALS = [['1', '1m'], ['5', '5m'], ['15', '15m'], ['60', '1H'], ['240', '4H'], ['D', '1D']] as const;
@@ -141,12 +143,19 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
   const market = marketState(FOREX_HOURS, now.getTime()), marketOpen = market.open, day = tradingDayStatus(now);
   const pairState = pairMarket(engine.status, pair.symbol, now.getTime());
 
-  return <div className="flex min-h-screen flex-col bg-background pb-16 text-foreground lg:pb-0">
+  // Shown until this account can actually send orders (trading switched on and the server accepting them).
+  const tradingLive = !!(visible?.tradingEnabled && engine.status?.execution);
+  // Chart quick SELL/BUY: jump to the order panel with the review open for that side.
+  const [quick, setQuick] = useState<{ side: Side; n: number } | null>(null);
+  const quickTrade = (side: Side) => { setQuick(q => ({ side, n: (q?.n ?? 0) + 1 })); setView('trade'); toTop(); };
+  const chartQuote = engine.snapshot?.quotes[pair.symbol];
+
+  return <div className="fynx-terminal flex min-h-screen flex-col bg-background pb-[calc(4rem+env(safe-area-inset-bottom))] text-foreground antialiased lg:pb-0">
     {/* Top bar */}
     <header className="border-b bg-card">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <Link to="/trade" className="flex items-center gap-2 text-lg font-bold tracking-tight"><span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-sm text-primary-foreground">F</span>FYNX <span className="font-normal text-muted-foreground">Trade</span></Link>
+          <Link to="/trade" aria-label="FYNX Trade home" className="flex items-center gap-2 text-[17px] font-semibold tracking-tight"><span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-amber-300 to-amber-500 shadow-[0_0_20px_-6px_rgba(251,191,36,.7)]"><Activity size={16} strokeWidth={2.5} className="text-black" aria-hidden="true" /></span>FYNX <span className="font-normal text-muted-foreground">Trade</span></Link>
           {loadedFor === uid && accounts.length > 0 && <label className="hidden min-w-0 items-center gap-2 text-xs text-muted-foreground sm:flex"><span className="sr-only">Trading account</span>
             <select value={requested || accounts[0]?.accountId} onChange={e => setParams(prev => { const next = new URLSearchParams(prev); next.set('account', e.target.value); return next; })} className="max-w-[260px] truncate rounded-md border bg-background px-2 py-1.5 font-mono text-xs text-foreground">
               {accounts.map(a => <option key={a.accountId} value={a.accountId}>#{a.accountId.slice(-8)} · {money(a.startingBalance)} · {a.status}</option>)}
@@ -159,16 +168,16 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
           <button disabled={loading} onClick={reload} aria-label="Refresh accounts" className="rounded-md p-2 hover:bg-secondary disabled:opacity-50"><RefreshCw size={15} className={loading ? 'animate-spin' : ''} /></button>
           <Link to="/dashboard" className="hidden items-center gap-1 rounded-md px-2 py-1.5 hover:bg-secondary sm:inline-flex"><ArrowLeft size={14} />Dashboard</Link>
           <ThemeToggle />
-          <button className="rounded-md px-2 py-1.5 hover:bg-secondary" onClick={() => void signOut().catch(() => setError('Sign out could not finish. Try again.'))}>Sign out</button>
+          <button aria-label="Sign out" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-secondary" onClick={() => void signOut().catch(() => setError('Sign out could not finish. Try again.'))}><LogOut size={15} className="sm:hidden" aria-hidden="true" /><span className="hidden sm:inline">Sign out</span></button>
         </div>
       </div>
       <AccountStrip account={visible} loading={loading} snapshot={engine.snapshot} />
     </header>
 
-    <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs sm:px-5" role="note">
+    {!tradingLive && <div className="flex items-start gap-2 border-b border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs sm:px-5" role="note" data-testid="trading-soon">
       <LockKeyhole size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
-      <p><span className="font-medium">Trading opens soon.</span> <span className="text-muted-foreground">Prices, charts and the order panel are ready. Order placement unlocks when FYNX switches on trading for your account; until then no order is sent.</span></p>
-    </div>
+      <p><span className="font-medium">Trading opens soon.</span> <span className="text-muted-foreground"><span className="hidden sm:inline">Prices, charts and the order panel are ready. </span>Order placement unlocks when FYNX switches on trading for your account; until then no order is sent.</span></p>
+    </div>}
     {engine.status?.paused && <div data-testid="trading-paused" role="status" className="flex items-start gap-2 border-b border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs sm:px-5">
       <PauseCircle size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
       <p><span className="font-medium">New trading is paused by FYNX.</span> <span className="text-muted-foreground">{engine.status.paused.reason} {pausedUntilText(engine.status.paused, now.getTime())} Your open trades, stops and loss limits keep working; you can still close trades and cancel orders. New orders and changes are refused until trading resumes. {waitingOrdersSentence(engine.status.paused.holdPending, 'pause')}</span></p>
@@ -178,7 +187,7 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
     {live && <TvWidget title="Live forex ticker" script="ticker-tape" className="hidden h-[46px] overflow-hidden border-b sm:block" config={{ symbols: TICKER.map(s => ({ proName: `OANDA:${s}`, title: s })), showSymbolLogo: false, isTransparent: true, displayMode: 'compact', colorTheme: dark ? 'dark' : 'light', locale: 'en' }} />}
 
     {/* Workspace */}
-    <main className="grid flex-1 gap-px bg-border lg:grid-cols-[270px_minmax(0,1fr)_330px] lg:grid-rows-[minmax(520px,1fr)_auto]">
+    <main className="grid flex-1 gap-px bg-border lg:grid-cols-[300px_minmax(0,1fr)_330px] xl:grid-cols-[320px_minmax(0,1fr)_340px] lg:grid-rows-[minmax(520px,1fr)_auto]">
       <section className={`${show('quotes')} min-h-0 flex-col bg-card lg:row-span-2`} aria-label="Market watch">
         <MarketWatch selected={pair} status={engine.status} quotes={engine.snapshot?.quotes} now={now.getTime()} onSelect={p => { setSymbol(p.symbol); setView('chart'); }} />
       </section>
@@ -190,8 +199,9 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
             {INTERVALS.map(([id, label]) => <button key={id} type="button" aria-pressed={chartInterval === id} onClick={() => setChartInterval(id)} className={`rounded px-2 py-1 text-xs font-medium ${chartInterval === id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}>{label}</button>)}
           </div>
         </div>
-        {live && <TvWidget key={`info-${pair.symbol}-${dark}`} title={`${pairLabel(pair)} live price`} script="symbol-info" className="h-[96px] overflow-hidden border-b" config={{ symbol: pair.tvSymbol, width: '100%', locale: 'en', colorTheme: dark ? 'dark' : 'light', isTransparent: true }} />}
-        <div className="relative min-h-[420px] flex-1">
+        <QuoteBar pair={pair} quote={chartQuote} quotes={engine.snapshot?.quotes} onTrade={quickTrade} />
+        {live && <TvWidget key={`info-${pair.symbol}-${dark}`} title={`${pairLabel(pair)} live price`} script="symbol-info" className="hidden h-[96px] overflow-hidden border-b sm:block" config={{ symbol: pair.tvSymbol, width: '100%', locale: 'en', colorTheme: dark ? 'dark' : 'light', isTransparent: true }} />}
+        <div className="relative min-h-[58vh] flex-1 lg:min-h-[420px]">
           {live
             ? <TvWidget key={`chart-${pair.symbol}-${chartInterval}-${dark}`} title={`${pairLabel(pair)} chart`} script="advanced-chart" className="absolute inset-0" config={{ autosize: true, symbol: pair.tvSymbol, interval: chartInterval, timezone: 'Etc/UTC', theme: dark ? 'dark' : 'light', style: '1', locale: 'en', allow_symbol_change: false, hide_side_toolbar: false, calendar: false, support_host: 'https://www.tradingview.com' }} />
             : <div className="absolute inset-0 grid place-items-center p-6 text-center"><div className="max-w-md"><CandlestickChart size={36} className="mx-auto text-muted-foreground" aria-hidden="true" /><p className="mt-3 text-lg font-semibold">Turn on live prices</p><p className="my-3 text-sm text-muted-foreground">Live charts and quotes for all {FOREX_PAIRS.length} forex pairs come from TradingView. TradingView receives your connection details when they load. We remember your choice on this device.</p><button className="rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground" onClick={enableLive}>Show live prices</button></div></div>}
@@ -203,21 +213,36 @@ export default function TradeAccess({ gateway }: { gateway?: TradingGateway } = 
       </section>
 
       <section className={`${show('trade')} min-h-0 flex-col bg-card lg:row-span-2`} aria-label="Order panel">
-        <OrderTicket key={pair.symbol} pair={pair} account={visible} dailyLossAmount={rules?.dailyLossAmount ?? null} market={pairState} now={now.getTime()} engine={engine} />
+        <OrderTicket key={pair.symbol} pair={pair} account={visible} dailyLossAmount={rules?.dailyLossAmount ?? null} market={pairState} now={now.getTime()} engine={engine} quick={quick} />
       </section>
 
-      <section className={`${view === 'history' || view === 'account' ? 'flex' : 'hidden'} min-w-0 flex-col bg-card lg:flex`} aria-label="Terminal">
-        <Toolbox engine={engine} pair={pair} now={now.getTime()} tab={view === 'account' ? 'account' : tool} setTab={t => { setTool(t); if (view === 'history' && t === 'account') setView('account'); else if (view === 'account' && t !== 'account') setView('history'); }}
+      <section className={`${view === 'trade' || view === 'history' || view === 'account' ? 'flex' : 'hidden'} min-w-0 flex-col bg-card lg:flex`} aria-label="Terminal">
+        <Toolbox engine={engine} pair={pair} now={now.getTime()} tab={view === 'account' ? 'account' : view === 'trade' && tool === 'account' ? 'positions' : tool} setTab={t => { setTool(t); if (view !== 'account' && t === 'account') setView('account'); else if (view === 'account' && t !== 'account') setView('history'); }}
           account={visible} accounts={accounts} loading={loading} rules={rules} loadedFor={loadedFor === uid} requested={requested}
           onSelectAccount={id => setParams(prev => { const next = new URLSearchParams(prev); next.set('account', id); return next; })} />
       </section>
     </main>
 
     {/* Phone navigation, like the MT5 app */}
-    <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t bg-card lg:hidden" aria-label="Terminal sections">
-      {([['quotes', 'Quotes', ListOrdered], ['chart', 'Chart', LineChart], ['trade', 'Trade', BarChart3], ['history', 'History', History], ['account', 'Account', User]] as const).map(([id, label, Icon]) =>
-        <button key={id} type="button" aria-current={view === id ? 'page' : undefined} onClick={() => { setView(id); if (id === 'history' && tool === 'account') setTool('positions'); }} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${view === id ? 'text-primary font-semibold' : 'text-muted-foreground'}`}><Icon size={19} aria-hidden="true" />{label}</button>)}
+    <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Terminal sections">
+      {([['quotes', 'Quotes', ListOrdered], ['chart', 'Chart', LineChart], ['trade', 'Trade', BarChart3], ['history', 'History', History], ['account', 'Account', User]] as const).map(([id, label, Icon]) => {
+        const open = engine.snapshot?.state.positions.length ?? 0;
+        return <button key={id} type="button" aria-current={view === id ? 'page' : undefined} onClick={() => { setView(id); if (id === 'history') setTool('history'); else if (id === 'trade' && (tool === 'account' || tool === 'history')) setTool('positions'); toTop(); }} className={`relative flex flex-col items-center gap-0.5 py-2 text-[11px] ${view === id ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>
+          {view === id && <span className="absolute inset-x-6 top-0 h-0.5 rounded-full bg-primary" aria-hidden="true" />}
+          <span className="relative"><Icon size={19} aria-hidden="true" />{id === 'trade' && open > 0 && <span className="absolute -right-2.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground" aria-label={`${open} open`}>{open}</span>}</span>{label}</button>;
+      })}
     </nav>
+  </div>;
+}
+
+/** Chart header strip: the trading server's bid/ask for the pair and one-tap SELL/BUY into the order panel. */
+function QuoteBar({ pair, quote, quotes, onTrade }: { pair: ForexPair; quote?: { bid: number; ask: number }; quotes?: QuoteBook | null; onTrade: (side: Side) => void }) {
+  const spread = spreadOf(pair, quote, quotes);
+  const btn = 'flex min-w-0 flex-1 flex-col items-center rounded-md px-2 py-1.5 font-semibold text-white transition active:scale-[.98]';
+  return <div className="flex items-stretch gap-2 border-b px-3 py-2" data-testid="quote-bar">
+    <button type="button" onClick={() => onTrade('sell')} aria-label={`Sell ${pair.symbol}`} className={`${btn} bg-red-600 hover:bg-red-700`}><span className="text-[10px] uppercase tracking-wider opacity-80">Sell</span><span className="font-mono text-sm tabular-nums">{quote ? quote.bid.toFixed(pair.digits) : '—'}</span></button>
+    <div className="flex shrink-0 flex-col items-center justify-center px-1 text-center"><span className="text-[10px] uppercase tracking-wider text-muted-foreground">Spread</span><span className="font-mono text-xs tabular-nums">{spread ? spread.pips.toFixed(1) : '—'}</span></div>
+    <button type="button" onClick={() => onTrade('buy')} aria-label={`Buy ${pair.symbol}`} className={`${btn} bg-blue-600 hover:bg-blue-700`}><span className="text-[10px] uppercase tracking-wider opacity-80">Buy</span><span className="font-mono text-sm tabular-nums">{quote ? quote.ask.toFixed(pair.digits) : '—'}</span></button>
   </div>;
 }
 
@@ -236,7 +261,7 @@ function AccountStrip({ account, loading, snapshot }: { account: Account | null;
       : [['Balance', '—'], ['Equity', '—'], ['Floating P/L', '—'], ['Margin', '—'], ['Free margin', '—'], ['Stage', loading ? 'Loading…' : 'No account']];
   return <div className="border-t">
     <dl className="flex gap-px overflow-x-auto bg-border text-xs" aria-label="Account summary">
-      {items.map(([label, value, t]) => <div key={label} className="min-w-[110px] flex-1 bg-card px-3 py-1.5"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${t ?? ''}`}>{value}</dd></div>)}
+      {items.map(([label, value, t]) => <div key={label} className="min-w-[100px] flex-1 bg-card px-3 py-1.5 sm:min-w-[110px]"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className={`font-mono text-sm font-semibold tabular-nums ${t ?? ''}`}>{value}</dd></div>)}
     </dl>
     {stopOut && <p role="status" data-testid="stop-out-note" className={`px-3 py-1 text-[11px] ${stopOut.reached ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>{stopOut.text}</p>}
     {gaps?.message && <p role="status" data-testid="strip-prices-missing" className="bg-amber-500/10 px-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">{gaps.message}</p>}
@@ -252,6 +277,10 @@ function MarketWatch({ selected, onSelect, status, quotes, now }: { selected: Fo
     const base = group === 'All' ? FOREX_PAIRS : group === 'Favorites' ? FOREX_PAIRS.filter(p => favorites.includes(p.symbol)) : FOREX_PAIRS.filter(p => p.group === group);
     return searchPairs(base, query);
   }, [group, favorites, query]);
+  // Tick direction per pair since the last price, for the up/down colour like MT5.
+  const last = useRef<Record<string, number>>({}), dir = useRef<Record<string, 1 | -1>>({});
+  if (quotes) for (const [sym, q] of Object.entries(quotes)) { const prev = last.current[sym]; if (prev !== undefined && q.bid !== prev) dir.current[sym] = q.bid > prev ? 1 : -1; last.current[sym] = q.bid; }
+  const priced = !!quotes && Object.keys(quotes).length > 0;
   return <>
     <div className="border-b px-3 pb-2 pt-3">
       <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Market Watch</h2><span className="text-[11px] text-muted-foreground">{FOREX_PAIRS.length} forex pairs</span></div>
@@ -260,7 +289,7 @@ function MarketWatch({ selected, onSelect, status, quotes, now }: { selected: Fo
         {GROUPS.map(g => <button key={g} type="button" aria-pressed={group === g} onClick={() => setGroup(g)} className={`shrink-0 rounded px-2 py-1 text-xs ${group === g ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}>{g === 'Favorites' ? `★ ${favorites.length}` : g}</button>)}
       </div>
     </div>
-    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground"><span>Symbol</span><span>Pip</span><span className="w-6" /><span className="w-6" /></div>
+    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 border-b px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground"><span>Symbol</span>{priced ? <span className="grid w-[132px] grid-cols-2 text-right"><span>Bid</span><span>Ask</span></span> : <span>Pip</span>}<span className="w-6" /><span className="w-6" /></div>
     <ul className="min-h-0 flex-1 overflow-y-auto lg:max-h-[calc(100vh-230px)]" data-testid="market-watch">
       {list.map(p => {
         const active = p.symbol === selected.symbol, fav = favorites.includes(p.symbol);
@@ -270,7 +299,8 @@ function MarketWatch({ selected, onSelect, status, quotes, now }: { selected: Fo
             <span className="flex items-center gap-1.5 font-mono text-sm font-semibold">{p.symbol}{(() => { const n = pairNews(status, p, now); const soon = n.active ?? (n.upcoming[0] && n.upcoming[0].from - now <= 15 * 60_000 ? n.upcoming[0] : null); return soon && m.open ? <span data-testid={`news-${p.symbol}`} title={newsNoteSentence(n, p.symbol, now) ?? undefined} className={`inline-flex items-center gap-0.5 rounded px-1 py-px font-sans text-[10px] font-normal ${n.active && n.enforce ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-secondary text-muted-foreground'}`}><Newspaper size={9} aria-hidden="true" />{n.active ? 'News now' : 'News soon'}</span> : null; })()}{!m.open && <span data-testid={`closed-${p.symbol}`} title={closedSentence(p.symbol, m, now)} className="inline-flex items-center gap-0.5 rounded bg-secondary px-1 py-px font-sans text-[10px] font-normal text-muted-foreground"><LockKeyhole size={9} aria-hidden="true" />{special || 'Closed'}</span>}</span>
             <span className="block truncate text-[11px] text-muted-foreground">{pairName(p)}</span>
           </button>
-          <span className="font-mono text-[11px] text-muted-foreground">{p.pipSize}</span>
+          {priced ? (() => { const q = quotes?.[p.symbol], d = dir.current[p.symbol], tone = d === 1 ? 'text-blue-500' : d === -1 ? 'text-red-500' : ''; const sp = spreadOf(p, q, quotes); return <button type="button" tabIndex={-1} onClick={() => onSelect(p)} className="grid w-[132px] grid-cols-2 gap-x-1 text-right font-mono text-[13px] font-semibold tabular-nums" data-testid={`watch-price-${p.symbol}`}><span className={tone}>{q ? q.bid.toFixed(p.digits) : '—'}</span><span className={tone}>{q ? q.ask.toFixed(p.digits) : '—'}</span><span className="col-span-2 text-[10px] font-normal text-muted-foreground">{sp ? `spread ${sp.pips.toFixed(1)}` : `pip ${p.pipSize}`}</span></button>; })()
+            : <span className="font-mono text-[11px] text-muted-foreground">{p.pipSize}</span>}
           <button type="button" onClick={() => setSpecFor(p)} aria-label={`Contract specification for ${p.symbol}`} data-testid={`watch-spec-${p.symbol}`} className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"><Info size={14} aria-hidden="true" /></button>
           <button type="button" onClick={() => toggleFavorite(p.symbol)} aria-pressed={fav} aria-label={`${fav ? 'Remove' : 'Add'} ${p.symbol} ${fav ? 'from' : 'to'} favourites`} className="grid h-6 w-6 place-items-center"><Star size={14} className={fav ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'} /></button>
         </li>;
@@ -321,13 +351,19 @@ function TicketDeviation({ pair, text, onText }: { pair: ForexPair; text: string
   </div>;
 }
 
-function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; market: PairMarket; now: number; engine: EngineHandle }) {
+function OrderTicket({ pair, account, dailyLossAmount, market, now, engine, quick }: { pair: ForexPair; account: Account | null; dailyLossAmount: number | null; market: PairMarket; now: number; engine: EngineHandle; quick?: { side: Side; n: number } | null }) {
   const marketOpen = market.open;
   const [lotsText, setLotsText] = useState('0.10'), [type, setType] = useState<'market' | 'limit' | 'stop'>('market');
   const [entry, setEntry] = useState(''), [slText, setSlText] = useState(''), [tpText, setTpText] = useState(''), [trailText, setTrailText] = useState(''), [deviationText, setDeviationText] = useState('');
   const [review, setReview] = useState<Side | null>(null), [sent, setSent] = useState('');
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>('gtc'), [expiryText, setExpiryText] = useState('');
   const [ocoChoice, setOcoChoice] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Order details start open on wide screens, folded on phones.
+  const [detailsOpen, setDetailsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(min-width: 1024px)').matches);
+  // SELL/BUY pressed on the chart: open the review for that side (never sends by itself).
+  const quickSeen = useRef(quick?.n ?? 0);
+  useEffect(() => { if (quick && quick.n !== quickSeen.current) { quickSeen.current = quick.n; setSent(''); setType('market'); setReview(quick.side); } }, [quick]);
   const pendingOrders = engine.snapshot?.state.orders ?? [];
   // A link only applies to pending orders and only while the other order is still pending.
   const ocoWith = type === 'market' ? '' : chosenLink(ocoChoice, pendingOrders);
@@ -415,14 +451,25 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
       <label className="text-xs text-muted-foreground">Stop loss (pips)<input inputMode="decimal" value={slText} onChange={e => setSlText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
       <label className="text-xs text-muted-foreground">Take profit (pips)<input inputMode="decimal" value={tpText} onChange={e => setTpText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
     </div>
-    <TicketTrailing pair={pair} text={trailText} onText={setTrailText} type={type} entry={entry} quote={quote} />
-    {type === 'market' && <TicketDeviation pair={pair} text={deviationText} onText={setDeviationText} />}
-    {type !== 'market' && <ExpiryPicker id="ticket" choice={expiryChoice} onChoice={setExpiryChoice} dateText={expiryText} onDateText={setExpiryText} now={now} />}
-    {type !== 'market' && <OcoPicker id="ticket" orders={pendingOrders} value={ocoWith} onChange={setOcoChoice} draft={review && Number.isFinite(Number(entry.replace(',', '.'))) && entry ? { symbol: pair.symbol, side: review, type, price: Number(entry.replace(',', '.')) } : null} />}
+    {(() => {
+      const set = [trailText && 'trailing stop', type === 'market' && deviationText && 'price protection', type !== 'market' && expiryChoice !== 'gtc' && 'expiry', type !== 'market' && ocoWith && 'linked order'].filter(Boolean);
+      return <details open={moreOpen || set.length > 0} onToggle={e => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)} className="group rounded-lg border" data-testid="ticket-more">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium [&::-webkit-details-marker]:hidden">
+          <span>More options <span className="font-normal text-muted-foreground">· {set.length ? set.join(', ') : type === 'market' ? 'trailing stop, price protection' : 'trailing stop, expiry, one-cancels-other'}</span></span>
+          <ChevronDown size={14} className="shrink-0 transition group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-4 border-t px-3 pb-3 pt-3">
+          <TicketTrailing pair={pair} text={trailText} onText={setTrailText} type={type} entry={entry} quote={quote} />
+          {type === 'market' && <TicketDeviation pair={pair} text={deviationText} onText={setDeviationText} />}
+          {type !== 'market' && <ExpiryPicker id="ticket" choice={expiryChoice} onChoice={setExpiryChoice} dateText={expiryText} onDateText={setExpiryText} now={now} />}
+          {type !== 'market' && <OcoPicker id="ticket" orders={pendingOrders} value={ocoWith} onChange={setOcoChoice} draft={review && Number.isFinite(Number(entry.replace(',', '.'))) && entry ? { symbol: pair.symbol, side: review, type, price: Number(entry.replace(',', '.')) } : null} />}
+        </div>
+      </details>;
+    })()}
 
     <div className="grid grid-cols-2 gap-2">
-      <button type="button" onClick={() => { setSent(''); setReview('sell'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.bid.toFixed(pair.digits) : 'at bid') : `${type} order`}</span></button>
-      <button type="button" onClick={() => { setSent(''); setReview('buy'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-blue-600 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50" data-testid="buy-button"><span className="flex items-center gap-1 text-base"><ArrowUpRight size={17} aria-hidden="true" />BUY</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.ask.toFixed(pair.digits) : 'at ask') : `${type} order`}</span></button>
+      <button type="button" onClick={() => { setSent(''); setReview('sell'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-red-600 py-3.5 font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50" data-testid="sell-button"><span className="flex items-center gap-1 text-base"><ArrowDownRight size={17} aria-hidden="true" />SELL</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.bid.toFixed(pair.digits) : 'at bid') : `${type} order`}</span></button>
+      <button type="button" onClick={() => { setSent(''); setReview('buy'); }} disabled={!lots} className="flex flex-col items-center rounded-lg bg-blue-600 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50" data-testid="buy-button"><span className="flex items-center gap-1 text-base"><ArrowUpRight size={17} aria-hidden="true" />BUY</span><span className="font-mono text-[11px] font-normal opacity-90">{type === 'market' ? (quote ? quote.ask.toFixed(pair.digits) : 'at ask') : `${type} order`}</span></button>
     </div>
     <p className="-mt-2 text-center text-[11px] text-muted-foreground" data-testid="ticket-spread">{spread ? `Spread ${spread.pips.toFixed(1)} pips${spread.usdPerLot !== null ? ` · ${lots ? `${money(Math.round(spread.usdPerLot * lots * 100) / 100)} on ${lots.toFixed(2)} lots` : `${money(spread.usdPerLot)} per lot`}` : ''}` : 'Spread: from the trading server\u2019s live prices'}</p>
 
@@ -445,7 +492,9 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
     </div>}
     {sent && <p role="status" className="rounded-md bg-emerald-500/10 p-2 text-xs text-emerald-700 dark:text-emerald-400" data-testid="order-sent">{sent}</p>}
 
-    <dl className="space-y-1.5 rounded-lg bg-secondary/40 p-3 text-xs">
+    <details className="group rounded-lg bg-secondary/40" open={detailsOpen} onToggle={e => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)} data-testid="ticket-details">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium [&::-webkit-details-marker]:hidden"><span>Order details <span className="font-normal text-muted-foreground">· {f.risk !== null ? `risk ${money(f.risk)}` : 'pip value, margin, costs'}</span></span><ChevronDown size={14} className="shrink-0 transition group-open:rotate-180" aria-hidden="true" /></summary>
+    <dl className="space-y-1.5 border-t border-border/60 px-3 pb-3 pt-2 text-xs">
       {([
         ['Contract size', `${(conditions?.contractSize ?? CONTRACT_SIZE).toLocaleString()} ${pair.base} / lot`],
         ['Pip size', String(pair.pipSize)],
@@ -459,7 +508,7 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine }: { 
         ['Commission', costs.commissionRoundTurn !== null ? `${money(costs.commissionRoundTurn)} open + close (${money(conditions!.commissionPerLotPerSide)} per lot per side)` : conditions ? `${money(conditions.commissionPerLotPerSide)} per lot per side` : notConnected],
         ['Swap per night', !conditions ? notConnected : costs.swapNone ? 'None on this pair' : costs.swapBuy !== null ? `Buy ${money(costs.swapBuy)} · Sell ${money(costs.swapSell!)} (×3 ${weekdayName(costs.tripleWeekday!)})` : '\u2014'],
       ] as const).map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right font-medium">{v}</dd></div>)}
-    </dl>
+    </dl></details>
     {f.riskShareOfDaily !== null && <p className={`text-xs ${f.riskShareOfDaily >= 100 ? 'text-red-500' : f.riskShareOfDaily >= 50 ? 'text-amber-600' : 'text-muted-foreground'}`} data-testid="daily-share">{f.riskShareOfDaily >= 100 ? `This stop would lose more than your whole daily loss allowance (${money(dailyLossAmount!)}).` : `This stop uses ${f.riskShareOfDaily}% of your ${money(dailyLossAmount!)} daily loss allowance.`}</p>}
     <Link to={sizeLink} className="text-xs underline underline-offset-2">Work out the exact lot size for {pairLabel(pair)}</Link>
     <p className="text-[11px] text-muted-foreground" data-testid="conditions-note">{conditions ? 'Leverage, commission and swap are the trading server\u2019s own settings for this pair; the server sets the fill price and checks margin and your challenge rules again before any order is accepted.' : 'When trading opens, the server sets the fill price, spread and margin and checks your challenge rules before any order is accepted. Leverage and commissions are confirmed with the broker before launch.'}</p>
@@ -558,21 +607,21 @@ function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'acco
     {tab === 'positions' && snap && <WeekendBanner engine={engine} now={now} />}
     {tab === 'positions' && snap && <BulkClose snapshot={snap} engine={engine} now={now} />}
     {tab === 'history' && snap && <StatementBar accountId={snap.state.accountId} deals={[...snap.state.history, ...archive.pages.flatMap(p => p.deals)]} archivedNotLoaded={Math.max(0, (snap.state.archived?.deals ?? 0) - archive.shown)} />}
-    <table className="w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
+    <table className="term-table w-full text-xs"><thead className="bg-secondary/40 text-muted-foreground"><tr>{headers.map((h, i) => <th key={h || i} scope="col" className={head}>{h}</th>)}</tr></thead>
       <tbody>
         {tab === 'positions' && snap?.state.positions.map(p => { const q = snap.quotes[p.symbol]; const cur = q ? (p.side === 'buy' ? q.bid : q.ask) : undefined; const pr = floatingUsd(p.symbol, p.side, p.lots, p.entryPrice, cur, snap.quotes) + (p.swap ?? 0); return <Fragment key={p.id}><tr className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{p.symbol}</td><td className={cell}>{p.id}</td><td className={cell}>{time(p.openedAt)}</td><td className={`${cell} ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side}</td><td className={cell}>{p.lots.toFixed(2)}</td><td className={cell}>{px(p.symbol, p.entryPrice)}</td><td className={cell}>{px(p.symbol, p.stopLoss)}{p.trailingStop && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`Trailing stop ${p.trailingStop.pips} pips: the stop follows the price and only moves towards profit`}>trail {p.trailingStop.pips}p</span>}</td><td className={cell}>{px(p.symbol, p.takeProfit)}</td><td className={cell}>{px(p.symbol, cur)}</td><td className={cell}>{money(p.swap ?? 0)}</td>
-          <td className={`${cell} ${pr < 0 ? 'text-red-500' : pr > 0 ? 'text-emerald-500' : ''}`}>{Number.isFinite(pr) ? money(pr) : '—'}</td>
-          <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} /></button>{(() => { const m = pairMarket(engine.status, p.symbol, now); return <button type="button" disabled={engine.busy || !m.open} title={m.open ? undefined : closedSentence(p.symbol, m, now)} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary disabled:opacity-40" aria-label={m.open ? `Close ${p.symbol} position ${p.id}` : `Close ${p.symbol} position ${p.id} (market closed)`}><X size={12} /></button>; })()}</td>
-        </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><PositionEditor position={p} snapshot={snap} engine={engine} hours={pairMarket(engine.status, p.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
+          <td className={`${cell} term-head font-semibold`}>{p.symbol}<span className={`lg:hidden ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side} {p.lots.toFixed(2)}</span></td><td data-label="Ticket" className={cell}>{p.id}</td><td data-label="Opened" className={cell}>{time(p.openedAt)}</td><td data-label="Type" className={`${cell} term-hide-sm ${p.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{p.side}</td><td data-label="Volume" className={`${cell} term-hide-sm`}>{p.lots.toFixed(2)}</td><td data-label="Open price" className={cell}>{px(p.symbol, p.entryPrice)}</td><td data-label="S/L" className={cell}>{px(p.symbol, p.stopLoss)}{p.trailingStop && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`Trailing stop ${p.trailingStop.pips} pips: the stop follows the price and only moves towards profit`}>trail {p.trailingStop.pips}p</span>}</td><td data-label="T/P" className={cell}>{px(p.symbol, p.takeProfit)}</td><td data-label="Current" className={cell}>{px(p.symbol, cur)}</td><td data-label="Swap" className={cell}>{money(p.swap ?? 0)}</td>
+          <td data-label="Profit" className={`${cell} font-semibold ${pr < 0 ? 'text-red-500' : pr > 0 ? 'text-emerald-500' : ''}`}>{Number.isFinite(pr) ? money(pr) : '—'}</td>
+          <td className="term-actions whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === p.id} onClick={() => { setNotice(''); setEditing(editing === p.id ? null : p.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit stop loss, take profit or volume of ${p.symbol} position ${p.id}`}><Pencil size={12} className="inline" /><span className="ml-1 lg:hidden">Edit</span></button>{(() => { const m = pairMarket(engine.status, p.symbol, now); return <button type="button" disabled={engine.busy || !m.open} title={m.open ? undefined : closedSentence(p.symbol, m, now)} onClick={() => accountId && void engine.run(g => g.closePosition(accountId, p.id))} className="rounded border px-2 py-0.5 hover:bg-secondary disabled:opacity-40" aria-label={m.open ? `Close ${p.symbol} position ${p.id}` : `Close ${p.symbol} position ${p.id} (market closed)`}><X size={12} className="inline" /><span className="ml-1 lg:hidden">Close</span></button>; })()}</td>
+        </tr>{editing === p.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="term-full p-0"><PositionEditor position={p} snapshot={snap} engine={engine} hours={pairMarket(engine.status, p.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>; })}
         {tab === 'orders' && snap?.state.orders.map(o => <Fragment key={o.id}><tr className="border-b border-border/60">
-          <td className={`${cell} font-semibold`}>{o.symbol}</td><td className={cell}>{o.id}</td><td className={cell}>{time(o.createdAt)}</td><td className={cell}>{o.side} {o.type}{(() => { const h = pendingHold(engine.status, o.symbol, now); return h ? <span data-testid={`held-${o.id}`} className="ml-1 rounded bg-amber-500/15 px-1 font-sans text-[10px] text-amber-700 dark:text-amber-400" title={h.text}>{h.label}</span> : null; })()}{o.ocoWith !== undefined && <span data-testid={`oco-${o.id}`} className="ml-1 rounded bg-amber-500/15 px-1 font-sans text-[10px] text-amber-700 dark:text-amber-400" title={`One cancels the other: linked with order ${o.ocoWith}. If either fills, the other is cancelled.`}>OCO {o.ocoWith}</span>}</td><td className={cell}>{o.lots.toFixed(2)}</td><td className={cell}>{px(o.symbol, o.price)}</td><td className={cell}>{px(o.symbol, o.stopLoss)}{o.trailingPips !== undefined && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`The position gets a ${o.trailingPips}-pip trailing stop when this order fills`}>trail {o.trailingPips}p</span>}</td><td className={cell}>{px(o.symbol, o.takeProfit)}</td><td className={`${cell} font-sans`} data-testid={`expires-${o.id}`}>{o.expiresAt === undefined ? <span className="text-muted-foreground" title="Good till cancelled">GTC</span> : <span title={expiryLabel(o.expiresAt, now)}>{time(o.expiresAt)} <span className="text-muted-foreground">{o.expiresAt > now ? `in ${untilLabel(o.expiresAt - now)}` : 'due now'}</span></span>}</td>
-          <td className="whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss, take profit, trailing stop or expiry of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} /></button></td>
-        </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="p-0"><OrderEditor order={o} snapshot={snap} engine={engine} hours={pairMarket(engine.status, o.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
+          <td className={`${cell} term-head font-semibold`}>{o.symbol}</td><td data-label="Ticket" className={cell}>{o.id}</td><td data-label="Placed" className={cell}>{time(o.createdAt)}</td><td data-label="Type" className={cell}>{o.side} {o.type}{(() => { const h = pendingHold(engine.status, o.symbol, now); return h ? <span data-testid={`held-${o.id}`} className="ml-1 rounded bg-amber-500/15 px-1 font-sans text-[10px] text-amber-700 dark:text-amber-400" title={h.text}>{h.label}</span> : null; })()}{o.ocoWith !== undefined && <span data-testid={`oco-${o.id}`} className="ml-1 rounded bg-amber-500/15 px-1 font-sans text-[10px] text-amber-700 dark:text-amber-400" title={`One cancels the other: linked with order ${o.ocoWith}. If either fills, the other is cancelled.`}>OCO {o.ocoWith}</span>}</td><td data-label="Volume" className={cell}>{o.lots.toFixed(2)}</td><td data-label="Price" className={cell}>{px(o.symbol, o.price)}</td><td data-label="S/L" className={cell}>{px(o.symbol, o.stopLoss)}{o.trailingPips !== undefined && <span className="ml-1 rounded bg-primary/10 px-1 text-[10px] text-primary" title={`The position gets a ${o.trailingPips}-pip trailing stop when this order fills`}>trail {o.trailingPips}p</span>}</td><td data-label="T/P" className={cell}>{px(o.symbol, o.takeProfit)}</td><td data-label="Expires" className={`${cell} font-sans`} data-testid={`expires-${o.id}`}>{o.expiresAt === undefined ? <span className="text-muted-foreground" title="Good till cancelled">GTC</span> : <span title={expiryLabel(o.expiresAt, now)}>{time(o.expiresAt)} <span className="text-muted-foreground">{o.expiresAt > now ? `in ${untilLabel(o.expiresAt - now)}` : 'due now'}</span></span>}</td>
+          <td className="term-actions whitespace-nowrap px-3 py-1"><button type="button" aria-expanded={editing === o.id} onClick={() => { setNotice(''); setEditing(editing === o.id ? null : o.id); }} className="mr-1 rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Edit price, stop loss, take profit, trailing stop or expiry of ${o.symbol} order ${o.id}`}><Pencil size={12} /></button><button type="button" disabled={engine.busy} onClick={() => accountId && void engine.run(g => g.cancelOrder(accountId, o.id))} className="rounded border px-2 py-0.5 hover:bg-secondary" aria-label={`Cancel ${o.symbol} order ${o.id}`}><X size={12} className="inline" /><span className="ml-1 lg:hidden">Cancel</span></button></td>
+        </tr>{editing === o.id && <tr className="border-b border-border/60"><td colSpan={headers.length} className="term-full p-0"><OrderEditor order={o} snapshot={snap} engine={engine} hours={pairMarket(engine.status, o.symbol, now)} now={now} onDone={m => { setEditing(null); setNotice(m); }} /></td></tr>}</Fragment>)}
         {tab === 'history' && [...(snap?.state.history ?? [])].reverse().map(d => <DealRow key={d.id} d={d} cell={cell} />)}
       </tbody>
       {tab === 'history' && archive.pages.map(page => <tbody key={page.index} data-testid={`archive-page-${page.index}`}>
-        <tr className="border-b border-border/60 bg-secondary/30"><th scope="rowgroup" colSpan={headers.length} className="px-3 py-1 text-left font-medium text-muted-foreground">Archived · {time(page.firstClosedAt)} – {time(page.lastClosedAt)} · {page.deals.length} trade{page.deals.length === 1 ? '' : 's'} · net {money(page.deals.reduce((t, d) => t + d.netProfit, 0))}</th></tr>
+        <tr className="border-b border-border/60 bg-secondary/30"><th scope="rowgroup" colSpan={headers.length} className="term-full px-3 py-1 text-left font-medium text-muted-foreground">Archived · {time(page.firstClosedAt)} – {time(page.lastClosedAt)} · {page.deals.length} trade{page.deals.length === 1 ? '' : 's'} · net {money(page.deals.reduce((t, d) => t + d.netProfit, 0))}</th></tr>
         {[...page.deals].reverse().map(d => <DealRow key={d.id} d={d} cell={cell} />)}
       </tbody>)}
     </table>
@@ -614,8 +663,8 @@ export function dealR(d: Pick<Deal, 'netProfit' | 'entryRisk'>): string {
 
 function DealRow({ d, cell }: { d: Deal; cell: string }) {
   return <tr className="border-b border-border/60">
-    <td className={`${cell} font-semibold`}>{d.symbol}</td><td className={cell}>{time(d.closedAt)}</td><td className={cell}>{d.side}</td><td className={cell}>{d.lots.toFixed(2)}</td><td className={cell}>{px(d.symbol, d.entryPrice)}</td><td className={cell}>{px(d.symbol, d.exitPrice)}</td><td className={cell}>{money(-d.commission)}</td><td className={cell}>{money(d.swap ?? 0)}</td>
-    <td className={`${cell} ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td className={cell} title={d.entryRisk ? `1R = ${money(d.entryRisk.amount)} at risk from the entry stop loss` : 'Opened without a stop loss: no R'}>{dealR(d)}</td><td className="whitespace-nowrap px-3 py-1.5">{reasonLabel(d.reason)}</td>
+    <td className={`${cell} term-head font-semibold`}>{d.symbol}<span className={`lg:hidden ${d.side === 'buy' ? 'text-blue-500' : 'text-red-500'}`}>{d.side} {d.lots.toFixed(2)}</span></td><td data-label="Closed" className={cell}>{time(d.closedAt)}</td><td data-label="Type" className={`${cell} term-hide-sm`}>{d.side}</td><td data-label="Volume" className={`${cell} term-hide-sm`}>{d.lots.toFixed(2)}</td><td data-label="Open" className={cell}>{px(d.symbol, d.entryPrice)}</td><td data-label="Close" className={cell}>{px(d.symbol, d.exitPrice)}</td><td data-label="Commission" className={cell}>{money(-d.commission)}</td><td data-label="Swap" className={cell}>{money(d.swap ?? 0)}</td>
+    <td data-label="Profit" className={`${cell} font-semibold ${d.netProfit < 0 ? 'text-red-500' : d.netProfit > 0 ? 'text-emerald-500' : ''}`}>{money(d.netProfit)}</td><td data-label="Result" className={cell} title={d.entryRisk ? `1R = ${money(d.entryRisk.amount)} at risk from the entry stop loss` : 'Opened without a stop loss: no R'}>{dealR(d)}</td><td data-label="Reason" className="whitespace-nowrap px-3 py-1.5">{reasonLabel(d.reason)}</td>
   </tr>;
 }
 
