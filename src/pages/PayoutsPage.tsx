@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import PayoutEstimator, { SplitTable } from "@/components/PayoutEstimator";
 import { splitRange } from "@/lib/payoutEstimator";
 import NextPayoutWindow from "@/components/NextPayoutWindow";
+import PayoutReadiness from "@/components/PayoutReadiness";
+import GlossaryTip from "@/components/GlossaryTip";
 
 const timeline = [
   { step: "1", title: "Meet Profit Target", desc: "Reach the minimum profit threshold in your funded account." },
@@ -13,11 +15,11 @@ const timeline = [
 ];
 
 const eligibility = [
-  "Minimum 5 trading days since last payout",
-  "No active rule violations",
-  "All positions closed at time of request",
-  "KYC verification completed",
-  "Minimum payout amount: $50",
+  { text: "Minimum 5 trading days since last payout", term: "trading-day" },
+  { text: "No active rule violations", term: "breach" },
+  { text: "All positions closed at time of request" },
+  { text: "KYC verification completed", term: "kyc" },
+  { text: "Minimum payout amount: $50", term: "payout-window" },
 ];
 
 const calendarData = [
@@ -39,9 +41,9 @@ export default function PayoutsPage() {
 
         {/* Profit split */}
         <div className="premium-card mb-12 animate-fade-up delay-300">
-          <h2 className="text-xl font-bold mb-4">Profit Split</h2>
+          <h2 className="text-xl font-bold mb-4"><GlossaryTip term="profit-split">Profit Split</GlossaryTip></h2>
           <p className="text-muted-foreground text-sm mb-4">
-            Funded traders keep {split.min}% to {split.max}% of net profit. The split depends on the account size and the program you passed:
+            <GlossaryTip term="funded-stage">Funded traders</GlossaryTip> keep {split.min}% to {split.max}% of net profit. The split depends on the account size and the program you passed:
           </p>
           <SplitTable />
           <p className="mt-3 text-xs text-muted-foreground">
@@ -70,24 +72,32 @@ export default function PayoutsPage() {
         <div className="premium-card mb-16 animate-fade-up delay-200">
           <div className="space-y-3">
             {eligibility.map((item) => (
-              <div key={item} className="flex items-center gap-3 text-sm">
+              <div key={item.text} className="flex items-center gap-3 text-sm">
                 <CheckCircle2 size={16} className="text-muted-foreground shrink-0" />
-                {item}
+                <span>
+                  {item.text}
+                  {item.term && <GlossaryTip term={item.term} className="ml-1" />}
+                </span>
               </div>
             ))}
           </div>
+          <a href="#readiness" className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium underline-offset-4 hover:underline">
+            Check your account against this list <ArrowRight size={14} aria-hidden="true" />
+          </a>
         </div>
+
+        <PayoutReadiness />
 
         {/* Calendar */}
         <section id="calendar" aria-labelledby="calendar-title" className="scroll-mt-24">
-        <h2 id="calendar-title" className="text-2xl font-bold mb-8 animate-fade-up">Payout Calendar</h2>
+        <h2 id="calendar-title" className="text-2xl font-bold mb-8 animate-fade-up">Payout Calendar <GlossaryTip term="payout-window" /></h2>
         <NextPayoutWindow />
         <div className="overflow-x-auto animate-fade-up delay-200">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Period</th>
-                <th className="text-left py-3 px-4 font-medium text-muted-foreground">Request Window</th>
+                <th className="text-left py-3 px-4 font-medium text-muted-foreground"><GlossaryTip term="payout-window">Request Window</GlossaryTip></th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Payout Date</th>
               </tr>
             </thead>

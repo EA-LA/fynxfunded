@@ -116,7 +116,7 @@ describe("faq page", () => {
     expect(schema["@type"]).toBe("FAQPage");
     expect(schema.mainEntity).toHaveLength(faqItems.length);
     fireEvent.change(screen.getByLabelText("Search questions"), { target: { value: "refund" } });
-    expect(screen.getByText(`1 of ${faqItems.length} questions match`)).toBeInTheDocument();
+    expect(screen.getByText(`2 of ${faqItems.length} questions match`)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Search questions"), { target: { value: "zzzz" } });
     expect(screen.getByText(/No questions match/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Email support/ })).toHaveAttribute("href", "mailto:support@fynxfunded.com");

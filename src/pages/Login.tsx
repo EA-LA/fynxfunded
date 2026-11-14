@@ -99,13 +99,13 @@ export default function Login() {
   const displayError = error || (!redirectDismissed ? redirectMessage : "");
 
   return (
-    <div className="min-h-screen flex items-center justify-center dot-grid relative px-6">
+    <main className="min-h-screen flex items-center justify-center dot-grid relative px-6">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="text-center mb-10">
           <Link to="/" className="text-2xl font-bold tracking-tight">
             FYNX<span className="text-muted-foreground font-light ml-1">Funded</span>
           </Link>
-          <p className="mt-2 text-sm text-muted-foreground">Welcome back. Log in to your dashboard.</p>
+          <h1 className="mt-2 text-sm font-normal text-muted-foreground">Welcome back. Log in to your dashboard.</h1>
         </div>
 
         {displayError && <p role="alert" className="text-sm text-destructive mb-4 text-center">{displayError}</p>}
@@ -227,6 +227,6 @@ export default function Login() {
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to home</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

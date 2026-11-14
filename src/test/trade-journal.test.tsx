@@ -52,6 +52,20 @@ describe("trade journal helpers", () => {
 describe("trades page", () => {
   const rows = () => screen.getAllByRole("row").slice(1);
 
+  it("explains the column headers and summary labels in place", async () => {
+    render(<MemoryRouter><Trades /></MemoryRouter>);
+    const header = screen.getAllByRole("row")[0];
+    for (const term of ["lot", "pip", "risk per trade", "risk-reward ratio", "trading sessions"]) {
+      expect(within(header).getByRole("button", { name: `What does "${term}" mean?` })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: 'What does "win rate" mean?' })).toBeInTheDocument();
+    fireEvent.click(within(header).getByRole("button", { name: 'What does "pip" mean?' }));
+    expect(await screen.findByText(/usual smallest price step/)).toBeInTheDocument();
+    // Sorting still works from the label itself.
+    fireEvent.click(within(header).getByRole("button", { name: "Pips" }));
+    expect(within(header).getByRole("columnheader", { name: /Pips/ })).toHaveAttribute("aria-sort", "descending");
+  });
+
   it("can show breakeven trades and updates the totals for the filter", () => {
     render(<MemoryRouter><Trades /></MemoryRouter>);
     fireEvent.change(screen.getByLabelText("Filter by result"), { target: { value: "Breakeven" } });

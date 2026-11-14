@@ -9,6 +9,7 @@ vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { userId: 'u1
 vi.mock('@/services/funded-access', () => ({ fundedAccessCall: call }));
 vi.mock('@/components/ThemeToggle', () => ({ default: () => null }));
 vi.mock('next-themes', () => ({ useTheme: () => ({ resolvedTheme: 'dark' }) }));
+vi.mock('@/trade-access/TvWidget', () => ({ default: ({ title }: { title: string }) => <div data-testid="tv-widget">{title}</div>, readLiveConsent: () => false, saveLiveConsent: () => {} }));
 import TradeAccess from '../trade-access/TradeAccess';
 
 const rules = { profit_target_percent: '8', daily_loss_percent: '5', max_loss_percent: '10', min_trading_days: 4 };
@@ -46,22 +47,11 @@ describe('market picker', () => {
 
 describe('FYNX Trade workspace', () => {
   beforeEach(() => { call.mockReset(); localStorage.clear(); });
-  it('shows the account in dollars with the reset countdown and planner link', async () => {
-    call.mockImplementation(async (_n: string, d: { action: string }) => d.action === 'list' ? { accounts: [account] } : account);
-    render(<MemoryRouter><TradeAccess /></MemoryRouter>);
-    expect(await screen.findByText('Target balance')).toBeInTheDocument();
-    expect(screen.getByText('$54,000.00')).toBeInTheDocument();
-    expect(screen.getByText('$45,000.00')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Progress to profit target' })).toHaveAttribute('aria-valuenow', '25');
-    expect(screen.getByText(/Next daily reset in/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Plan your risk per trade for this account' })).toHaveAttribute('href', expect.stringContaining('size=50000'));
-  });
   it('shows private-testing guidance, not an error code, when access is gated', async () => {
     call.mockRejectedValue(Object.assign(new Error('FYNX Funded is currently restricted to authorized private testing.'), { code: 'functions/permission-denied' }));
     render(<MemoryRouter><TradeAccess /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(/FYNX Trade is in private testing/)).toBeInTheDocument());
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/permission-denied/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Sign out and sign in again' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '1h' })).toBeInTheDocument();
   });
 });

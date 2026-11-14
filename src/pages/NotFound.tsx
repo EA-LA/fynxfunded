@@ -28,7 +28,7 @@ const NotFound = () => {
         <p className="mt-4 text-lg text-muted-foreground">
           The link may be outdated or the address may have a typo. Here are some places to pick up from.
         </p>
-        <p className="mt-2 break-all text-sm text-muted-foreground/80">
+        <p className="mt-2 break-all text-sm text-muted-foreground">
           Requested: <code className="font-mono">{location.pathname}</code>
         </p>
 

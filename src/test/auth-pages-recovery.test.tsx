@@ -191,3 +191,18 @@ describe('password recovery', () => {
     expect(screen.queryByLabelText('New Password')).not.toBeInTheDocument();
   });
 });
+
+describe('auth pages: landmarks for screen readers', () => {
+  it('each page has one main region and a level-1 heading', () => {
+    for (const [page, path, heading] of [
+      [<Login />, '/login', /Log in to your dashboard/],
+      [<Signup />, '/signup', /Create your FYNX account/],
+      [<ForgotPassword />, '/forgot-password', /Reset your password/],
+    ] as const) {
+      show(page, path);
+      expect(screen.getAllByRole('main')).toHaveLength(1);
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading);
+      cleanup();
+    }
+  });
+});

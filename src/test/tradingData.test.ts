@@ -63,3 +63,13 @@ it("prefers explicit net results and includes signed charges only when their bas
   expect(mapClosedTrade("gross", { ...base, pnlBasis: "gross_signed_costs" })?.pnl).toBe(93);
   expect(mapClosedTrade("ambiguous", base)).toBeNull();
 });
+
+describe("profit factor display", () => {
+  it("says there are no losses instead of printing Infinity", async () => {
+    const { formatProfitFactor } = await import("@/lib/tradingData");
+    expect(formatProfitFactor(Infinity)).toBe("No losses yet");
+    expect(formatProfitFactor(1.5)).toBe("1.50");
+    expect(formatProfitFactor(undefined)).toBe("0.00");
+    expect(formatProfitFactor(NaN)).toBe("0.00");
+  });
+});

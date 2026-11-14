@@ -17,6 +17,32 @@ function date(value?: unknown) {
   return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleDateString();
 }
 
+/**
+ * Rows for the verified certificate. ID, account and issue date always show;
+ * the rest only when the certificate records them, so a learning certificate
+ * or a fresh challenge pass never shows a column of "—".
+ */
+function certificateRows(certificate: Certificate, fallbackId = ""): [string, string][] {
+  const learning = certificate.type === "learning_completion";
+  const rows: [string, string][] = [
+    ["Certificate ID", certificate.publicVerificationId || fallbackId],
+    ["Account", learning ? "FYNX Academy" : publicAccountReference({ accountId: certificate.accountId, challengeId: certificate.challengeId })],
+  ];
+  const add = (label: string, value: string) => { if (value && value !== "—") rows.push([label, value]); };
+  if (learning) {
+    add("Course", certificate.courseName?.trim() || "");
+    add("Quiz average", typeof certificate.quizAverage === "number" && certificate.quizAverage > 0 ? `${certificate.quizAverage}%` : "");
+  } else {
+    add("Challenge", certificate.challengeType?.trim() || "");
+    add("Account Size", money(certificate.accountSize));
+    add("Passed Date", date(certificate.passedDate));
+    add("Funded Date", date(certificate.fundedDate));
+    add("Profit Split", certificate.profitSplit?.trim() || "");
+  }
+  rows.push(["Issued", date(certificate.issuedAt)]);
+  return rows;
+}
+
 function recipientName(certificate: Certificate) {
   const name = certificate.traderName?.trim();
   return name && !name.includes("@") && name.toLowerCase() !== "trader" ? name : "FYNX Trader";
@@ -116,14 +142,7 @@ export default function CertificateVerification() {
                     <p className="text-sm text-white/50">Awarded to</p>
                     <p className="mt-1 break-words text-3xl font-semibold">{recipientName(certificate)}</p>
                     <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                      <Info label="Certificate ID" value={certificate.publicVerificationId || certificateId} />
-                      <Info label="Account" value={certificate.type === "learning_completion" ? "FYNX Academy" : publicAccountReference({ accountId: certificate.accountId, challengeId: certificate.challengeId })} />
-                      <Info label="Challenge" value={certificate.challengeType || "—"} />
-                      <Info label="Account Size" value={money(certificate.accountSize)} />
-                      <Info label="Passed Date" value={date(certificate.passedDate)} />
-                      <Info label="Funded Date" value={date(certificate.fundedDate)} />
-                      <Info label="Profit Split" value={certificate.profitSplit || "—"} />
-                      <Info label="Issued" value={date(certificate.issuedAt)} />
+                      {certificateRows(certificate, certificateId).map(([label, value]) => <Info key={label} label={label} value={value} />)}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">

@@ -139,7 +139,7 @@ export default function Index() {
               key={step.num}
               className={`premium-card hover-lift animate-fade-up delay-${(i + 1) * 200}`}
             >
-              <span className="text-4xl font-bold text-muted-foreground/30">{step.num}</span>
+              <span className="text-4xl font-bold text-muted-foreground/30" aria-hidden="true">{step.num}</span>
               <h3 className="mt-4 text-lg font-semibold">{step.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
             </div>
@@ -227,6 +227,8 @@ export default function Index() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           Figures shown for the 2-phase program. Daily loss is measured from the balance at each 22:00 UTC reset.{" "}
           <Link to="/challenges#compare-programs" className="underline underline-offset-4 hover:text-foreground">Compare 1-, 2- and 3-phase</Link>
+          {" · "}
+          <Link to="/challenges#finder" className="underline underline-offset-4 hover:text-foreground">Find the plan that fits your budget and risk</Link>
         </p>
       </section>
 

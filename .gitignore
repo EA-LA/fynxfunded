@@ -32,3 +32,6 @@ output/
 .firebase/
 
 .trade-dev/
+
+# Engine host build output (npm run engine:build)
+engine-host/build/

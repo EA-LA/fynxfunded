@@ -25,6 +25,29 @@ describe("position size maths", () => {
     expect(() => unitValuePerLot("custom")).toThrow();
   });
 
+  it("converts cross-pair pips into dollars with the matching US-dollar pair", () => {
+    // GBP/JPY: 1,000 JPY per pip ÷ USD/JPY 125 = $8.
+    expect(unitValuePerLot("cross", 125, undefined, "JPY")).toBe(8);
+    // EUR/GBP: 10 GBP per pip × GBP/USD 1.25 = $12.50.
+    expect(unitValuePerLot("cross", 1.25, undefined, "GBP")).toBe(12.5);
+    // EUR/CAD: 10 CAD per pip ÷ USD/CAD 1.25 = $8.
+    expect(unitValuePerLot("cross", 1.25, undefined, "CAD")).toBe(8);
+    // AUD/NZD: 10 NZD per pip × NZD/USD 0.6 = $6.
+    expect(unitValuePerLot("cross", 0.6, undefined, "NZD")).toBe(6);
+    expect(() => unitValuePerLot("cross", undefined, undefined, "JPY")).toThrow();
+    const r = sizePosition({ ...base, riskAmount: 125, kind: "cross", quote: "GBP", stopDistance: 20, price: 1.25 });
+    // $125 / (20 × $12.50) = 0.50 lots.
+    expect(r).toMatchObject({ lots: 0.5, units: 50000, totalLoss: 125 });
+  });
+
+  it("keeps the cross pair's second currency in shared links", () => {
+    const link = positionSizeLink({ accountSize: 25000, kind: "cross", quote: "CHF", stop: 15, price: 0.88 });
+    expect(link).toBe("/rules?size=25000&inst=cross&qc=CHF&stop=15&px=0.88#position-size");
+    expect(parsePositionPreset(new URLSearchParams(link.split("?")[1].split("#")[0]))).toMatchObject({ kind: "cross", quote: "CHF", priceInput: "0.88", stopInput: "15" });
+    expect(parsePositionPreset(new URLSearchParams("inst=cross&qc=xyz")).quote).toBe("JPY");
+    expect(parsePositionPreset(new URLSearchParams("inst=cross&qc=gbp")).quote).toBe("GBP");
+  });
+
   it("sizes a EUR/USD trade so a stop-out equals the chosen risk", () => {
     const r = sizePosition({ ...base, riskAmount: 125, kind: "xxxusd", stopDistance: 25 });
     expect(r).toMatchObject({ lots: 0.5, units: 50000, totalLoss: 125, unusedRisk: 0, lossPercentOfAccount: 0.5, lossPercentOfDaily: 10, lossesToDailyFloor: 10, targetDistance: 50, targetProfit: 250, belowMinimumLot: false });
@@ -94,6 +117,22 @@ describe("position size calculator", () => {
     fireEvent.change(screen.getByLabelText("Current price"), { target: { value: "125" } });
     // $125 / (25 × $8) = 0.625 → 0.62.
     expect(screen.getByTestId("ps-lots")).toHaveTextContent("0.62 lots");
+  });
+
+  it("sizes a cross pair once the trader types the US-dollar pair's price", () => {
+    renderAt("/rules?size=25000&risk=125&unit=usd&stop=25");
+    fireEvent.change(screen.getByLabelText("Instrument"), { target: { value: "cross" } });
+    expect(screen.getByTestId("ps-cross-help")).toHaveTextContent("1,000 JPY per pip on 1.00 lot");
+    expect(screen.queryByTestId("ps-lots")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Current USD/JPY price"), { target: { value: "125" } });
+    // $125 / (25 × $8) = 0.625 → 0.62.
+    expect(screen.getByTestId("ps-lots")).toHaveTextContent("0.62 lots");
+    // A different second currency needs a different price, so the old one is cleared.
+    fireEvent.click(screen.getByRole("button", { name: "GBP" }));
+    expect(screen.getByLabelText("Current GBP/USD price")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Current GBP/USD price"), { target: { value: "1.25" } });
+    // $125 / (25 × $12.50) = 0.40.
+    expect(screen.getByTestId("ps-lots")).toHaveTextContent("0.40 lots");
   });
 
   it("opens on a shared calculation and warns when the risk is below one minimum lot", () => {

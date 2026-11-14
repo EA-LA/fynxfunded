@@ -1,5 +1,6 @@
 import { MINIMUM_PAYOUT_USD, splitRange } from "@/lib/payoutEstimator";
-import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, getRulePlan } from "@/lib/ruleCalculator";
+import { CONSISTENCY_LIMIT_PERCENT, DAILY_RESET_UTC_HOUR, getRulePlan, summarizeProgram } from "@/lib/ruleCalculator";
+import { feePayback } from "@/lib/fundingCost";
 
 /**
  * Public FAQ content. Every number is derived from the published new-account
@@ -25,6 +26,11 @@ export interface FaqItem {
 }
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+
+// Worked fee example: 25K two-phase at a made-up 1-in-4 pass chance (arithmetic only).
+const feeExample = summarizeProgram(25000, "2-phase");
+const feeExampleFees = feeExample.price * 4;
+const feeExampleProfit = feePayback(25000, "2-phase", 0).profitToCoverFee * 4;
 
 const one = getRulePlan(25000, "1-phase");
 const two = getRulePlan(25000, "2-phase");
@@ -64,6 +70,13 @@ export const faqItems: FaqItem[] = [
     link: { to: "/payouts#calendar", label: "See the payout calendar" },
   },
   {
+    id: "funding-cost",
+    topic: "account",
+    q: "How much could getting funded cost me in fees?",
+    a: `It depends on how often your plan would pass, because a breached attempt needs a new fee. Run the pass simulator on the Rules page with "All phases" chosen: under the results, "What getting funded could cost" turns the pass rate into the average number of attempts, the fees paid on average, your chance of being funded within 1, 2, 3 or 5 attempts, and the funded profit your share would need to earn those fees back. Example arithmetic: if a ${usd(25000)} two-phase plan passed 1 attempt in 4, that is 4 attempts on average, ${usd(feeExampleFees)} in fees at ${usd(feeExample.price)} each, and about ${usd(feeExampleProfit)} of funded profit at the ${feeExample.plan.profitSplitPercent}% split to earn it back. It assumes today's published fee for every attempt and no refund or discount.`,
+    link: { to: "/rules?size=25000&program=2-phase&sphase=all#simulator", label: "See what getting funded could cost" },
+  },
+  {
     id: "fee-returned",
     topic: "account",
     q: "Is the fee refundable?",
@@ -92,8 +105,8 @@ export const faqItems: FaqItem[] = [
     id: "which-program",
     topic: "getting-started",
     q: "What is the difference between the 1-, 2- and 3-phase programs?",
-    a: `They trade off speed against room for loss. 1-phase has a single ${one.phases[0].targetPercent}% target with ${one.dailyLossPercent}% daily and ${one.maxLossPercent}% maximum loss. 2-phase asks for ${targets(two)} with ${two.dailyLossPercent}% daily and ${two.maxLossPercent}% maximum loss. 3-phase asks for ${targets(three)} with ${three.dailyLossPercent}% daily and ${three.maxLossPercent}% maximum loss. Prices and the funded profit split also differ by account size.`,
-    link: { to: "/challenges#compare-programs", label: "Compare programs" },
+    a: `They trade off speed against room for loss. 1-phase has a single ${one.phases[0].targetPercent}% target with ${one.dailyLossPercent}% daily and ${one.maxLossPercent}% maximum loss. 2-phase asks for ${targets(two)} with ${two.dailyLossPercent}% daily and ${two.maxLossPercent}% maximum loss. 3-phase asks for ${targets(three)} with ${three.dailyLossPercent}% daily and ${three.maxLossPercent}% maximum loss. Prices and the funded profit split also differ by account size. To narrow it down, the challenge finder checks every published plan against your fee budget and your usual risk per trade (how many losing trades fit inside one day's loss allowance) and ranks the ones that fit by what matters most to you.`,
+    link: { to: "/challenges#finder", label: "Find your challenge" },
   },
   {
     id: "profit-targets",
@@ -126,8 +139,15 @@ export const faqItems: FaqItem[] = [
     id: "lot-size",
     topic: "rules",
     q: "How do I work out my lot size?",
-    a: "Decide how much you are willing to lose on the trade, then divide it by what one lot loses if your stop is hit. Example: risking $125 with a 25-pip stop on EUR/USD, where one standard lot (100,000 units) moves $10 per pip, gives $125 ÷ $250 = 0.50 lots. Contract sizes and charges for FYNX Funded accounts are pending broker verification, so check your platform's contract details before trading.",
+    a: "Decide how much you are willing to lose on the trade, then divide it by what one lot loses if your stop is hit. Example: risking $125 with a 25-pip stop on EUR/USD, where one standard lot (100,000 units) moves $10 per pip, gives $125 ÷ $250 = 0.50 lots. On a cross pair such as GBP/JPY the pip is paid in the second currency (1,000 yen per pip on 1.00 lot), so it is turned into dollars with the matching US-dollar pair: at USD/JPY 150.00 that is about $6.67 per pip. The position size calculator does this for yen, pound, Canadian dollar, Swiss franc, Australian dollar and New Zealand dollar crosses. Contract sizes and charges for FYNX Funded accounts are pending broker verification, so check your platform's contract details before trading.",
     link: { to: "/rules#position-size", label: "Open the position size calculator" },
+  },
+  {
+    id: "pass-odds",
+    topic: "rules",
+    q: "How likely is my trading plan to pass?",
+    a: "Nobody can tell you in advance, but you can test how the rules treat a plan. The pass simulator on the Rules page plays your risk per trade, reward, win rate and trades per day forward thousands of times against the daily loss, maximum loss, minimum days and 40% consistency rules, and shows how often it passes, how it fails and how many trading days it usually takes. Once you have at least 10 winning or losing closed trades, Analytics in your dashboard can run the same test on your own record (your win rate, average win and average loss). You can also paste or open a list of your own trade results (for example a broker CSV export with a Profit column) in the simulator on the Rules page and replay them; they are read on your device and never uploaded. If your export includes close times, \"Replay your record day by day\" on the same page plays your trades back in their real order, day by day, and shows the exact day you would have passed, broken a limit, or what was still missing. It is a simplified illustration, not a prediction: real trades don't win or lose exactly the planned amount.",
+    link: { to: "/rules#simulator", label: "Open the pass simulator" },
   },
   {
     id: "consistency-rule",
@@ -154,7 +174,7 @@ export const faqItems: FaqItem[] = [
     topic: "payouts",
     q: "What do I need before requesting a payout?",
     a: `At least 5 trading days since your last payout, no active rule violations, all positions closed, identity verification (KYC) completed, and a payout of at least ${usd(MINIMUM_PAYOUT_USD)}. Every request is reviewed before it is approved.`,
-    link: { to: "/payouts", label: "See payout requirements" },
+    link: { to: "/payouts#readiness", label: "Check if you're ready to request" },
   },
   {
     id: "payout-windows",

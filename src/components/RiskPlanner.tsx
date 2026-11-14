@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Check, Gauge, Link2, Scale } from "lucide-react";
+import { AlertTriangle, Check, Dices, Gauge, Link2, Scale } from "lucide-react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { CONSISTENCY_LIMIT_PERCENT, getRulePlan, parseCalculatorPreset, PROGRAMS as programs, type ProgramId } from "@/lib/ruleCalculator";
 import { positionSizeLink } from "@/lib/positionSize";
+import { simulatorLink } from "@/lib/challengeSimulator";
 import { parseRiskPreset, planRisk, REWARD_RATIOS, riskPlannerLink, type RiskMode } from "@/lib/riskPlanner";
+import GlossaryTip from "@/components/GlossaryTip";
 
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -125,7 +127,7 @@ export default function RiskPlanner() {
 
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <div>
-          <span className="text-sm font-medium" id="risk-unit-label">Risk per trade</span>
+          <span className="text-sm font-medium" id="risk-unit-label">Risk per trade</span> <GlossaryTip term="risk-per-trade" />
           <div className="mt-1 flex gap-2" role="group" aria-labelledby="risk-unit-label">
             <button type="button" aria-pressed={riskMode === "percent"} className={chip(riskMode === "percent")} onClick={() => switchMode("percent")}>% of account</button>
             <button type="button" aria-pressed={riskMode === "dollars"} className={chip(riskMode === "dollars")} onClick={() => switchMode("dollars")}>Dollars</button>
@@ -151,7 +153,7 @@ export default function RiskPlanner() {
           </p>
         </div>
         <fieldset>
-          <legend className="text-sm font-medium">Planned reward per winning trade</legend>
+          <legend className="text-sm font-medium">Planned reward per winning trade <GlossaryTip term="risk-reward" /></legend>
           <div className="mt-1 flex flex-wrap gap-2">
             {REWARD_RATIOS.map((r) => (
               <button key={r} type="button" aria-pressed={rewardRatio === r} className={chip(rewardRatio === r)} onClick={() => setRewardRatio(r)}>
@@ -189,12 +191,12 @@ export default function RiskPlanner() {
             )}
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">Losing trades before the daily floor</dt>
+                <dt className="text-xs text-muted-foreground">Losing trades before the daily floor <GlossaryTip term="daily-loss-limit" /></dt>
                 <dd className="text-xl font-bold tabular-nums">{result.lossesToDailyFloor}</dd>
                 <dd className="text-xs text-muted-foreground tabular-nums">of a {usd(result.dailyAllowance)} daily allowance ({plan.dailyLossPercent}%)</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Losing trades before the maximum-loss floor</dt>
+                <dt className="text-xs text-muted-foreground">Losing trades before the maximum-loss floor <GlossaryTip term="maximum-loss" /></dt>
                 <dd className="text-xl font-bold tabular-nums">{result.lossesToMaxFloor}</dd>
                 <dd className="text-xs text-muted-foreground tabular-nums">of a {usd(result.maxAllowance)} static allowance ({plan.maxLossPercent}%)</dd>
               </div>
@@ -213,7 +215,7 @@ export default function RiskPlanner() {
                 <dd className="text-xs text-muted-foreground tabular-nums">at {usd(result.rewardPerWin)} per win</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Break-even win rate</dt>
+                <dt className="text-xs text-muted-foreground">Break-even win rate <GlossaryTip term="break-even-win-rate" /></dt>
                 <dd className="text-xl font-bold tabular-nums">{result.breakEvenWinRate}%</dd>
                 <dd className="text-xs text-muted-foreground">at {rewardRatio}× reward, before charges</dd>
               </div>
@@ -223,7 +225,7 @@ export default function RiskPlanner() {
                 <dd className="text-xs text-muted-foreground">net profit per day</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Biggest single day that fits</dt>
+                <dt className="text-xs text-muted-foreground">Biggest single day that fits <GlossaryTip term="consistency-rule" /></dt>
                 <dd className="text-xl font-bold tabular-nums">{usd(result.bestDayCap)}</dd>
                 <dd className="text-xs text-muted-foreground">{CONSISTENCY_LIMIT_PERCENT}% of the target, if you finish right at it</dd>
               </div>
@@ -250,6 +252,15 @@ export default function RiskPlanner() {
           >
             <Scale size={16} aria-hidden="true" />
             Turn this risk into a lot size
+          </Link>
+        )}
+        {riskValid && (
+          <Link
+            to={simulatorLink({ accountSize, program, phase: currentPhase, riskMode, riskValue, rewardRatio })}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Dices size={16} aria-hidden="true" />
+            Test this plan in the pass simulator
           </Link>
         )}
         <span className="text-xs text-muted-foreground" role="status">

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { challengeConfigs } from "@/lib/challengeConfig";
 import { riskPlannerLink } from "@/lib/riskPlanner";
+import GlossaryTip from "@/components/GlossaryTip";
 
 export default function Objectives() {
   const data = useTradingData();
@@ -16,6 +17,7 @@ export default function Objectives() {
   const rules = [
     {
       label: "Profit Target",
+      term: "profit-target",
       current: objectives.profitTarget.current,
       max: objectives.profitTarget.target,
       isLimit: false,
@@ -23,6 +25,7 @@ export default function Objectives() {
     },
     {
       label: "Daily Loss Limit",
+      term: "daily-loss-limit",
       current: objectives.dailyLoss.current,
       max: objectives.dailyLoss.limit,
       isLimit: true,
@@ -30,6 +33,7 @@ export default function Objectives() {
     },
     {
       label: "Max Loss Limit",
+      term: "maximum-loss",
       current: objectives.maxLoss.current,
       max: objectives.maxLoss.limit,
       isLimit: true,
@@ -37,6 +41,7 @@ export default function Objectives() {
     },
     {
       label: "Min Trading Days",
+      term: "minimum-trading-days",
       current: objectives.minTradingDays.current,
       max: objectives.minTradingDays.target,
       isLimit: false,
@@ -68,7 +73,7 @@ export default function Objectives() {
             <div key={rule.label} className="premium-card">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-base font-semibold">{rule.label}</h3>
+                  <h3 className="text-base font-semibold"><GlossaryTip term={rule.term}>{rule.label}</GlossaryTip></h3>
                   <p className="text-xs text-muted-foreground mt-1">
                     {rule.isLimit ? "Limit" : "Target"}: {rule.max}{rule.unit}
                   </p>
@@ -97,7 +102,7 @@ export default function Objectives() {
       {/* Consistency Rule */}
       {objectives.consistency && (
         <div className="premium-card">
-          <h3 className="text-sm font-semibold mb-4">Consistency Rule</h3>
+          <h3 className="text-sm font-semibold mb-4"><GlossaryTip term="consistency-rule">Consistency Rule</GlossaryTip></h3>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="bg-secondary/50 rounded-lg p-4">
               <p className="text-xs text-muted-foreground mb-1">Largest Winning Day</p>
@@ -112,8 +117,8 @@ export default function Objectives() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="premium-card"><div className="flex items-center gap-2"><Calculator size={18}/><h3 className="font-semibold">Risk-per-trade planner</h3></div><p className="mt-1 text-xs text-muted-foreground">Plan position risk before sending an order.</p><label className="mt-5 block text-xs font-medium">Planned risk: {plannedRisk.toFixed(1)}%</label><input className="mt-3 w-full accent-foreground" type="range" min="0.1" max="5" step="0.1" value={plannedRisk} onChange={e=>setPlannedRisk(Number(e.target.value))}/><div className="mt-4 rounded-lg bg-secondary/50 p-4"><p className="text-xs text-muted-foreground">Capital at risk {hasAccount && data.accountSize > 0 ? "on this account" : "on a $10K example"}</p><p className="mt-1 text-2xl font-bold">${((data.accountSize||10000)*plannedRisk/100).toFixed(2)}</p></div><Link to={riskPlannerLink({ accountSize: plannerSize, riskValue: plannedRisk })} className="mt-4 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">See how many losses fit and what the target takes <ArrowRight size={14} aria-hidden="true"/></Link></div>
-        <div className="premium-card"><h3 className="font-semibold">How evaluation works</h3><div className="mt-4 space-y-3 text-sm">{["Broker closes a trade and sends the verified result","FYNX updates P/L, drawdown and trading days","Rules engine checks every objective","Progression requires verified evidence and approval"].map((x,i)=><div key={x} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold">{i+1}</span><span>{x}</span></div>)}</div></div>
+        <div className="premium-card"><div className="flex items-center gap-2"><Calculator size={18}/><h3 className="font-semibold">Risk-per-trade planner</h3></div><p className="mt-1 text-xs text-muted-foreground">Plan position risk before sending an order.</p><div className="mt-5 flex items-center gap-1"><label htmlFor="objectives-planned-risk" className="text-xs font-medium">Planned risk: {plannedRisk.toFixed(1)}%</label><GlossaryTip term="risk-per-trade"/></div><input id="objectives-planned-risk" className="mt-3 w-full accent-foreground" type="range" min="0.1" max="5" step="0.1" value={plannedRisk} onChange={e=>setPlannedRisk(Number(e.target.value))}/><div className="mt-4 rounded-lg bg-secondary/50 p-4"><p className="text-xs text-muted-foreground">Capital at risk {hasAccount && data.accountSize > 0 ? "on this account" : "on a $10K example"}</p><p className="mt-1 text-2xl font-bold">${((data.accountSize||10000)*plannedRisk/100).toFixed(2)}</p></div><Link to={riskPlannerLink({ accountSize: plannerSize, riskValue: plannedRisk })} className="mt-4 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">See how many losses fit and what the target takes <ArrowRight size={14} aria-hidden="true"/></Link></div>
+        <div className="premium-card"><h3 className="font-semibold">How evaluation works</h3><div className="mt-4 space-y-3 text-sm">{["Broker closes a trade and sends the verified result","FYNX updates P/L, drawdown and trading days","Rules engine checks every objective","Progression requires verified evidence and approval"].map((x,i)=><div key={x} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold">{i+1}</span><span>{x}</span></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Words used here: <GlossaryTip term="trading-day">trading day</GlossaryTip> (22:00–22:00 UTC), <GlossaryTip term="equity">equity</GlossaryTip>, <GlossaryTip term="breach">breach</GlossaryTip>, <GlossaryTip term="phase">phase</GlossaryTip>.</p><Link to="/dashboard/analytics#journal-replay" className="mt-3 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm" data-testid="objectives-replay-link">Replay your journal day by day against these rules <ArrowRight size={14} aria-hidden="true"/></Link></div>
       </div>
     </div>
   );

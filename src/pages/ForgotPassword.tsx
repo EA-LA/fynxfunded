@@ -32,15 +32,15 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center dot-grid relative px-6">
+    <main className="min-h-screen flex items-center justify-center dot-grid relative px-6">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="text-center mb-10">
           <Link to="/" className="text-2xl font-bold tracking-tight">
             FYNX<span className="text-muted-foreground font-light ml-1">Funded</span>
           </Link>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h1 className="mt-2 text-sm font-normal text-muted-foreground">
             {sent ? "Check your inbox" : "Reset your password"}
-          </p>
+          </h1>
         </div>
 
         {sent ? (
@@ -108,6 +108,6 @@ export default function ForgotPassword() {
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

@@ -68,14 +68,14 @@ export default function Signup() {
 
   if (signupSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center dot-grid relative px-6">
+      <main className="min-h-screen flex items-center justify-center dot-grid relative px-6">
         <div className="w-full max-w-sm animate-fade-up text-center">
           <div className="mb-6">
             <Link to="/" className="text-2xl font-bold tracking-tight">
               FYNX<span className="text-muted-foreground font-light ml-1">Funded</span>
             </Link>
           </div>
-          <h2 className="text-lg font-semibold mb-2">{verificationSent ? "Check your email" : "Your account is created"}</h2>
+          <h1 className="text-lg font-semibold mb-2">{verificationSent ? "Check your email" : "Your account is created"}</h1>
           {verificationSent ? <p role="status" className="text-sm text-muted-foreground mb-6">
             We've sent a verification link to <strong>{email}</strong>. Open the link, then log in.
           </p> : <p className="text-sm text-muted-foreground mb-6">Verify <strong>{email}</strong> to finish setting up your account. You do not need to sign up again.</p>}
@@ -83,18 +83,18 @@ export default function Signup() {
           <button type="button" disabled={busy} onClick={resendVerification} className="block w-full mb-4 text-sm underline">{busy ? "Sending…" : verificationSent ? "Resend verification email" : "Send verification email"}</button>
           <Link to={`/login${location.search}`} className="text-sm text-foreground hover:underline">Go to Login</Link>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center dot-grid relative px-6">
+    <main className="min-h-screen flex items-center justify-center dot-grid relative px-6">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="text-center mb-10">
           <Link to="/" className="text-2xl font-bold tracking-tight">
             FYNX<span className="text-muted-foreground font-light ml-1">Funded</span>
           </Link>
-          <p className="mt-2 text-sm text-muted-foreground">Create your FYNX account. New purchases and trading remain paused.</p>
+          <h1 className="mt-2 text-sm font-normal text-muted-foreground">Create your FYNX account. New purchases and trading remain paused.</h1>
         </div>
 
         {error && <p role="alert" className="text-sm text-destructive mb-4 text-center">{error}</p>}
@@ -202,6 +202,6 @@ export default function Signup() {
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Back to home</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }

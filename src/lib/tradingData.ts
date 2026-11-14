@@ -1,7 +1,7 @@
 import type { DocumentData } from "firebase/firestore";
 import { journalSessionForUtcHour } from "@/lib/tradingDayClock";
 
-export interface Trade { id:string; accountId:string; challengeId:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number; rr:number; session:"London"|"New York"|"Asia"; result:"Win"|"Loss"|"Breakeven" }
+export interface Trade { id:string; accountId:string; challengeId:string; symbol:string; type:"Buy"|"Sell"; openTime:string; closeTime:string; lots:number; pnl:number; pips:number; duration:string; riskPercent:number|null; rr:number|null; /** Result in R (P/L ÷ dollars at risk at entry); null/missing when no risk was recorded. */ rMultiple?:number|null; session:"London"|"New York"|"Asia"; result:"Win"|"Loss"|"Breakeven"; closedBy?:string; platform?:"FYNX Trade" }
 export interface AccountObjectives { profitTarget:{current:number;target:number}; dailyLoss:{current:number;limit:number}; maxLoss:{current:number;limit:number}; minTradingDays:{current:number;target:number}; consistency:{largestWinDay:number;threshold:number}|null }
 export interface PayoutInfo { availableBalance:number; eligibleAmount:number; nextWindow:string; method:string; isEligible:boolean; ineligibleReason:string; history:PayoutRecord[] }
 export interface PayoutRecord { id:string; date:string; amount:number; status:"Pending"|"Approved"|"Paid"|"Rejected"; method:string }
@@ -20,6 +20,14 @@ export function timestamp(value: unknown): string {
     return date && Number.isFinite(date.getTime()) ? date.toISOString() : "";
   } catch { return ""; }
 }
+
+/** Plain words for how a position was closed (records from the FYNX Trade engine carry `closeReason`). */
+export const CLOSE_REASON_LABELS: Record<string, string> = {
+  manual: "Closed by you", stop_loss: "Stop loss", take_profit: "Take profit",
+  daily_loss_limit: "Daily loss limit", maximum_loss_limit: "Maximum loss limit", target_reached: "Target reached",
+  weekend_close: "Closed before the weekend",
+  stop_out: "Margin stop out",
+};
 
 export function mapClosedTrade(id: string, data: DocumentData): Trade | null {
   // updatedAt is not evidence that an open position has closed.
@@ -43,11 +51,28 @@ export function mapClosedTrade(id: string, data: DocumentData): Trade | null {
     symbol: String(data.symbol ?? data.instrument ?? "—"), type: String(data.type ?? data.side).toLowerCase() === "sell" ? "Sell" : "Buy",
     openTime, closeTime, pnl, lots: numeric(data.lots ?? data.volume) ?? 0, pips: numeric(data.pips) ?? 0,
     duration: minutes === null ? "—" : minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`,
-    riskPercent: numeric(data.riskPercent ?? data.riskPct) ?? 0, rr: numeric(data.rr ?? data.riskReward) ?? 0,
+    // Risk fields stay empty (null) when a record does not carry them: 0 would read as "no risk taken".
+    riskPercent: numeric(data.riskPercent ?? data.riskPct), rr: numeric(data.rr ?? data.riskReward),
+    rMultiple: recordedRMultiple(data, pnl),
     session: ["Asia", "London", "New York"].includes(data.session) ? data.session : inferredSession,
     result: pnl > 0 ? "Win" : pnl < 0 ? "Loss" : "Breakeven",
+    ...(typeof data.closeReason === "string" && CLOSE_REASON_LABELS[data.closeReason] ? { closedBy: CLOSE_REASON_LABELS[data.closeReason] } : {}),
+    ...(data.source === "fynx-trade-engine" ? { platform: "FYNX Trade" as const } : {}),
   };
 }
+
+/** The trade's result in R: the stored rMultiple, else P/L ÷ the dollars risked at entry; null without risk data. */
+export function recordedRMultiple(data: DocumentData, pnl: number): number | null {
+  const stored = numeric(data.rMultiple);
+  if (stored !== null) return stored;
+  const risk = numeric(data.riskAmount);
+  return risk !== null && risk > 0 ? Math.round(pnl / risk * 100) / 100 : null;
+}
+
+const meanOf = (values: (number | null | undefined)[]): number | null => {
+  const known = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return known.length ? known.reduce((a, b) => a + b, 0) / known.length : null;
+};
 
 export function belongsToAccount(trade: Trade, challenge: DocumentData | undefined, account: DocumentData | undefined): boolean {
   const challengeId = challenge?.id ?? challenge?.challengeId;
@@ -116,10 +141,20 @@ export function computeAnalytics(trades: Trade[]) {
     avgWin: wins.length ? grossProfit / wins.length : 0, avgLoss: losses.length ? grossLoss / losses.length : 0,
     profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
     expectancy: totalPnl / trades.length, maxDrawdown, currentDrawdown: peak - runningPnl,
-    avgRisk: trades.reduce((sum,t) => sum + t.riskPercent,0) / trades.length,
-    avgRR: trades.reduce((sum,t) => sum + t.rr,0) / trades.length,
+    // Averages over the trades that carry the value; null when none do (shown as "—", not 0).
+    avgRisk: meanOf(trades.map(t => t.riskPercent)),
+    avgRR: meanOf(trades.map(t => t.rr)),
     maxConsWins, maxConsLosses, sessions, instruments: sorted,
     bestSession: Object.entries(sessions).sort((a,b) => b[1] - a[1])[0][0],
     bestPair: sorted[0]?.[0] ?? "—", worstPair: sorted[sorted.length - 1]?.[0] ?? "—",
   };
+}
+
+/**
+ * Profit factor for display. With no losing trades the ratio is unbounded
+ * (Infinity), which used to show as the word "Infinity"; say what it means.
+ */
+export function formatProfitFactor(profitFactor: number | undefined | null): string {
+  if (profitFactor === undefined || profitFactor === null || Number.isNaN(profitFactor)) return "0.00";
+  return Number.isFinite(profitFactor) ? profitFactor.toFixed(2) : "No losses yet";
 }

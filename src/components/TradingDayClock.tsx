@@ -15,6 +15,7 @@ import {
   utcOffsetLabel,
   type ResetReminder,
 } from "@/lib/tradingDayClock";
+import GlossaryTip from "@/components/GlossaryTip";
 
 function downloadResetIcs(reminder: ResetReminder) {
   const blob = new Blob([dailyResetIcs(new Date(), reminder)], { type: "text/calendar;charset=utf-8" });
@@ -98,7 +99,7 @@ export default function TradingDayClock({ now: fixedNow }: { now?: Date }) {
           <p className="mt-1 truncate text-xs text-muted-foreground" title={zone}>{zone}</p>
         </div>
         <div className="rounded-lg bg-secondary/50 p-4">
-          <p className="text-xs text-muted-foreground">Next daily reset in</p>
+          <p className="text-xs text-muted-foreground">Next daily reset in <GlossaryTip term="daily-reset" /></p>
           <p className="mt-1 text-2xl font-bold tabular-nums" aria-live="off" data-testid="clock-countdown">{formatCountdown(status.msUntilReset)}</p>
           <p className="mt-1 text-xs text-muted-foreground">{dayTime(status.periodEnd)} your time</p>
         </div>
@@ -137,7 +138,7 @@ export default function TradingDayClock({ now: fixedNow }: { now?: Date }) {
         </div>
         <div className="relative mt-1 h-4 text-[10px] text-muted-foreground" aria-hidden="true">
           {[0, 6, 12, 18].map(h => <span key={h} className="absolute" style={{ left: `${(h / 24) * 100}%` }}>{String(h).padStart(2, "0")}:00</span>)}
-          <span className="absolute -translate-x-1/2 font-semibold text-destructive" style={{ left: `${resetPos}%` }}>reset</span>
+          <span className="absolute -translate-x-1/2 font-semibold text-red-400" style={{ left: `${resetPos}%` }}>reset</span>
         </div>
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span><span className="mr-1 inline-block h-2.5 w-0.5 bg-foreground align-middle" />Now</span>

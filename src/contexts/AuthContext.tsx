@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.handleRedirectResult().then((redirectUser) => {
       if (!cancelled && redirectUser) {
         setUser(redirectUser);
-        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : "/account"), { replace: true });
+        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : "/dashboard"), { replace: true });
       }
     }).catch((error) => {
       if (!cancelled) navigate("/login", { replace: true, state: { message: mapFirebaseError(error) } });
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!loading && user) {
       const path = location.pathname;
       if (AUTH_PAGES.includes(path)) {
-        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : "/account"), { replace: true });
+        navigate(authDestinationFromSearch(window.location.search) || (import.meta.env.DEV && import.meta.env.VITE_FYNX_TRADE_DEV === "true" ? "/trade" : "/dashboard"), { replace: true });
       }
     }
   }, [loading, user, location.pathname, location.search, navigate]);
