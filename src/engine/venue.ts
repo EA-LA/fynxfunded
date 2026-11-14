@@ -5,6 +5,7 @@ import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Sched
 import { EngineError } from "./types";
 import { exposureLimits, OPEN_LOTS_MAX, OPEN_LOTS_MIN, OPEN_TRADES_MAX, OPEN_TRADES_MIN, validOpenLots, validOpenTrades, type ExposureLimits } from "./exposure";
 import { STOP_OUT_MAX_PERCENT, STOP_OUT_MIN_PERCENT, validStopOut } from "./stop-out";
+import { RISK_MAX_PERCENT, RISK_MIN_PERCENT, tradeRiskRule, validRiskPercent, type TradeRiskRule } from "./trade-risk";
 import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
 
 /**
@@ -133,6 +134,10 @@ export interface PurchasedRules {
   max_open_trades?: number | string | null;
   /** Margin stop-out level in percent (10–100, e.g. 50 or "50%"). Missing/null/"" = no stop out. */
   stop_out_level?: number | string | null;
+  /** true = every order needs a stop loss (can be moved, not removed). Missing/false = optional. */
+  stop_loss_required?: boolean | string;
+  /** Most a trade may lose at its stop loss, % of the balance (0.1–10, e.g. 1 or "1%"). Implies stop_loss_required. Missing/null/"" = no cap. */
+  max_risk_per_trade_percent?: number | string | null;
 }
 
 const percentField = (v: unknown, name: string, optional = false): number | null => {
@@ -152,6 +157,8 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
   const maxOpenLots = limitField(r.max_open_lots, validOpenLots, `Maximum open lots must be a number of lots from ${OPEN_LOTS_MIN} to ${OPEN_LOTS_MAX} in steps of 0.01.`);
   const maxOpenTrades = limitField(r.max_open_trades, validOpenTrades, `Maximum open trades must be a whole number from ${OPEN_TRADES_MIN} to ${OPEN_TRADES_MAX}.`);
   const stopOutPercent = stopOutField(r.stop_out_level);
+  const stopLossRequired = stopLossField(r.stop_loss_required);
+  const maxRiskPercent = riskField(r.max_risk_per_trade_percent);
   if (!Number.isFinite(startingBalance) || startingBalance <= 0) throw new EngineError("bad_rules", "Starting balance must be a positive number.");
   const days = Number(r.min_trading_days), reset = r.reset_hour_utc === undefined ? 22 : Number(r.reset_hour_utc);
   if (!Number.isInteger(days) || days < 0) throw new EngineError("bad_rules", "Minimum trading days must be a whole number.");
@@ -171,7 +178,25 @@ export function rulesFromPurchase(startingBalance: number, r: PurchasedRules, op
     ...(maxOpenTrades !== null ? { maxOpenTrades } : {}),
     // Only present when the agreement sets a margin stop out.
     ...(stopOutPercent !== null ? { stopOutPercent } : {}),
+    // Only present when the agreement requires a stop loss or caps the risk per trade (a cap implies a stop loss).
+    ...(stopLossRequired || maxRiskPercent !== null ? { stopLossRequired: true } : {}),
+    ...(maxRiskPercent !== null ? { maxRiskPercent } : {}),
   };
+}
+
+/** "Stop loss required" from the purchase: false when missing; unclear values are refused (the account goes to review). */
+function stopLossField(raw: unknown): boolean {
+  if (raw === undefined || raw === null || raw === "" || raw === false || raw === "false") return false;
+  if (raw === true || raw === "true") return true;
+  throw new EngineError("bad_rules", "Stop loss required must be true or false.");
+}
+
+/** The maximum risk per trade from the purchase: null when missing; unclear values are refused (the account goes to review). */
+function riskField(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = typeof raw === "string" ? Number(raw.trim().replace(/%$/, "").trim()) : raw;
+  if (!validRiskPercent(n)) throw new EngineError("bad_rules", `Maximum risk per trade must be a percent from ${RISK_MIN_PERCENT} to ${RISK_MAX_PERCENT} (at most two decimals).`);
+  return n;
 }
 
 /** The margin stop-out level from the purchase: null when missing; unclear values are refused (the account goes to review). */
@@ -259,6 +284,12 @@ export interface Snapshot {
    * closed, largest loss first. Optional in the HTTP contract.
    */
   stopOut?: { level: number };
+  /**
+   * Present only when the account's agreement requires a stop loss on every
+   * order and/or caps the loss at the stop loss per trade (see
+   * src/engine/trade-risk.ts). Optional in the HTTP contract.
+   */
+  tradeRisk?: TradeRiskRule;
 }
 
 export class LocalVenue {
@@ -350,8 +381,8 @@ export class LocalVenue {
       const events = [...ticked.events, ...step.events];
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
-      const weekend = ctx.rules.weekendCloseMinutes, exposure = exposureLimits(ctx.rules);
-      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}), ...(validStopOut(ctx.rules.stopOutPercent) ? { stopOut: { level: ctx.rules.stopOutPercent } } : {}) };
+      const weekend = ctx.rules.weekendCloseMinutes, exposure = exposureLimits(ctx.rules), tradeRisk = tradeRiskRule(ctx.rules);
+      return { state: step.state, metrics: metrics(step.state, ctx), quotes: { ...this.quotes }, report: targetReport(step.state, ctx.rules), ...(validWeekendMinutes(weekend) ? { weekendClose: { minutesBefore: weekend } } : {}), ...(exposure ? { exposure } : {}), ...(validStopOut(ctx.rules.stopOutPercent) ? { stopOut: { level: ctx.rules.stopOutPercent } } : {}), ...(tradeRisk ? { tradeRisk } : {}) };
     });
     this.queue = job.catch(() => undefined);
     return job;

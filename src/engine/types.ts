@@ -246,6 +246,14 @@ export interface RuleSet {
    * first, until it is above again (`stop_out`). Missing = no stop out.
    */
   stopOutPercent?: number;
+  /**
+   * Stop loss required / maximum risk per trade (src/engine/trade-risk.ts):
+   * new orders need a stop loss, stops can be moved but not removed, and with
+   * `maxRiskPercent` (0.1–10) a trade may lose at most that share of the
+   * balance at its stop loss (`risk_limit`). Missing = no such rule.
+   */
+  stopLossRequired?: boolean;
+  maxRiskPercent?: number;
 }
 
 /** Where an account stands against its profit target, minimum days and consistency rule. */

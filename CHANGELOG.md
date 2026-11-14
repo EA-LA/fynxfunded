@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-14 02:25 UTC — [autopilot] FYNX Trade: ready for "stop loss required" and "maximum risk per trade" rules
+
+- The trading engine can now enforce two common prop-firm rules per account, switched on only if the account's agreement includes them (no account has them today, so nothing changes for traders yet):
+  - **Stop loss required:** every new order must carry a stop loss; a stop can be moved but not removed.
+  - **Maximum risk per trade:** a trade may lose at most a set share of the balance (for example 1 %) if its stop loss is hit. Moving a stop closer, to break-even or into profit is always allowed.
+- In the terminal (https://www.fynxfunded.com/trade/access), for such accounts: the Stop loss field says "required", a note shows the dollars at risk against the allowance, Confirm stays locked with a plain reason until the order fits, the position and pending-order editors explain why a stop cannot be removed or widened, and the Account tab lists the rule.
+- To switch on later: add `stop_loss_required: true` and/or `max_risk_per_trade_percent` to the account's rules (steps in docs/ENGINE-READINESS.md).
+
 ## 2026-11-13 22:40 UTC — [autopilot] FYNX Trade: ready for a broker-style "margin stop out"
 
 - If an account agreement sets a margin stop out (for example at 50 %), the trading server now handles it by itself: when the account's margin level falls to that level, it closes the trade with the biggest loss at the market price, then checks again, until the margin level is back above the level. It is not a rule breach: the account stays open and waiting orders are untouched.

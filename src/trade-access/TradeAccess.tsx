@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTheme } from 'next-themes';
-import { Activity, ArrowDownRight, ArrowLeft, ChevronDown, LogOut, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, Layers, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, Star, User, Wallet, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowLeft, ChevronDown, LogOut, ArrowUpRight, BarChart3, CandlestickChart, CheckCircle2, Clock, History, Info, Layers, LineChart, ListOrdered, LockKeyhole, Mail, Newspaper, PauseCircle, CalendarClock, Minus, Pencil, Plus, RefreshCw, Search, ShieldAlert, Star, User, Wallet, X } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { fundedAccessCall } from '@/services/funded-access';
@@ -20,6 +20,8 @@ import { exposureRule, ticketExposure } from './exposure-limit';
 import { exposureRuleText } from '@/engine/exposure';
 import { stopOutNote, stopOutRuleText } from '@/engine/stop-out';
 import { stopOutRule } from './stop-out';
+import { ticketRiskRule, tradeRiskFromSnapshot } from './trade-risk';
+import { tradeRiskRuleText } from '@/engine/trade-risk';
 import TicketRiskSize from './TicketRiskSize';
 import StatementBar from './StatementBar';
 import { engineLabel, useEngine, type EngineHandle } from './useEngine';
@@ -400,8 +402,11 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine, quic
   // Optional open-exposure limits (most lots / trades open at once) from the account's purchased rules.
   const exposure = ticketExposure(engine.snapshot, { lots, type, ...(ocoWith ? { ocoWith } : {}) });
   const exposureBlocks = !!exposure?.breach;
-  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && !weekendBlocks && !exposureBlocks && engine.snapshot && quote);
-  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now, undefined, news.holdPending) : weekendBlocks ? weekend!.text : exposureBlocks ? exposure!.text : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
+  // Optional "stop loss required" / "maximum risk per trade" from the account's purchased rules.
+  const riskRule = ticketRiskRule(engine.snapshot, { slPips: sl, risk: f.risk, balance });
+  const riskBlocks = !!riskRule?.blocks;
+  const canSend = !!(marketOpen && account?.tradingEnabled && engine.status?.execution && !engine.status.paused && !newsBlocks(news) && !weekendBlocks && !exposureBlocks && !riskBlocks && engine.snapshot && quote);
+  const holdReason = !marketOpen ? closedSentence(pair.symbol, market, now) : !account ? 'Open a purchased account to trade.' : !account.tradingEnabled ? (account.tradingHoldReason || 'Trading is not available yet.') : !engine.status?.connected ? 'Trading isn\u2019t connected yet.' : engine.status.paused ? pausedSentence(engine.status.paused, now) : newsBlocks(news) ? newsHoldSentence(news.active!, pair.symbol, now, undefined, news.holdPending) : weekendBlocks ? weekend!.text : exposureBlocks ? exposure!.text : riskBlocks ? riskRule!.text : !quote ? `No live ${pair.symbol} price from the trading server.` : !engine.status.execution ? (engine.status.message || 'The trading server is not accepting orders right now.') : !engine.snapshot ? 'Loading this account from the trading server.' : '';
   const send = async () => {
     if (!review || !lots || !account || !quote || !trail.ok || !expiry.ok || !deviation.ok) return;
     // "End of today" is worked out at the moment of sending.
@@ -448,9 +453,10 @@ function OrderTicket({ pair, account, dailyLossAmount, market, now, engine, quic
       <input inputMode="decimal" value={entry} onChange={e => setEntry(e.target.value)} placeholder={`e.g. ${pair.quote === 'JPY' ? '150.250' : '1.08500'}`} className={`${field} mt-1`} /></label>}
 
     <div className="grid grid-cols-2 gap-2">
-      <label className="text-xs text-muted-foreground">Stop loss (pips)<input inputMode="decimal" value={slText} onChange={e => setSlText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
+      <label className="text-xs text-muted-foreground">Stop loss (pips){riskRule ? <span className="text-amber-600"> · required</span> : null}<input inputMode="decimal" value={slText} onChange={e => setSlText(e.target.value)} placeholder={riskRule ? 'Required' : 'Off'} aria-required={riskRule ? true : undefined} className={`${field} mt-1`} /></label>
       <label className="text-xs text-muted-foreground">Take profit (pips)<input inputMode="decimal" value={tpText} onChange={e => setTpText(e.target.value)} placeholder="Off" className={`${field} mt-1`} /></label>
     </div>
+    {riskRule && <p role="status" data-testid="trade-risk-note" className={`-mt-2 flex items-start gap-1.5 rounded-md p-2 text-[11px] ${riskRule.blocks ? 'bg-red-500/10 text-red-600 dark:text-red-400' : riskRule.warn ? 'bg-amber-500/10' : 'bg-secondary/60 text-muted-foreground'}`}><ShieldAlert size={12} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{riskRule.text}</span></p>}
     {(() => {
       const set = [trailText && 'trailing stop', type === 'market' && deviationText && 'price protection', type !== 'market' && expiryChoice !== 'gtc' && 'expiry', type !== 'market' && ocoWith && 'linked order'].filter(Boolean);
       return <details open={moreOpen || set.length > 0} onToggle={e => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)} className="group rounded-lg border" data-testid="ticket-more">
@@ -549,6 +555,7 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
             ...(weekendRule(engine.snapshot) !== null ? [['Weekend holding', weekendRuleText(weekendRule(engine.snapshot)!)]] : []),
             ...(exposureRule(engine.snapshot) ? [['Open at once', exposureRuleText(exposureRule(engine.snapshot)!)]] : []),
             ...(stopOutRule(engine.snapshot) !== null ? [['Margin stop out', stopOutRuleText(stopOutRule(engine.snapshot)!)]] : []),
+            ...(tradeRiskFromSnapshot(engine.snapshot) ? [['Stop loss', tradeRiskRuleText(tradeRiskFromSnapshot(engine.snapshot)!, engine.snapshot?.metrics.balance)]] : []),
           ].map(([k, v]) => <div key={k} className="flex justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-right">{v}</dd></div>)}</dl>
           <p className="mt-2 text-xs text-muted-foreground">Rules recorded with your purchase. Viewing prices does not start a trading day.</p></div>}
         {engine.snapshot?.report && <TargetProgress report={engine.snapshot.report} />}

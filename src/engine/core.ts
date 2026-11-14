@@ -8,6 +8,7 @@ import { activeNewsWindow, newsWindowMessage, type NewsState } from "./news";
 import { inWeekendCutoff, weekendCloseMessage } from "./weekend";
 import { stopOutFirst, stoppedOut } from "./stop-out";
 import { exposureLimits, stateExposureBreach, type ExposureState } from "./exposure";
+import { changeRiskProblem, newOrderRiskProblem, tradeRiskRule, type RiskAtStop } from "./trade-risk";
 
 /**
  * FYNX trading engine core: pure, deterministic functions. Every function takes
@@ -239,6 +240,35 @@ export function entryRiskFor(s: InstrumentSpec, side: Side, lots: number, price:
   return { stopLoss, ...(takeProfit !== undefined ? { takeProfit } : {}), amount: -loss, balance };
 }
 
+/**
+ * Loss at the stop loss from `entry` for the "maximum risk per trade" rule
+ * (src/engine/trade-risk.ts): null without a stop loss, `priced: false` when
+ * no conversion price exists yet, 0 for a stop at or beyond break-even.
+ */
+export function riskAtStop(s: InstrumentSpec, side: Side, lots: number, entry: number, stopLoss: number | undefined, quotes: QuoteBook): RiskAtStop | null {
+  if (stopLoss === undefined) return null;
+  try {
+    const p = profitUsd(s, side, lots, entry, stopLoss, quotes);
+    return { priced: true, amount: p < 0 ? -p : 0 };
+  } catch { return { priced: false, amount: 0 }; }
+}
+
+/** Stop loss required / maximum risk per trade on a new order (`risk_limit`, nothing is sent). */
+function assertNewOrderRisk(s: InstrumentSpec, side: Side, lots: number, entry: number, stopLoss: number | undefined, balance: number, ctx: EngineContext) {
+  const rule = tradeRiskRule(ctx.rules);
+  if (!rule) return;
+  const problem = newOrderRiskProblem(rule, riskAtStop(s, side, lots, entry, stopLoss, ctx.quotes), balance);
+  if (problem) throw new EngineError("risk_limit", problem);
+}
+
+/** The same rule when an open trade's or a waiting order's stop loss (or price) changes. */
+function assertChangedRisk(s: InstrumentSpec, side: Side, lots: number, before: { entry: number; stopLoss?: number }, after: { entry: number; stopLoss?: number }, balance: number, ctx: EngineContext, what: "trade" | "order") {
+  const rule = tradeRiskRule(ctx.rules);
+  if (!rule) return;
+  const problem = changeRiskProblem(rule, riskAtStop(s, side, lots, before.entry, before.stopLoss, ctx.quotes), riskAtStop(s, side, lots, after.entry, after.stopLoss, ctx.quotes), balance, what);
+  if (problem) throw new EngineError("risk_limit", problem);
+}
+
 /** Entry risk for `part` of `whole` lots; null if it rounds to nothing (a sliver of a lot). */
 const scaleRisk = (r: EntryRisk, part: number, whole: number): EntryRisk | null => {
   const amount = cash(new Decimal(r.amount).times(part).div(whole));
@@ -319,6 +349,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
       if (moved > req.maxDeviationPips) throw new EngineError("price_moved", `The ${req.symbol} price moved ${moved.toFixed(1)} pips against you (from ${req.expectedPrice.toFixed(s.digits)} to ${price.toFixed(s.digits)}), ${req.maxDeviationPips === 0 ? "and you allowed no move against you" : `more than the ${req.maxDeviationPips.toFixed(1)} pips you allowed`}. Nothing was opened.`);
     }
     checkProtection(req.side, price, req.stopLoss, req.takeProfit);
+    assertNewOrderRisk(s, req.side, req.lots, price, req.stopLoss, state.balance, ctx);
     assertExposure(state, { positions: [...state.positions, { lots: req.lots }], orders: state.orders }, ctx.rules);
     return open(state, ctx, req, price);
   }
@@ -326,6 +357,7 @@ export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineCo
   if (req.price === undefined) throw new EngineError("bad_price", "Pending orders need a price.");
   checkPendingSide(req.side, req.type, req.price, openingPrice(req.side, q));
   checkProtection(req.side, req.price, req.stopLoss, req.takeProfit);
+  assertNewOrderRisk(s, req.side, req.lots, req.price, req.stopLoss, state.balance, ctx);
   const order: PendingOrder = { id: ctx.newId("ord"), symbol: req.symbol, side: req.side, type: req.type, lots: req.lots, price: req.price, stopLoss: req.stopLoss, takeProfit: req.takeProfit, ...(req.trailingPips !== undefined ? { trailingPips: req.trailingPips } : {}), ...(req.expiresAt !== undefined ? { expiresAt: req.expiresAt } : {}), ...(req.ocoWith !== undefined ? { ocoWith: req.ocoWith } : {}), createdAt: ctx.now, ...(req.clientId ? { clientId: req.clientId } : {}) };
   const partner: PendingOrder | null = req.ocoWith === undefined ? null : { ...state.orders.find(o => o.id === req.ocoWith)!, ocoWith: order.id };
   assertExposure(state, { positions: state.positions, orders: [...state.orders.map(o => (partner && o.id === partner.id ? partner : o)), order] }, ctx.rules);
@@ -440,6 +472,7 @@ export function modifyPosition(state: AccountState, positionId: string, protecti
   checkPrice(s, sl, "Stop loss"); checkPrice(s, tp, "Take profit"); checkTrailing(trail);
   checkProtection(p.side, closingPrice(p.side, executableQuote(ctx, p.symbol)), sl, tp);
   if (sl === p.stopLoss && tp === p.takeProfit && trail === p.trailingStop?.pips) return { state, events: [] };
+  if (sl !== p.stopLoss) assertChangedRisk(s, p.side, p.lots, { entry: p.entryPrice, stopLoss: p.stopLoss }, { entry: p.entryPrice, stopLoss: sl }, state.balance, ctx, "trade");
   const next = (x: Position): Position => {
     const { trailingStop: _old, ...rest } = x;
     return { ...rest, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingStop: { pips: trail } } : {}) };
@@ -511,6 +544,7 @@ export function modifyOrder(state: AccountState, orderId: string, change: OrderC
   const oco = change.ocoWith === null ? undefined : change.ocoWith ?? o.ocoWith;
   if (change.ocoWith != null && change.ocoWith !== o.ocoWith) checkOcoPartner(state, change.ocoWith, o.id);
   if (price === o.price && sl === o.stopLoss && tp === o.takeProfit && trail === o.trailingPips && expires === o.expiresAt && oco === o.ocoWith) return { state, events: [] };
+  if (price !== o.price || sl !== o.stopLoss) assertChangedRisk(s, o.side, o.lots, { entry: o.price, stopLoss: o.stopLoss }, { entry: price, stopLoss: sl }, state.balance, ctx, "order");
   const { trailingPips: _oldTrail, expiresAt: _oldExpiry, ocoWith: _oldOco, ...rest } = o;
   const next: PendingOrder = { ...rest, price, stopLoss: sl, takeProfit: tp, ...(trail !== undefined ? { trailingPips: trail } : {}), ...(expires !== undefined ? { expiresAt: expires } : {}), ...(oco !== undefined ? { ocoWith: oco } : {}) };
   let orders = state.orders.map(x => (x.id === o.id ? next : x));

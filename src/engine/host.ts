@@ -76,7 +76,7 @@ export interface HostOptions {
 const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401, forbidden: 403, trading_disabled: 403, account_closed: 403,
   trading_paused: 503, not_found: 404, no_account: 404, no_position: 404, no_order: 404, no_chunk: 404, no_archive: 404, no_alert: 404,
-  method_not_allowed: 405, conflict: 409, price_moved: 409, news_window: 409, weekend_close: 409, exposure_limit: 409, bad_request: 400, rate_limited: 429,
+  method_not_allowed: 405, conflict: 409, price_moved: 409, news_window: 409, weekend_close: 409, exposure_limit: 409, risk_limit: 409, bad_request: 400, rate_limited: 429,
 };
 
 const fail = (code: string, message: string): HostResponse => ({ status: STATUS_BY_CODE[code] ?? 422, body: { error: { code, message } } });

@@ -5,6 +5,7 @@ import { findPair } from './instruments';
 import { closeSidePrice, levelErrors, levelOutcome, parseCloseLots, parseLevel, parseTrailing, protectionChange, trailingPreview } from './protection';
 import type { EngineHandle } from './useEngine';
 import { closedSentence, type PairMarket } from './market-hours';
+import { editorRiskProblem, tradeRiskFromSnapshot } from './trade-risk';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 const signedPips = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)} pips`;
@@ -38,6 +39,11 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
 
   const outcome = (level: number | null) => (pair && level !== null ? levelOutcome(pair, p.side, p.lots, p.entryPrice, level, snapshot.quotes) : null);
   const atStop = outcome(slValue), atTarget = outcome(tpValue);
+  // Optional "stop loss required" / "maximum risk per trade" (the server checks again with its exact prices).
+  const riskRule = tradeRiskFromSnapshot(snapshot);
+  const lossAt = (o: ReturnType<typeof outcome>) => (o && o.dollars !== null ? Math.max(0, -o.dollars) : null);
+  const riskProblem = sl.ok ? editorRiskProblem(riskRule, { hasStop: p.stopLoss !== undefined, risk: lossAt(outcome(p.stopLoss ?? null)) }, { hasStop: slValue !== null, risk: lossAt(atStop) }, snapshot.metrics.balance, 'trade') : null;
+  if (riskProblem) errors.push(riskProblem);
   const floating = useMemo(() => (pair && closing !== undefined ? levelOutcome(pair, p.side, p.lots, p.entryPrice, closing, snapshot.quotes).dollars : null), [pair, closing, p, snapshot.quotes]);
   const moreLoss = atStop?.dollars !== null && atStop?.dollars !== undefined && floating !== null ? Math.max(0, floating - atStop.dollars) : null;
   // Room before the loss limit is only shown while every open trade has a price (see metricsGaps).
@@ -68,7 +74,7 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
       <p className="mt-1 min-h-4 text-muted-foreground" data-testid="sl-outcome">{atStop ? <>If hit: <span className={atStop.dollars !== null && atStop.dollars < 0 ? 'text-red-500' : 'text-emerald-500'}>{atStop.dollars === null ? '—' : money(atStop.dollars)}</span> ({signedPips(atStop.pips)}) before commission</> : 'No stop: the loss is limited only by the account rules.'}</p>
       <div className="mt-1 flex flex-wrap gap-2">
         {canBreakEven && <button type="button" onClick={() => setSl(p.entryPrice.toFixed(digits))} className="rounded border px-2 py-0.5 hover:bg-secondary">Stop to break-even ({p.entryPrice.toFixed(digits)})</button>}
-        {slText && <button type="button" onClick={() => setSl('')} className="rounded border px-2 py-0.5 hover:bg-secondary">Remove stop</button>}
+        {slText && !(riskRule && p.stopLoss !== undefined) && <button type="button" onClick={() => setSl('')} className="rounded border px-2 py-0.5 hover:bg-secondary">Remove stop</button>}
       </div>
     </div>
     <div>

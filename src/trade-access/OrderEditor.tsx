@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { PendingOrder } from '@/engine/types';
 import type { Snapshot } from '@/engine/venue';
 import { findPair } from './instruments';
+import { editorRiskProblem, tradeRiskFromSnapshot } from './trade-risk';
 import { levelOutcome, openSidePrice, orderChange, parseLevel, parseTrailing, pendingErrors, pipsAway, trailingPreview } from './protection';
 import type { EngineHandle } from './useEngine';
 import { closedSentence, type PairMarket } from './market-hours';
@@ -53,6 +54,12 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
   const changed = Object.keys(change).length > 0;
   const outcome = (level: number | null) => (pair && price !== null && level !== null ? levelOutcome(pair, o.side, o.lots, price, level, snapshot.quotes) : null);
   const atStop = outcome(slValue), atTarget = outcome(tpValue);
+  // Optional "stop loss required" / "maximum risk per trade" (the server checks again with its exact prices).
+  const riskRule = tradeRiskFromSnapshot(snapshot);
+  const lossAt = (o: ReturnType<typeof outcome>) => (o && o.dollars !== null ? Math.max(0, -o.dollars) : null);
+  const currentRisk = pair && o.stopLoss !== undefined ? levelOutcome(pair, o.side, o.lots, o.price, o.stopLoss, snapshot.quotes) : null;
+  const riskProblem = !fieldErrors.length && price !== null && (priceMoved || slValue !== (o.stopLoss ?? null)) ? editorRiskProblem(riskRule, { hasStop: o.stopLoss !== undefined, risk: lossAt(currentRisk) }, { hasStop: slValue !== null, risk: lossAt(atStop) }, snapshot.metrics.balance, 'order') : null;
+  if (riskProblem) errors.push(riskProblem);
   // Room before the loss limit is only shown while every open trade has a price (see metricsGaps).
   const roomKnown = !snapshot.metrics.unpriced?.length;
   const room = snapshot.metrics.roomToFloor;
@@ -76,7 +83,7 @@ export default function OrderEditor({ order: o, snapshot, engine, onDone, hours,
       <label htmlFor={`${id}-sl`} className="text-muted-foreground">Stop loss (price)</label>
       <input id={`${id}-sl`} inputMode="decimal" value={slText} onChange={e => setSl(e.target.value)} placeholder="None" className={input} />
       {result(atStop, 'No stop: the loss is limited only by the account rules.', 'order-sl-outcome')}
-      {slText && <button type="button" onClick={() => setSl('')} className="mt-1 rounded border px-2 py-0.5 hover:bg-secondary">Remove stop</button>}
+      {slText && !(riskRule && o.stopLoss !== undefined) && <button type="button" onClick={() => setSl('')} className="mt-1 rounded border px-2 py-0.5 hover:bg-secondary">Remove stop</button>}
     </div>
     <div>
       <label htmlFor={`${id}-tp`} className="text-muted-foreground">Take profit (price)</label>
