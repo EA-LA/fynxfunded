@@ -2,6 +2,7 @@
 // Readiness check for the FYNX trading engine host (docs/ENGINE-READINESS.md).
 // Usage: npm run engine:check            (settings only)
 //        npm run engine:check -- --feed 20  (also connects the price feed for 20 s)
+//        npm run engine:check -- --news     (also downloads the news calendar once; writes nothing)
 // Reads environment variables only; places no orders, writes nothing, never prints the API key.
 import { build } from "esbuild";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -23,7 +24,7 @@ try {
   });
   const { runEngineCheck, FOREX_PAIRS } = await import(pathToFileURL(out).href);
   const socket = typeof WebSocket === "function" ? url => new WebSocket(url) : undefined;
-  process.exitCode = await runEngineCheck({ env: process.env, argv: process.argv.slice(2), pairs: FOREX_PAIRS, socket, write: t => console.log(t) });
+  process.exitCode = await runEngineCheck({ env: process.env, argv: process.argv.slice(2), pairs: FOREX_PAIRS, socket, fetch: typeof fetch === "function" ? (url, init) => fetch(url, init) : undefined, write: t => console.log(t) });
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

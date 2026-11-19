@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-19 18:20 UTC — [autopilot] FYNX Trade: news calendar fills itself from your provider
+
+- The trading engine can now download upcoming high-impact releases (rate decisions, jobs reports and so on) from the economic-calendar service you choose, instead of you typing them in by hand. It is off until you add the provider's address and key on the engine server, so nothing changes on the site today.
+  - It only adds the provider's releases: anything you typed yourself, and your choice of whether news trading is restricted at all, are never changed. If the download fails or comes back empty, the calendar you already have is kept.
+  - You can pick only high-impact releases, and how many days ahead (default two weeks, refreshed every 6 hours).
+  - Before going live, one command downloads once and shows you the releases it would add, without saving anything.
+- Once connected, traders see the windows in the terminal (https://www.fynxfunded.com/trade/access): the "News now / News soon" tags in Market Watch, the note in the order panel and the list in each pair's specification.
+- To switch on later: fill in the `FYNX_NEWS_*` settings (steps in docs/ENGINE-READINESS.md, "Automatic news calendar import").
+
 ## 2026-11-14 10:30 UTC — [autopilot] FYNX Trade: ready for a "no hedging" rule
 
 - The trading engine can now enforce a common prop-firm rule per account, switched on only if the account's agreement includes it (no account has it today, so nothing changes for traders yet): **no hedging**, meaning a pair cannot hold a buy trade and a sell trade at the same time.

@@ -6,6 +6,7 @@ import { describeSignInGuard } from "./sign-in-guard";
 import { PAUSE_ENV, readPauseSetting } from "./trading-pause";
 import { createFeedFromEnv, readFeedConfig, type SocketFactory } from "./feed-config";
 import type { FeedHealth, RejectReason } from "./quote-feed";
+import { describeNewsImport, NEWS_IMPORT_ENV, NewsImporter, readNewsImportConfig, type CalendarReading, type NewsFetch } from "./news-import";
 
 /**
  * "Is the engine ready to run?" check for the owner, before going live.
@@ -13,7 +14,8 @@ import type { FeedHealth, RejectReason } from "./quote-feed";
  * plain words, what is set and what is still missing; `npm run engine:check --
  * --feed 20` also connects the price feed for 20 seconds and reports which
  * pairs received prices. It never places orders, never writes to Firestore and
- * never prints the API key.
+ * never prints the API key. `--news` downloads the economic calendar once (when
+ * FYNX_NEWS_URL is set) and lists what would be imported, without writing.
  */
 
 type Env = Record<string, string | undefined>;
@@ -92,6 +94,15 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
   const port = env.PORT?.trim();
   items.push({ name: "Port", status: "info", detail: [port ? `Listens on port ${port}.` : "PORT not set: listens on 8080 (Cloud Run sets PORT for you)."] });
 
+  try {
+    const n = readNewsImportConfig(env);
+    items.push(n
+      ? { name: "News calendar import", status: "ready", detail: describeNewsImport(n) }
+      : { name: "News calendar import", status: "info", detail: [`${NEWS_IMPORT_ENV.url} not set: release times are only what you type into engineControl/news. To download them from your economic-calendar provider, fill in the FYNX_NEWS_* settings (docs/ENGINE-READINESS.md).`] });
+  } catch (e) {
+    items.push({ name: "News calendar import", status: "missing", detail: lines(e) });
+  }
+
   return items;
 }
 
@@ -145,7 +156,20 @@ const REJECT_WORDS: Record<RejectReason, string> = {
   parse_error: "not readable JSON",
 };
 
-export function formatReport(items: CheckItem[], probe?: FeedProbe | null, probeError?: string | null): string {
+export interface NewsProbe { reading: CalendarReading | null; error: string | null; now: number }
+
+function newsProbeLines(p: NewsProbe): string[] {
+  if (p.error || !p.reading) return ["", `[missing] News calendar test: ${p.error ?? "no answer."}`];
+  const r = p.reading;
+  const out = ["", `${r.events.length ? MARK.ready : MARK.missing} News calendar test (downloaded once, nothing written)`,
+    `            ${r.found} release(s) in the answer; ${r.events.length} would be imported${r.lowImpact ? `, ${r.lowImpact} below the impact filter` : ""}${r.outsidePeriod ? `, ${r.outsidePeriod} outside the period` : ""}${r.unreadable ? `, ${r.unreadable} unreadable` : ""}.`];
+  for (const e of r.events.slice(0, 8)) out.push(`            ${e.at.slice(0, 16).replace("T", " ")} UTC  ${e.currencies.join(", ")}  ${e.title}`);
+  if (r.events.length > 8) out.push(`            … and ${r.events.length - 8} more.`);
+  for (const pr of r.problems) out.push(`            ${pr}`);
+  return out;
+}
+
+export function formatReport(items: CheckItem[], probe?: FeedProbe | null, probeError?: string | null, news?: NewsProbe | null): string {
   const out: string[] = ["FYNX trading engine: readiness check", ""];
   for (const it of items) {
     out.push(`${MARK[it.status]} ${it.name}`);
@@ -162,13 +186,14 @@ export function formatReport(items: CheckItem[], probe?: FeedProbe | null, probe
     if (probe.reconnects) out.push(`            Reconnected ${probe.reconnects} time(s).`);
     if (probe.lastError) out.push(`            Last connection problem: ${probe.lastError}.`);
   }
-  const missing = items.filter(i => i.status === "missing").length + (probeError || probe?.verdict === "none" ? 1 : 0);
+  if (news) out.push(...newsProbeLines(news));
+  const missing = items.filter(i => i.status === "missing").length + (probeError || probe?.verdict === "none" ? 1 : 0) + (news && (news.error || !news.reading?.events.length) ? 1 : 0);
   out.push("", missing ? `Not ready: ${missing} item(s) above need a value. Nothing was started.` : "Ready to start: every required setting is in place. Trading stays off until FYNX_ENGINE_ALLOW_TRADING=true and an account is switched on.");
   return out.join("\n");
 }
 
 /** Entry point used by `npm run engine:check`. Returns the exit code (0 ready, 1 not ready). */
-export async function runEngineCheck(o: { env: Env; argv: string[]; pairs: PairLike[]; socket?: SocketFactory; write: (text: string) => void; wait?: (ms: number) => Promise<void> }): Promise<number> {
+export async function runEngineCheck(o: { env: Env; argv: string[]; pairs: PairLike[]; socket?: SocketFactory; fetch?: NewsFetch; write: (text: string) => void; wait?: (ms: number) => Promise<void>; clock?: () => number }): Promise<number> {
   const items = engineChecklist(o.env, o.pairs);
   let probe: FeedProbe | null = null, probeError: string | null = null;
   const i = o.argv.indexOf("--feed");
@@ -182,7 +207,18 @@ export async function runEngineCheck(o: { env: Env; argv: string[]; pairs: PairL
       probe = await probeFeed(feed, o.pairs, secs, o.wait);
     }
   }
-  o.write(formatReport(items, probe, probeError));
-  const notReady = items.some(x => x.status === "missing") || Boolean(probeError) || probe?.verdict === "none";
+  let news: NewsProbe | null = null;
+  if (o.argv.includes("--news")) {
+    const now = (o.clock ?? Date.now)();
+    const status = items.find(x => x.name === "News calendar import")?.status;
+    if (status !== "ready") news = { reading: null, error: status === "missing" ? "fix the news calendar settings first." : `set ${NEWS_IMPORT_ENV.url} and the other FYNX_NEWS_* settings first.`, now };
+    else if (!o.fetch) news = { reading: null, error: "this Node.js has no fetch; use Node 22 or newer.", now };
+    else {
+      const importer = new NewsImporter({ config: readNewsImportConfig(o.env)!, fetch: o.fetch, ...(o.clock ? { clock: o.clock } : {}) });
+      try { news = { reading: await importer.preview(), error: null, now }; } catch (e) { news = { reading: null, error: String((e as Error)?.message ?? e), now }; }
+    }
+  }
+  o.write(formatReport(items, probe, probeError, news));
+  const notReady = items.some(x => x.status === "missing") || Boolean(probeError) || probe?.verdict === "none" || Boolean(news && (news.error || !news.reading?.events.length));
   return notReady ? 1 : 0;
 }

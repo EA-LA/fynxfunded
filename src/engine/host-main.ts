@@ -9,6 +9,7 @@ import { createEngineServer, type EngineServer } from "./server";
 import { SignInGuard } from "./sign-in-guard";
 import { PAUSE_CONTROL_DOC, PAUSE_ENV, readPauseSetting, TradingPause } from "./trading-pause";
 import { NEWS_CONTROL_DOC, NewsCalendar } from "./news";
+import { NewsImporter, readNewsImportConfig, type NewsFetch } from "./news-import";
 import { createHttpHandler, type NodeLikeRequest, type NodeLikeResponse } from "./http-adapter";
 import { engineChecklist, formatReport } from "./preflight";
 
@@ -63,6 +64,8 @@ export interface HostDeps {
   pauseEveryMs?: number;
   /** How often the news calendar document (engineControl/news) is read (default 60 s). */
   newsEveryMs?: number;
+  /** HTTP download for the news calendar import (FYNX_NEWS_*; default the built-in fetch). */
+  fetch?: NewsFetch;
   clock?: () => number;
 }
 
@@ -83,6 +86,8 @@ export interface RunningHost {
   pause: TradingPause;
   /** The restricted news windows (engineControl/news document). */
   news: NewsCalendar;
+  /** The automatic calendar import (null when FYNX_NEWS_URL is not set). */
+  newsImport: NewsImporter | null;
   /** Stops taking requests, then stops the feed and timer and waits for trades/notices to be written. */
   stop(): Promise<void>;
 }
@@ -181,6 +186,25 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
   });
   // Read the calendar before the first request, so an enforced window applies from the start.
   await news.refresh();
+  // Optional: download the releases from the owner's economic-calendar provider into engineControl/news.
+  const importConfig = readNewsImportConfig(d.env);
+  const download: NewsFetch | undefined = d.fetch ?? (typeof fetch === "function" ? (url, init) => fetch(url, init) : undefined);
+  const newsImport = importConfig && download ? new NewsImporter({
+    config: importConfig, db: d.db, fetch: download, clock: d.clock,
+    onResult: r => {
+      if (r.written) {
+        log(r.reading?.problems.length ? "WARNING" : "INFO", "News calendar imported into engineControl/news (your own events, enforce and holdPending unchanged).", {
+          source: newsImport!.source, releases: r.imported,
+          ...(r.alreadyListed ? { alreadyListedByYou: r.alreadyListed } : {}),
+          ...(r.reading?.problems.length ? { problems: r.reading.problems } : {}),
+        });
+        void news.refresh(); // traders see the new windows without waiting for the next read
+      } else {
+        const n = newsImport!.health().failuresInARow;
+        if (n === 1 || n % 10 === 0) log("WARNING", "News calendar import failed; the calendar was kept as it is and the import tries again later.", { source: newsImport!.source, failuresInARow: n, error: r.error });
+      }
+    },
+  }) : null;
   const engine = createEngineServer({
     pairs: d.pairs, settings: config.settings, feed, store, rateLimits: config.rateLimits, pause, news,
     ...directory.engineOptions(),
@@ -213,6 +237,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
   });
   const server = await d.listen(handler, port);
   engine.start();
+  void newsImport?.start(); // first download now (in the background), then every FYNX_NEWS_EVERY_MINUTES
 
   log("INFO", "FYNX trading engine started.", {
     port: server.port,
@@ -224,6 +249,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
     allowedOrigins: config.http.allowedOrigins,
     requestLimits: config.rateLimits ? "on" : "off",
     newTrading: pause.current() ? `paused (${pause.current()!.reason})` : "not paused (switch: engineControl/trading document or FYNX_ENGINE_PAUSE)",
+    newsImport: newsImport && importConfig ? `from ${newsImport.source}, next ${importConfig.days} day(s), every ${Math.round(importConfig.everyMs / 60_000)} min` : importConfig ? "off (this Node.js has no fetch)" : "off (FYNX_NEWS_URL not set; engineControl/news is filled by hand)",
     newsWindows: news.current().enforce ? `enforced (${news.current().windows.length} coming)` : `information only (${news.current().windows.length} coming; calendar: engineControl/news document)`,
     failedSignInProtection: config.signInGuard ? (config.signInGuard.address.from === "socket" ? "on (connection address)" : `on (X-Forwarded-For, ${config.signInGuard.address.trustedHops} hop(s))`) : "off (set FYNX_ENGINE_CLIENT_ADDRESS)",
   });
@@ -270,6 +296,7 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
       ...(s.limits ? { requestsRefused: s.limits.refused.trade + s.limits.refused.reduce + s.limits.refused.read } : {}),
       ...(pause.current() ? { newTradingPaused: true } : {}),
       ...(news.health().activeNow && news.health().enforce ? { newsWindowsNow: news.health().activeNow } : {}),
+      ...(newsImport?.health().failuresInARow ? { newsImportFailures: newsImport.health().failuresInARow } : {}),
       ...(signInGuard ? { signInRefused: signInGuard.health().refused, addressesBlocked: signInGuard.health().blockedNow } : {}),
     });
   }, every) : null;
@@ -277,11 +304,12 @@ export async function startEngineHost(d: HostDeps): Promise<RunningHost> {
 
   let stopping: Promise<void> | null = null;
   return {
-    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard, pause, news,
+    engine, port: server.port, tradingAllowed, emailNotices, ledgerCatchUp, signInGuard, pause, news, newsImport,
     stop() {
       stopRequested = true;
       stopping ??= (async () => {
         if (timer) clearInterval(timer);
+        newsImport?.stop();
         log("INFO", "Stopping: no new requests; finishing the current round and writing trades.");
         // Cloud Run allows 10 s after SIGTERM: give up waiting after `stopTimeoutMs` and say what was left.
         const limit = d.stopTimeoutMs ?? 8_000;
