@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-20 22:40 UTC — [autopilot] Dashboard Payouts: payout readiness filled in from your own account
+
+- **New on the dashboard Payouts page** (https://www.fynxfunded.com/dashboard/payouts): **"Payout readiness for your account"**. For each funded account it answers the five published payout conditions by itself instead of asking the trader: trading days and net profit since the last approved payout (or since the account was funded) from the recorded trades, identity verification, and, for FYNX Trade accounts, whether trades are still open and whether a loss limit was broken, live from the trading server.
+- Each answer says where it came from ("Your trade records", "Live from FYNX Trade", "Your verification"). Anything the records can't show is marked "Check yourself" with the reason; nothing is guessed. It shows the estimated share at the plan's profit split, the next request window, and a note when a request is already waiting for review.
+- Traders with several funded accounts can switch between them. "Open in the self-check" opens the public check (https://www.fynxfunded.com/payouts#readiness) with the figures already filled in.
+- Read-only: it never sends, approves or changes a payout request.
+- Ready when the engine is connected: it fills in as trades are recorded and turns live for FYNX Trade accounts automatically; nothing to switch on.
+
 ## 2026-11-20 16:25 UTC — [autopilot] Faster public pages + FYNX Trade: reverse a trade in one step
 
 - **Every public page loads faster** (https://www.fynxfunded.com, /challenges, /rules, /faq, /payouts, /trade): about 380 kB (27 %) less JavaScript to download on each first visit. The charts code is no longer downloaded on pages without charts; it now loads only where charts are shown (dashboard). Nothing looks different.

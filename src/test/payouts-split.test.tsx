@@ -55,6 +55,10 @@ describe("Dashboard Payouts", () => {
     expect(screen.getByText("Your Profit Split")).toBeInTheDocument();
     expect(screen.getByText("80–85%")).toBeInTheDocument();
     expect(within(card).getByText(/is an example amount, not your balance/)).toBeInTheDocument();
+    // Payout readiness for the funded accounts, from their own records (none here: honest unknowns).
+    const readiness = screen.getByTestId("account-payout-readiness");
+    expect(within(readiness).getAllByRole("button", { name: /FX-f/ })).toHaveLength(2);
+    expect(readiness.querySelector('[data-check="kyc"]')!.getAttribute("data-state")).toBe("missing");
   });
 
   it("keeps the general wording when there is no funded account or the accounts can't be loaded", async () => {
@@ -62,6 +66,7 @@ describe("Dashboard Payouts", () => {
     render(<MemoryRouter><DashboardPayouts /></MemoryRouter>);
     expect(await screen.findByText("Up to 90%")).toBeInTheDocument();
     expect(screen.queryByTestId("funded-split-card")).toBeNull();
+    expect(screen.queryByTestId("account-payout-readiness")).toBeNull();
     cleanup();
     mocks.fail = true;
     render(<MemoryRouter><DashboardPayouts /></MemoryRouter>);

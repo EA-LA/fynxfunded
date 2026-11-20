@@ -69,6 +69,20 @@ export default function PayoutReadiness({ now }: { now?: Date }) {
   useEffect(() => {
     if (location.hash === "#readiness") sectionRef.current?.scrollIntoView?.({ block: "start" });
   }, [location.hash]);
+  // Filled in from the dashboard ("Open in the self-check"): ?size=&program=&days=&profit= (only valid values are used).
+  const [fromDashboard, setFromDashboard] = useState(false);
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const size = Number(q.get("size"));
+    const prog = q.get("program") as ProgramId | null;
+    const days = q.get("days"), profit = q.get("profit");
+    let used = false;
+    if (challengeConfigs.some((c) => c.accountSize === size)) { setAccountSize(size); used = true; }
+    if (prog && PROGRAMS.includes(prog)) { setProgram(prog); used = true; }
+    if (days !== null && /^\d{1,4}$/.test(days)) { setDaysText(days); used = true; }
+    if (profit !== null && /^-?\d{1,9}(\.\d{1,2})?$/.test(profit)) { setProfitText(profit); used = true; }
+    setFromDashboard(used);
+  }, [location.search]);
 
   const result = checkPayoutReadiness(
     { accountSize, program, netProfit: parseNumber(profitText), tradingDays: parseNumber(daysText), noViolations, positionsClosed, kycDone },
@@ -95,6 +109,11 @@ export default function PayoutReadiness({ now }: { now?: Date }) {
         Answer five quick questions to check your funded account against the eligibility list above and see which request window to aim for.
         This is a self-check only: nothing is saved or sent, and every real request is still reviewed.
       </p>
+      {fromDashboard && (
+        <p className="mt-3 rounded-md border border-border bg-secondary/40 p-3 text-xs text-muted-foreground" data-testid="readiness-from-dashboard">
+          Filled in from your dashboard. Check the figures and answer the rest yourself.
+        </p>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <div className="space-y-5">

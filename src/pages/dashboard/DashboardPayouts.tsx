@@ -10,8 +10,11 @@ import type { Challenge, PayoutRequest } from "@/services/types";
 import { dataService } from "@/services/database";
 import { fundedSplits } from "@/lib/fundedSplit";
 import FundedSplitCard from "@/components/FundedSplitCard";
+import AccountPayoutReadiness from "@/components/AccountPayoutReadiness";
+import type { TradingGateway } from "@/engine/gateway";
+import type { TradingAccount } from "@/services/types";
 
-export default function DashboardPayouts() {
+export default function DashboardPayouts({ gateway }: { gateway?: TradingGateway } = {}) {
   const { hasAccount, payout } = useTradingData();
   const { user } = useAuth();
   const [kycAllowed, setKycAllowed] = useState(false);
@@ -21,6 +24,7 @@ export default function DashboardPayouts() {
   const [payoutMethod, setPayoutMethod] = useState("Bank Card");
   const [submitting, setSubmitting] = useState(false);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [accounts, setAccounts] = useState<TradingAccount[]>([]);
 
   useEffect(() => {
     if (user?.userId) {
@@ -39,8 +43,20 @@ export default function DashboardPayouts() {
     }
   }, [user?.userId, user?.emailVerified]);
 
+  // Only used to find each funded account's platform and status for the readiness card.
+  const hasFunded = challenges.some((c) => c.status === "funded");
+  useEffect(() => {
+    if (!user?.userId || !hasFunded) return;
+    let active = true;
+    Promise.resolve().then(() => dataService.getAccounts(user.userId)).then((rows) => { if (active) setAccounts(rows); }).catch(() => { if (active) setAccounts([]); });
+    return () => { active = false; };
+  }, [user?.userId, hasFunded]);
+
   const split = fundedSplits(challenges);
   const isVerified = user?.kycStatus === "verified" && kycAllowed;
+  const readiness = (
+    <AccountPayoutReadiness challenges={challenges} accounts={accounts} payouts={payoutHistory} kycVerified={user ? Boolean(isVerified) : null} gateway={gateway} />
+  );
 
   const handleRequestPayout = async () => {
     if (!user?.userId || !payoutAmount) return;
@@ -101,6 +117,8 @@ export default function DashboardPayouts() {
         </div>
 
         <FundedSplitCard rows={split.rows} />
+
+        {readiness}
 
         <EmptyState
           icon={<Wallet size={24} />}
@@ -187,6 +205,8 @@ export default function DashboardPayouts() {
       </div>
 
       <FundedSplitCard rows={split.rows} />
+
+      {readiness}
 
       {/* Request form */}
       <div className="premium-card">
