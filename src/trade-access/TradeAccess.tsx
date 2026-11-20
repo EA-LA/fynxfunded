@@ -49,6 +49,7 @@ import { todayLow } from './daily-statement';
 import { newlyWarned, warningKey, warningSentence } from './near-limit';
 import ContractSpec from './ContractSpec';
 import AlertsPanel from './AlertsPanel';
+import JournalPanel from './JournalPanel';
 import { firedSentence, newlyFired } from './alerts';
 import { toast } from 'sonner';
 import { spreadOf } from './contract-spec';
@@ -66,7 +67,7 @@ interface Account {
 }
 type Side = 'buy' | 'sell';
 type MobileView = 'quotes' | 'chart' | 'trade' | 'history' | 'account';
-type ToolTab = 'positions' | 'orders' | 'history' | 'alerts' | 'account';
+type ToolTab = 'positions' | 'orders' | 'history' | 'journal' | 'alerts' | 'account';
 
 // Phone tabs share one page: start each tab at the top (wide screens show everything, so no scrolling).
 const toTop = () => { if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches) window.scrollTo({ top: 0 }); };
@@ -534,13 +535,14 @@ function Toolbox({ engine, pair, now, tab, setTab, account, accounts, loading, r
   engine: EngineHandle; pair: ForexPair; now: number; tab: ToolTab; setTab: (t: ToolTab) => void; account: Account | null; accounts: Account[]; loading: boolean; loadedFor: boolean; requested: string;
   rules: ReturnType<typeof rulesInDollars> | null; onSelectAccount: (id: string) => void;
 }) {
-  const tabs: [ToolTab, string][] = [['positions', 'Positions'], ['orders', 'Pending orders'], ['history', 'History'], ['alerts', `Alerts${engine.snapshot?.state.alerts?.length ? ` (${engine.snapshot.state.alerts.length})` : ''}`], ['account', 'Account']];
+  const tabs: [ToolTab, string][] = [['positions', 'Positions'], ['orders', 'Pending orders'], ['history', 'History'], ['journal', 'Journal'], ['alerts', `Alerts${engine.snapshot?.state.alerts?.length ? ` (${engine.snapshot.state.alerts.length})` : ''}`], ['account', 'Account']];
   const head = 'whitespace-nowrap px-3 py-1.5 text-left font-medium';
   return <div className="flex min-h-[240px] flex-col">
     <div className="flex overflow-x-auto border-b" role="tablist" aria-label="Terminal">
       {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`shrink-0 border-b-2 px-4 py-2 text-xs font-medium ${tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{label}</button>)}
     </div>
-    {tab !== 'account' && tab !== 'alerts' && <EngineTables key={tab} tab={tab} engine={engine} hasAccount={!!account} />}
+    {tab !== 'account' && tab !== 'alerts' && tab !== 'journal' && <EngineTables key={tab} tab={tab} engine={engine} hasAccount={!!account} />}
+    {tab === 'journal' && <JournalPanel engine={engine} hasAccount={!!account} />}
     {tab === 'alerts' && <AlertsPanel key={pair.symbol} engine={engine} pair={pair} now={now} />}
     {tab === 'account' && <div className="grid gap-4 p-4 md:grid-cols-2" role="tabpanel">
       <div className="space-y-3">
@@ -606,7 +608,7 @@ function floatingUsd(symbol: string, side: Side, lots: number, entry: number, cu
 const time = (ms: number) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const px = (symbol: string, v?: number) => v === undefined ? '—' : v.toFixed(findPair(symbol)?.digits ?? 5);
 
-function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'account' | 'alerts'>; engine: EngineHandle; hasAccount: boolean }) {
+function EngineTables({ tab, engine, hasAccount }: { tab: Exclude<ToolTab, 'account' | 'alerts' | 'journal'>; engine: EngineHandle; hasAccount: boolean }) {
   const snap = engine.snapshot, accountId = snap?.state.accountId;
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');

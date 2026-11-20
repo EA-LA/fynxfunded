@@ -11,6 +11,7 @@ export type OrderType = "market" | "limit" | "stop";
 export type CloseReason = "manual" | "stop_loss" | "take_profit" | "daily_loss_limit" | "maximum_loss_limit" | "target_reached" | "weekend_close" | "stop_out";
 
 import type { SpreadRule } from "./spread";
+import type { JournalEntry } from "./journal";
 
 export interface InstrumentSpec {
   symbol: string;
@@ -516,6 +517,8 @@ export interface AccountState {
   breachReason?: CloseReason;
   /** When the profit target was first met with the minimum trading days (pending official review). */
   targetReachedAt?: number;
+  /** Plain-language record of what the engine did and refused, newest first (src/engine/journal.ts, at most JOURNAL_KEPT). Missing until the first entry. */
+  journal?: JournalEntry[];
   sequence: number;
 }
 

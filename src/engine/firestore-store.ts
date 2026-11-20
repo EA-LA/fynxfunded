@@ -2,6 +2,7 @@ import type { AccountStore } from "./venue";
 import type { AccountState, ArchiveChunk, ArchivedHistory, Deal } from "./types";
 import { EngineError } from "./types";
 import { archiveHistory } from "./core";
+import { JOURNAL_KEPT, validJournalEntry } from "./journal";
 
 /**
  * Firestore AccountStore adapter for a server host (Cloud Function / FYNX API).
@@ -82,7 +83,8 @@ export function fromFirestoreData(accountId: string, data: Record<string, unknow
     && isArr(d.tradingDays) && isArr(d.positions) && isArr(d.orders) && isArr(d.history);
   if (!ok || (d.archived !== undefined && !validArchive(d.archived)) || (d.dayCloses !== undefined && !(isArr(d.dayCloses) && d.dayCloses.every(c => !!c && typeof c === "object" && typeof (c as Record<string, unknown>).tradingDay === "string"))) || (d.dayLow !== undefined && !validDayLow(d.dayLow))
     || (d.nearLimitPercent !== undefined && !(Number.isInteger(d.nearLimitPercent) && (d.nearLimitPercent as number) >= 5 && (d.nearLimitPercent as number) <= 90))
-    || (d.nearWarnings !== undefined && !(isArr(d.nearWarnings) && d.nearWarnings.every(validNearWarning)))) throw new EngineError("bad_state", `Stored engine account ${accountId} is malformed; it was not loaded.`);
+    || (d.nearWarnings !== undefined && !(isArr(d.nearWarnings) && d.nearWarnings.every(validNearWarning)))
+    || (d.journal !== undefined && !(isArr(d.journal) && d.journal.length <= JOURNAL_KEPT && d.journal.every(validJournalEntry)))) throw new EngineError("bad_state", `Stored engine account ${accountId} is malformed; it was not loaded.`);
   const { updatedAt: _ignored, ...state } = d;
   return state as unknown as AccountState;
 }

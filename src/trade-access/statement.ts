@@ -62,7 +62,7 @@ export const reasonLabel = (reason: string) => REASONS[reason] ?? reason.replace
 const iso = (ms: number) => new Date(ms).toISOString().replace(".000Z", "Z");
 
 /** One CSV field: quoted, quotes doubled, and text that a spreadsheet could run as a formula is prefixed with '. */
-function field(v: string | number): string {
+export function csvField(v: string | number): string {
   if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
   const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
   return `"${safe.replace(/"/g, '""')}"`;
@@ -85,7 +85,7 @@ export function statementCsv(accountId: string, deals: readonly Deal[]): string 
   rows.push(["Trades", s.trades], ["Wins", s.wins], ["Losses", s.losses], ["Win rate (%)", s.winRate ?? ""]);
   rows.push(["Gross profit (USD)", s.grossProfit], ["Gross loss (USD)", s.grossLoss], ["Commission (USD)", -s.commission], ["Swap (USD)", s.swap], ["Net result (USD)", s.net]);
   rows.push(["Source", "FYNX Trade trading server records"]);
-  return rows.map(r => r.map(field).join(",")).join("\r\n") + "\r\n";
+  return rows.map(r => r.map(csvField).join(",")).join("\r\n") + "\r\n";
 }
 
 /** File name like fynx-trade-statement-ACC123-2026-11-10.csv (account id cleaned for file systems). */

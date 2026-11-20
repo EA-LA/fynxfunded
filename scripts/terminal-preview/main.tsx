@@ -34,6 +34,8 @@ const gateway = new LocalGatewayAdapter(venue);
     const d = await venue.place(id, { symbol: "AUDUSD", side: "sell", type: "market", lots: 1.5 });
     await venue.close(id, d.state.positions.find(p => p.symbol === "AUDUSD")!.id);
     await venue.place(id, { symbol: "EURUSD", side: "buy", type: "limit", lots: 0.5, price: +(mids.EURUSD - 0.004).toFixed(5) });
+    // A refused order, so the Journal tab shows how refusals are recorded.
+    await venue.place(id, { symbol: "GBPUSD", side: "buy", type: "market", lots: 60 }).catch(() => undefined);
   }
   createRoot(document.getElementById("root")!).render(
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}><BrowserRouter><Routes><Route path="*" element={<TradeAccess gateway={gateway} />} /></Routes></BrowserRouter><Toaster /></ThemeProvider>);

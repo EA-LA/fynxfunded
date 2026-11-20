@@ -6,6 +6,7 @@ import { EngineError } from "./types";
 import { exposureLimits, OPEN_LOTS_MAX, OPEN_LOTS_MIN, OPEN_TRADES_MAX, OPEN_TRADES_MIN, validOpenLots, validOpenTrades, type ExposureLimits } from "./exposure";
 import { STOP_OUT_MAX_PERCENT, STOP_OUT_MIN_PERCENT, validStopOut } from "./stop-out";
 import { noHedging } from "./hedging";
+import { appendJournal, journalFor, refusalEntry, type JournalCommand } from "./journal";
 import { RISK_MAX_PERCENT, RISK_MIN_PERCENT, tradeRiskRule, validRiskPercent, type TradeRiskRule } from "./trade-risk";
 import { applySpread, normalSpreadRule, spreadRuleFor, spreadRuleProblem, type SpreadRule } from "./spread";
 import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
@@ -412,6 +413,9 @@ export class LocalVenue {
     return s ? newsStatus(s, this.clock()) : undefined;
   }
 
+  /** Price decimals per symbol, for journal sentences. */
+  private digits = (symbol: string) => this.specs[symbol]?.digits ?? 5;
+
   onEvents(listener: (accountId: string, events: EngineEvent[]) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
 
   private async context(accountId: string): Promise<EngineContext> {
@@ -421,14 +425,25 @@ export class LocalVenue {
   }
 
   /** Serialises commands so two requests never race on one account. */
-  private run(accountId: string, fn: (state: AccountState, ctx: EngineContext) => Step): Promise<Snapshot> {
+  private run(accountId: string, fn: (state: AccountState, ctx: EngineContext) => Step, command?: JournalCommand): Promise<Snapshot> {
     const job = this.queue.then(async () => {
       const ctx = await this.context(accountId);
       const state = await this.store.load(accountId);
       if (!state) throw new EngineError("no_account", "Account not found.");
       const ticked = tick(state, ctx);
-      const step = fn(ticked.state, ctx);
+      let step: Step;
+      try {
+        step = fn(ticked.state, ctx);
+      } catch (e) {
+        // A refused order or change is written to the journal only (nothing
+        // else about the account changes), then the refusal goes back as before.
+        const entry = command && e instanceof EngineError ? refusalEntry(command, e, ticked.state, ctx.now, this.digits) : null;
+        if (entry) await this.store.save({ ...appendJournal(state, [entry]), sequence: state.sequence + 1 }, state.sequence).catch(() => undefined);
+        throw e;
+      }
       const events = [...ticked.events, ...step.events];
+      const journaled = appendJournal(step.state, journalFor(events, state, step.state, ctx.now, this.digits));
+      step = { ...step, state: journaled !== step.state && journaled.sequence === state.sequence ? { ...journaled, sequence: state.sequence + 1 } : journaled };
       if (step.state !== state) await this.store.save(step.state, state.sequence);
       if (events.length) this.listeners.forEach(l => l(accountId, events));
       const weekend = ctx.rules.weekendCloseMinutes, exposure = exposureLimits(ctx.rules), tradeRisk = tradeRiskRule(ctx.rules);
@@ -444,11 +459,11 @@ export class LocalVenue {
   }
   /** Runs the engine timer step (fills, stops, limits) without a command. */
   snapshot(accountId: string) { return this.run(accountId, s => ({ state: s, events: [] })); }
-  place(accountId: string, req: OrderRequest) { return this.run(accountId, (s, c) => placeOrder(s, req, c)); }
-  close(accountId: string, positionId: string, lots?: number) { return this.run(accountId, (s, c) => closePosition(s, positionId, lots, c)); }
-  modify(accountId: string, positionId: string, p: PositionChange) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c)); }
-  modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c)); }
-  cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId)); }
+  place(accountId: string, req: OrderRequest) { return this.run(accountId, (s, c) => placeOrder(s, req, c), { type: "place", order: req }); }
+  close(accountId: string, positionId: string, lots?: number) { return this.run(accountId, (s, c) => closePosition(s, positionId, lots, c), { type: "close", positionId, ...(lots !== undefined ? { lots } : {}) }); }
+  modify(accountId: string, positionId: string, p: PositionChange) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c), { type: "modify", positionId }); }
+  modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c), { type: "modifyOrder", orderId }); }
+  cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId), { type: "cancel", orderId }); }
   /** Sets a price alert (checked by the timer step on every fresh bid; it never trades). */
   addAlert(accountId: string, alert: AlertRequest) { return this.run(accountId, (s, c) => addAlert(s, alert, c)); }
   removeAlert(accountId: string, alertId: string) { return this.run(accountId, s => removeAlert(s, alertId)); }

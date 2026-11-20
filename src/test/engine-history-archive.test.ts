@@ -1,3 +1,4 @@
+import { JOURNAL_KEPT } from "@/engine/journal";
 import { describe, expect, it } from "vitest";
 import { archiveHistory, dailyResults, placeOrder, targetReport, type EngineContext } from "@/engine/core";
 import type { AccountState, Deal, RuleSet } from "@/engine/types";
@@ -110,7 +111,9 @@ describe("FirestoreAccountStore history archive", () => {
     await trade(venue, 12, T0 + DAY, clock); await trade(twin, 12, T0 + DAY, clock);
 
     const doc = fs.docs.get("engineAccounts/acc_1")!;
-    expect(bytes(doc)).toBeLessThanOrEqual(6_000 + 1_500);
+    // The account journal (src/engine/journal.ts) is capped by its own limit, not by archiving deals.
+    expect((doc.journal as unknown[]).length).toBeLessThanOrEqual(JOURNAL_KEPT);
+    expect(bytes(doc) - bytes(doc.journal)).toBeLessThanOrEqual(6_000 + 1_500);
     const stored = (await store.load("acc_1"))!;
     const full = (await mem.load("acc_1"))!;
     expect(stored.archived!.deals + stored.history.length).toBe(24);

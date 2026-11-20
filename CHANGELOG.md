@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-20 10:23 UTC — [autopilot] FYNX Trade: account journal (what happened, and why an order was refused)
+
+- New **Journal** tab in the trading terminal (https://www.fynxfunded.com/trade/access), next to History. It lists, in plain words and newest first, everything the trading server did on the account: orders placed, changed, cancelled or expired, fills, trades closed (with price, result and the reason, e.g. "stop loss hit" or "daily loss limit reached"), partial closes, overnight swap, stop-loss changes, loss-limit locks, the profit target, each new trading day and price alerts.
+- Orders the server refuses are listed too, with the reason (for example "Volume must be between 0.01 and 50 lots"), so a trader (or your support team) can always see why something did not go through. Recording a refusal changes nothing else on the account.
+- It also covers what happens while the page is closed, such as a stop loss hit at night.
+- Filters (Orders & trades, Refused, Rules & account, Alerts) with counts, a pair filter, and "Download (CSV)". Times are in the trader's local time, UTC on hover.
+- Works by itself once the engine is connected: nothing to switch on. Until then the tab explains what it will show.
+
 ## 2026-11-20 00:30 UTC — [autopilot] FYNX Trade: ready for your own spread (pricing) setting
 
 - The trading engine can now add FYNX's own spread on top of the price provider's, a common prop-firm and broker setting, once you decide on it. Today nothing changes: the provider's price is passed on as it is.
