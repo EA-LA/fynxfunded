@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-20 16:25 UTC — [autopilot] Faster public pages + FYNX Trade: reverse a trade in one step
+
+- **Every public page loads faster** (https://www.fynxfunded.com, /challenges, /rules, /faq, /payouts, /trade): about 380 kB (27 %) less JavaScript to download on each first visit. The charts code is no longer downloaded on pages without charts; it now loads only where charts are shown (dashboard). Nothing looks different.
+- **New in the trading terminal** (https://www.fynxfunded.com/trade/access, Positions tab → edit a trade): **"Reverse to SELL / BUY"**. It closes the whole trade and opens the same size in the other direction at the same price, in one step on the trading server. Before sending it shows the closing price, the result, and that the new trade starts without stop loss or take profit.
+- Safe by design: if the new trade cannot be opened (not enough margin, market closed, news window, weekend rule, account rules), nothing is closed and the trader keeps the original trade. A double click or a retry never reverses twice.
+- On accounts whose rules require a stop loss on every trade, or forbid buy and sell on the same pair, the terminal explains why reversing is not possible before anything is sent.
+- Ready when the engine is connected: it is part of the trading server's address list (documented in docs/ENGINE-READINESS.md); nothing to switch on separately.
+
 ## 2026-11-20 10:23 UTC — [autopilot] FYNX Trade: account journal (what happened, and why an order was refused)
 
 - New **Journal** tab in the trading terminal (https://www.fynxfunded.com/trade/access), next to History. It lists, in plain words and newest first, everything the trading server did on the account: orders placed, changed, cancelled or expired, fills, trades closed (with price, result and the reason, e.g. "stop loss hit" or "daily loss limit reached"), partial closes, overnight swap, stop-loss changes, loss-limit locks, the profit target, each new trading day and price alerts.

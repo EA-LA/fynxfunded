@@ -26,7 +26,12 @@ export default defineConfig(() => {
   build: {
     rollupOptions: {
       output: {
+        // React and the small helpers every page uses get their own chunks, so the
+        // first page load no longer pulls in the charts (recharts) or Firebase chunk
+        // just because a shared helper (clsx, tslib) happened to be bundled there.
         manualChunks(id) {
+          if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@remix-run)\//.test(id)) return "react";
+          if (/node_modules\/(clsx|tailwind-merge|class-variance-authority|tslib)\//.test(id)) return "vendor";
           if (id.includes("node_modules/firebase") || id.includes("node_modules/@firebase")) return "firebase";
           if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) return "charts";
           if (id.includes("node_modules/@radix-ui")) return "ui";

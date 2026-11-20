@@ -41,6 +41,7 @@ export const JOURNAL_KINDS: readonly JournalKind[] = ["order", "trade", "change"
 export type JournalCommand =
   | { type: "place"; order: OrderRequest }
   | { type: "close"; positionId: string; lots?: number }
+  | { type: "reverse"; positionId: string }
   | { type: "modify"; positionId: string }
   | { type: "modifyOrder"; orderId: string }
   | { type: "cancel"; orderId: string };
@@ -186,9 +187,9 @@ export function refusalEntry(command: JournalCommand, error: { code: string; mes
     const price = o.type !== "market" && typeof o.price === "number" && Number.isFinite(o.price) ? ` at ${o.price.toFixed(digits(sym))}` : "";
     what = `${o.side} ${o.type} ${typeof o.lots === "number" && Number.isFinite(o.lots) ? lots(o.lots) : "?"} ${sym}${price}`;
     symbol = /^[A-Z]{6}$/.test(sym) ? sym : undefined;
-  } else if (command.type === "close" || command.type === "modify") {
+  } else if (command.type === "close" || command.type === "modify" || command.type === "reverse") {
     const p = state.positions.find(x => x.id === command.positionId);
-    what = `${command.type === "close" ? (command.lots !== undefined ? `closing ${lots(command.lots)} lots of` : "closing") : "changing"} position #${command.positionId}${p ? ` ${positionName(p)}` : ""}`;
+    what = `${command.type === "close" ? (command.lots !== undefined ? `closing ${lots(command.lots)} lots of` : "closing") : command.type === "reverse" ? "reversing" : "changing"} position #${command.positionId}${p ? ` ${positionName(p)}` : ""}`;
     symbol = p?.symbol; ref = command.positionId;
   } else {
     const o = state.orders.find(x => x.id === command.orderId);

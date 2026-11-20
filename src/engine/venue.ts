@@ -1,4 +1,4 @@
-import { addAlert, archiveHistory, setNotices, cancelOrder, removeAlert, closePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
+import { addAlert, archiveHistory, setNotices, cancelOrder, removeAlert, closePosition, reversePosition, metrics, modifyOrder, modifyPosition, newAccount, placeOrder, targetReport, tick, type EngineContext, type OrderChange, type PositionChange, type Step } from "./core";
 import type { AccountMetrics, AccountState, AlertRequest, ArchiveChunk, EngineEvent, HistoryPage, NoticeChange, InstrumentSpec, OrderRequest, Quote, QuoteBook, RuleSet, SwapRates, TargetReport } from "./types";
 import { newsStatus, type NewsState } from "./news";
 import { FOREX_HOURS, marketState, scheduleBetween, type MarketState, type Schedule, type TradingHours } from "./hours";
@@ -461,6 +461,8 @@ export class LocalVenue {
   snapshot(accountId: string) { return this.run(accountId, s => ({ state: s, events: [] })); }
   place(accountId: string, req: OrderRequest) { return this.run(accountId, (s, c) => placeOrder(s, req, c), { type: "place", order: req }); }
   close(accountId: string, positionId: string, lots?: number) { return this.run(accountId, (s, c) => closePosition(s, positionId, lots, c), { type: "close", positionId, ...(lots !== undefined ? { lots } : {}) }); }
+  /** Closes the whole position and opens the same volume the other way in one step (see core `reversePosition`). */
+  reverse(accountId: string, positionId: string, clientId?: string) { return this.run(accountId, (s, c) => reversePosition(s, positionId, c, clientId), { type: "reverse", positionId }); }
   modify(accountId: string, positionId: string, p: PositionChange) { return this.run(accountId, (s, c) => modifyPosition(s, positionId, p, c), { type: "modify", positionId }); }
   modifyOrder(accountId: string, orderId: string, change: OrderChange) { return this.run(accountId, (s, c) => modifyOrder(s, orderId, change, c), { type: "modifyOrder", orderId }); }
   cancel(accountId: string, orderId: string) { return this.run(accountId, s => cancelOrder(s, orderId), { type: "cancel", orderId }); }

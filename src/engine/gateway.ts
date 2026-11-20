@@ -193,6 +193,12 @@ export interface TradingGateway {
   snapshot(accountId: string): Promise<Snapshot>;
   placeOrder(accountId: string, order: OrderRequest): Promise<Snapshot>;
   closePosition(accountId: string, positionId: string, lots?: number): Promise<Snapshot>;
+  /**
+   * Closes the whole position and opens the same volume in the other direction
+   * in one step (nothing changes if the new trade is refused). `clientId` is
+   * sent as the Idempotency-Key so a retry never reverses twice.
+   */
+  reversePosition(accountId: string, positionId: string, clientId?: string): Promise<Snapshot>;
   modifyPosition(accountId: string, positionId: string, protection: PositionChange): Promise<Snapshot>;
   /** Changes the price, stop loss or take profit of a pending order (null removes a level). */
   modifyOrder(accountId: string, orderId: string, change: OrderChange): Promise<Snapshot>;
@@ -253,6 +259,7 @@ export class DisconnectedGateway implements TradingGateway {
   snapshot() { return this.fail(); }
   placeOrder() { return this.fail(); }
   closePosition() { return this.fail(); }
+  reversePosition() { return this.fail(); }
   modifyPosition() { return this.fail(); }
   modifyOrder() { return this.fail(); }
   cancelOrder() { return this.fail(); }
@@ -305,6 +312,7 @@ export class HttpGateway implements TradingGateway {
   snapshot(id: string) { return this.call<Snapshot>("GET", `/v1/accounts/${encodeURIComponent(id)}`); }
   placeOrder(id: string, order: OrderRequest) { return this.call<Snapshot>("POST", `/v1/accounts/${encodeURIComponent(id)}/orders`, order, order.clientId); }
   closePosition(id: string, positionId: string, lots?: number) { return this.call<Snapshot>("POST", `/v1/accounts/${encodeURIComponent(id)}/positions/${encodeURIComponent(positionId)}/close`, lots === undefined ? {} : { lots }); }
+  reversePosition(id: string, positionId: string, clientId?: string) { return this.call<Snapshot>("POST", `/v1/accounts/${encodeURIComponent(id)}/positions/${encodeURIComponent(positionId)}/reverse`, {}, clientId); }
   modifyPosition(id: string, positionId: string, protection: PositionChange) { return this.call<Snapshot>("PATCH", `/v1/accounts/${encodeURIComponent(id)}/positions/${encodeURIComponent(positionId)}`, protection); }
   modifyOrder(id: string, orderId: string, change: OrderChange) { return this.call<Snapshot>("PATCH", `/v1/accounts/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}`, change); }
   cancelOrder(id: string, orderId: string) { return this.call<Snapshot>("DELETE", `/v1/accounts/${encodeURIComponent(id)}/orders/${encodeURIComponent(orderId)}`); }
@@ -329,6 +337,7 @@ export class LocalGatewayAdapter implements TradingGateway {
   snapshot(id: string) { return this.venue.snapshot(id); }
   async placeOrder(id: string, order: OrderRequest) { this.refuseWhilePaused(); return this.venue.place(id, order); }
   closePosition(id: string, positionId: string, lots?: number) { return this.venue.close(id, positionId, lots); }
+  async reversePosition(id: string, positionId: string, clientId?: string) { this.refuseWhilePaused(); return this.venue.reverse(id, positionId, clientId); }
   async modifyPosition(id: string, positionId: string, p: PositionChange) { this.refuseWhilePaused(); return this.venue.modify(id, positionId, p); }
   async modifyOrder(id: string, orderId: string, change: OrderChange) { this.refuseWhilePaused(); return this.venue.modifyOrder(id, orderId, change); }
   cancelOrder(id: string, orderId: string) { return this.venue.cancel(id, orderId); }

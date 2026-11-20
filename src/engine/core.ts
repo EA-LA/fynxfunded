@@ -317,9 +317,14 @@ function unlinkPartners(orders: PendingOrder[], ids: Set<string>): { orders: Pen
 }
 
 /** Validates and executes an order request. Market orders fill at the current bid/ask. */
+/** True when a request with this client id already reached the account (open, pending, closed or archived). */
+function knownClientId(state: AccountState, clientId: string): boolean {
+  return state.positions.some(p => p.clientId === clientId) || state.orders.some(o => o.clientId === clientId) || state.history.some(d => d.clientId === clientId) || !!state.archived?.clientIds.includes(clientId);
+}
+
 export function placeOrder(state: AccountState, req: OrderRequest, ctx: EngineContext): Step {
   assertActive(state);
-  if (req.clientId && (state.positions.some(p => p.clientId === req.clientId) || state.orders.some(o => o.clientId === req.clientId) || state.history.some(d => d.clientId === req.clientId) || !!state.archived?.clientIds.includes(req.clientId))) {
+  if (req.clientId && knownClientId(state, req.clientId)) {
     return { state, events: [] }; // idempotent replay
   }
   const s = spec(ctx, req.symbol);
@@ -395,6 +400,32 @@ export function closePosition(state: AccountState, positionId: string, lots: num
   assertMarketOpen(spec(ctx, p.symbol), ctx.now);
   const q = executableQuote(ctx, p.symbol);
   return closeAt(state, ctx, positionId, lots ?? p.lots, closingPrice(p.side, q), "manual");
+}
+
+/**
+ * Reverses an open position in one step: closes all of it at the market and
+ * opens the same volume in the other direction at the same prices (a buy
+ * closes at the bid and the new sell opens at the bid; a sell closes at the
+ * ask and the new buy opens at the ask). The new trade starts without stop
+ * loss, take profit or trailing stop.
+ *
+ * Every check of a new market order applies to the new trade (account active,
+ * market open, news window, weekend rule, free margin after the close, no
+ * hedging, stop loss required, open-exposure limits). If the new trade cannot
+ * open, the step throws and nothing is closed either: the trader never ends up
+ * flat by surprise. `clientId` makes a retried request a no-op once the new
+ * trade exists (the HTTP contract passes the Idempotency-Key).
+ */
+export function reversePosition(state: AccountState, positionId: string, ctx: EngineContext, clientId?: string): Step {
+  if (clientId !== undefined && (typeof clientId !== "string" || !clientId || clientId.length > 100)) throw new EngineError("bad_request", "clientId must be a short string.");
+  if (clientId && knownClientId(state, clientId)) return { state, events: [] }; // idempotent replay
+  assertActive(state);
+  const p = state.positions.find(x => x.id === positionId);
+  if (!p) throw new EngineError("no_position", "That position is not open.");
+  const closed = closePosition(state, positionId, undefined, ctx);
+  const side: Side = p.side === "buy" ? "sell" : "buy";
+  const opened = placeOrder(closed.state, { symbol: p.symbol, side, type: "market", lots: p.lots, ...(clientId ? { clientId } : {}) }, ctx);
+  return { state: opened.state, events: [...closed.events, ...opened.events] };
 }
 
 /** Earliest and latest expiry the engine accepts for a pending order, counted from now. */

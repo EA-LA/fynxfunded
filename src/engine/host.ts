@@ -228,7 +228,7 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
       return { status: 200, body: { ...opts.status(), ...(p ? { paused: { reason: p.reason, since: p.since, until: p.until, ...(p.holdPending ? { holdPending: true } : {}) } } : {}), markets: opts.venue.markets(), instruments: opts.venue.conditions(), schedule: opts.venue.schedule(), ...(news ? { news } : {}) } };
     }
 
-    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts|notices)(?:\/([^/]+)(?:\/(close))?)?)?$/.exec(path);
+    const m = /^\/v1\/accounts\/([^/]+)(?:\/(orders|positions|history|alerts|notices)(?:\/([^/]+)(?:\/(close|reverse))?)?)?$/.exec(path);
     if (!m) return fail("not_found", "Unknown address.");
     const [, rawAccount, collection, rawItem, action] = m;
     const accountId = decodeURIComponent(rawAccount), itemId = rawItem === undefined ? undefined : decodeURIComponent(rawItem);
@@ -272,6 +272,15 @@ export async function handleEngineRequest(req: HostRequest, opts: HostOptions): 
       const body = req.body === undefined ? {} : req.body;
       if (!isObject(body) || Object.keys(body).some(k => k !== "lots")) throw new EngineError("bad_request", "Send { lots } or an empty body.");
       return ok(await opts.venue.close(accountId, itemId, num(body.lots, "lots")));
+    }
+    if (collection === "positions" && itemId && action === "reverse") {
+      if (method !== "POST") return fail("method_not_allowed", "Use POST.");
+      const body = req.body === undefined ? {} : req.body;
+      if (!isObject(body) || Object.keys(body).length) throw new EngineError("bad_request", "Send an empty body; the volume is the position's own.");
+      const key = header(req.headers, "idempotency-key");
+      if (key !== undefined && (!key || key.length > 100)) throw new EngineError("bad_request", "Idempotency-Key must be a short string.");
+      await needsTrading();
+      return ok(await opts.venue.reverse(accountId, itemId, key || undefined));
     }
     if (collection === "positions" && itemId && !action) {
       if (method !== "PATCH") return fail("method_not_allowed", "Use PATCH.");

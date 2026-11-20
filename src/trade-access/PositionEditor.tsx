@@ -6,6 +6,7 @@ import { closeSidePrice, levelErrors, levelOutcome, parseCloseLots, parseLevel, 
 import type { EngineHandle } from './useEngine';
 import { closedSentence, type PairMarket } from './market-hours';
 import { editorRiskProblem, tradeRiskFromSnapshot } from './trade-risk';
+import { reverseBlocked } from './reverse';
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 const signedPips = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)} pips`;
@@ -51,6 +52,16 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
   const room = snapshot.metrics.roomToFloor;
   const canBreakEven = closing !== undefined && (p.side === 'buy' ? closing > p.entryPrice : closing < p.entryPrice);
   const id = `edit-${p.id}`;
+  // Reverse: close all of it and open the same volume the other way in one server step.
+  const [reverseOpen, setReverseOpen] = useState(false);
+  const [reverseKey, setReverseKey] = useState('');
+  const newSide = p.side === 'buy' ? 'sell' : 'buy';
+  const reverseBlock = reverseBlocked({ position: p, positions: snapshot.state.positions, stopRequired: !!riskRule, hedgingAllowed: snapshot.hedging?.allowed !== false });
+  const reverse = async () => {
+    if (closed || reverseBlock) return;
+    const ok = await engine.run(g => g.reversePosition(snapshot.state.accountId, p.id, reverseKey));
+    if (ok) onDone(`Reversed ${p.symbol} ${p.id}: closed ${p.lots.toFixed(2)} lots ${p.side.toUpperCase()} and opened ${p.lots.toFixed(2)} lots ${newSide.toUpperCase()} at ${closing === undefined ? 'the market price' : closing.toFixed(digits)}. Set a stop loss on the new trade.`);
+  };
 
   const save = async () => {
     if (errors.length || !changed || closed) return;
@@ -103,8 +114,23 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
         <input id={`${id}-lots`} inputMode="decimal" value={closeText} onChange={e => setCloseText(e.target.value)} placeholder="Lots" className="w-full min-w-0 rounded-md border bg-background px-2 py-1 font-mono" />
         <button type="button" disabled={engine.busy || closed || p.lots <= 0.01} onClick={() => void closePart()} className="shrink-0 rounded-md border px-2 py-1 hover:bg-secondary disabled:opacity-50">Close part</button>
       </div>
+      <button type="button" data-testid="reverse-open" disabled={engine.busy || closed} aria-expanded={reverseOpen} onClick={() => { setReverseOpen(o => !o); setReverseKey(`rev-${p.id}-${Date.now().toString(36)}`); }} className="rounded-md border px-3 py-1 hover:bg-secondary disabled:opacity-50">Reverse to {newSide.toUpperCase()}</button>
       <button type="button" onClick={() => onDone('')} className="rounded-md border px-3 py-1 hover:bg-secondary">Cancel</button>
     </div>
+    {reverseOpen && <div data-testid="reverse-confirm" role="group" aria-label={`Reverse ${p.symbol} position ${p.id}`} className="space-y-2 rounded-md border border-primary/40 bg-background p-3 md:col-span-3">
+      <p className="font-semibold text-foreground">Reverse this trade?</p>
+      <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+        <li>Closes all {p.lots.toFixed(2)} lots {p.side.toUpperCase()} {p.symbol} at the {p.side === 'buy' ? 'bid' : 'ask'} (now <span className="font-mono text-foreground">{closing === undefined ? 'no price' : closing.toFixed(digits)}</span>){floating !== null && <>, result about <span className={floating < 0 ? 'text-red-500' : 'text-emerald-500'}>{money(floating)}</span> before commission</>}.</li>
+        <li>Opens {p.lots.toFixed(2)} lots {newSide.toUpperCase()} {p.symbol} at that same price, in the same step.</li>
+        <li>The new trade starts <strong className="text-foreground">without</strong> stop loss, take profit or trailing stop: set them right after.</li>
+        <li>If the server cannot open the new trade (margin, rules, market), nothing is closed and you keep this position.</li>
+      </ul>
+      {reverseBlock && <p data-testid="reverse-blocked" role="note" className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-foreground">{reverseBlock}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" data-testid="reverse-confirm-button" disabled={engine.busy || closed || !!reverseBlock} onClick={() => void reverse()} className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">Confirm: close and open {newSide.toUpperCase()}</button>
+        <button type="button" onClick={() => setReverseOpen(false)} className="rounded-md border px-3 py-1 hover:bg-secondary">Keep this trade</button>
+      </div>
+    </div>}
     <div className="space-y-1 md:col-span-3" aria-live="polite">
       {closed && hours && <p data-testid="editor-market-closed" role="note" className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-foreground">{closedSentence(p.symbol, hours, now)} You can prepare new levels now; saving and closing unlock when the market opens. Until then this position keeps its current stop loss, take profit and trailing stop.</p>}
       <p className="text-muted-foreground">Current {p.side === 'buy' ? 'bid' : 'ask'} (closing price): <span className="font-mono">{closing === undefined ? 'no price' : closing.toFixed(digits)}</span> · entry <span className="font-mono">{p.entryPrice.toFixed(digits)}</span> · {p.lots.toFixed(2)} lots</p>
@@ -114,3 +140,4 @@ export default function PositionEditor({ position: p, snapshot, engine, onDone, 
     </div>
   </form>;
 }
+
