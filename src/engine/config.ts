@@ -2,6 +2,7 @@ import { buildSpecs, type PairLike, type SpecOptions, type VenueSettings } from 
 import { FOREX_HOURS, type Closure } from "./hours";
 import { checkAllowedOrigins } from "./http-adapter";
 import { EngineError, type SwapRates } from "./types";
+import { spreadRuleProblem, type SpreadRule } from "./spread";
 import { parseRateLimits, type RateLimits } from "./rate-limit";
 import { parseSignInGuard, type SignInGuardConfig } from "./sign-in-guard";
 
@@ -20,6 +21,7 @@ import { parseSignInGuard, type SignInGuardConfig } from "./sign-in-guard";
  * | FYNX_ENGINE_ALLOWED_ORIGINS | https://www.fynxfunded.com,https://fynxfunded.com | yes |
  * | FYNX_ENGINE_MAX_QUOTE_AGE_MS | 15000 | no (default 15000, 1000–300000) |
  * | FYNX_ENGINE_SWAP | {"EURUSD":{"longPerLot":-6.2,"shortPerLot":1.1}} | no (no swap) |
+ * | FYNX_ENGINE_SPREAD | {"*":{"markupPips":0.3},"USDTRY":{"minSpreadPips":20}} | no (the provider's price unchanged) |
  * | FYNX_ENGINE_CLOSURES | [{"from":"2026-12-25T00:00:00Z","to":"2026-12-26T00:00:00Z","reason":"Christmas Day"}] | no |
  * | FYNX_ENGINE_BASE_PATH | /engine | no |
  * | FYNX_ENGINE_RATE_LIMITS | trade=20/2,reduce=100/20,read=120/10 or off | no (these defaults) |
@@ -43,6 +45,7 @@ export const ENGINE_ENV = {
   origins: "FYNX_ENGINE_ALLOWED_ORIGINS",
   quoteAge: "FYNX_ENGINE_MAX_QUOTE_AGE_MS",
   swap: "FYNX_ENGINE_SWAP",
+  spread: "FYNX_ENGINE_SPREAD",
   closures: "FYNX_ENGINE_CLOSURES",
   basePath: "FYNX_ENGINE_BASE_PATH",
   rateLimits: "FYNX_ENGINE_RATE_LIMITS",
@@ -88,6 +91,19 @@ function readSwap(value: unknown, problems: string[]): Record<string, SwapRates>
   return out;
 }
 
+function readSpread(value: unknown, problems: string[]): Record<string, SpreadRule> | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) { problems.push(`${ENGINE_ENV.spread} must be an object like {"*":{"markupPips":0.3}} ("*" = every pair; a pair's own entry replaces it).`); return undefined; }
+  const out: Record<string, SpreadRule> = {};
+  for (const [symbol, r] of Object.entries(value as Record<string, unknown>)) {
+    const problem = spreadRuleProblem(r);
+    if (problem) { problems.push(`${ENGINE_ENV.spread}: ${symbol === "*" ? "\"*\" (every pair)" : symbol} ${problem}.`); continue; }
+    const rule = r as SpreadRule;
+    out[symbol] = { ...(rule.markupPips !== undefined ? { markupPips: rule.markupPips } : {}), ...(rule.minSpreadPips !== undefined ? { minSpreadPips: rule.minSpreadPips } : {}) };
+  }
+  return out;
+}
+
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
 
 function readClosures(value: unknown, problems: string[]): Closure[] | undefined {
@@ -129,6 +145,7 @@ export function readEngineConfig(env: Env, pairs: PairLike[]): EngineConfig {
   }
 
   const swap = readSwap(json(env, ENGINE_ENV.swap, problems), problems);
+  const spread = readSpread(json(env, ENGINE_ENV.spread, problems), problems);
   const closures = readClosures(json(env, ENGINE_ENV.closures, problems), problems);
   const basePath = env[ENGINE_ENV.basePath]?.trim() || undefined;
   if (basePath && !/^\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(basePath)) problems.push(`${ENGINE_ENV.basePath} must look like /engine.`);
@@ -142,8 +159,9 @@ export function readEngineConfig(env: Env, pairs: PairLike[]): EngineConfig {
     leverage, commissionPerLotPerSide, maxLots, maxQuoteAgeMs,
     ...(closures && closures.length ? { hours: { ...FOREX_HOURS, closures } } : {}),
     ...(swap && Object.keys(swap).length ? { swap } : {}),
+    ...(spread && Object.keys(spread).length ? { spread } : {}),
   };
-  // Let the catalogue check the swap symbols and rates exactly as the venue will.
+  // Let the catalogue check the swap and spread symbols and rates exactly as the venue will.
   if (!problems.length) {
     try { buildSpecs(pairs, settings); } catch (e) { problems.push((e as Error).message); }
   }

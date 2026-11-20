@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-20 00:30 UTC — [autopilot] FYNX Trade: ready for your own spread (pricing) setting
+
+- The trading engine can now add FYNX's own spread on top of the price provider's, a common prop-firm and broker setting, once you decide on it. Today nothing changes: the provider's price is passed on as it is.
+  - Two simple choices per pair, or one for all pairs: a fixed markup (for example 0.3 pips added to the provider's spread) and/or a minimum spread (for example never below 0.5 pips). One pair can be set differently or left out.
+  - The same price is used everywhere: order fills, waiting orders, stop loss and take profit, loss limits, and the prices traders see.
+- In the terminal (https://www.fynxfunded.com/trade/access), each pair's "Specification" shows a new "Pricing (spread)" line, e.g. "Provider + 0.3 pips" or "Provider's price, no markup", once the engine is connected.
+- Before going live, the readiness check shows the provider's spread next to what traders would get.
+- To switch on later: set `FYNX_ENGINE_SPREAD` on the engine server (steps in docs/ENGINE-READINESS.md, "Spread markup").
+
 ## 2026-11-19 18:20 UTC — [autopilot] FYNX Trade: news calendar fills itself from your provider
 
 - The trading engine can now download upcoming high-impact releases (rate decisions, jobs reports and so on) from the economic-calendar service you choose, instead of you typing them in by hand. It is off until you add the provider's address and key on the engine server, so nothing changes on the site today.

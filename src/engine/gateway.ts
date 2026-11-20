@@ -142,7 +142,14 @@ export function parseInstruments(raw: unknown): Record<string, TradingConditions
       if (!(Number.isInteger(triple) && (triple as number) >= 0 && (triple as number) <= 6)) continue;
       swap = { longPerLot: w.longPerLot as number, shortPerLot: w.shortPerLot as number, tripleWeekday: triple as number };
     }
-    out[symbol] = { contractSize: c.contractSize as number, minLots: c.minLots as number, lotStep: c.lotStep as number, maxLots: c.maxLots as number, leverage: c.leverage as number, commissionPerLotPerSide: c.commissionPerLotPerSide as number, swap };
+    // Spread setting is optional (older servers do not send it); a malformed one is dropped, never guessed.
+    let spread: TradingConditions["spread"] | undefined;
+    if (c.spread === null) spread = null;
+    else if (c.spread !== undefined) {
+      const w = c.spread as Record<string, unknown>;
+      if (typeof w === "object" && num(w.markupPips, 0, 20) && num(w.minSpreadPips, 0, 50)) spread = { markupPips: w.markupPips as number, minSpreadPips: w.minSpreadPips as number };
+    }
+    out[symbol] = { contractSize: c.contractSize as number, minLots: c.minLots as number, lotStep: c.lotStep as number, maxLots: c.maxLots as number, leverage: c.leverage as number, commissionPerLotPerSide: c.commissionPerLotPerSide as number, swap, ...(spread !== undefined ? { spread } : {}) };
   }
   return Object.keys(out).length ? out : undefined;
 }

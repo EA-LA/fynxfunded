@@ -1,4 +1,5 @@
 import type { PairLike } from "./venue";
+import { spreadRuleFor, spreadRuleText, traderSpreadPips, type SpreadRule } from "./spread";
 import type { Quote } from "./types";
 import { readEngineConfig } from "./config";
 import { describeRateLimits } from "./rate-limit";
@@ -33,6 +34,14 @@ export function describePauseSetting(env: Env): string {
     : `New trading not paused. To pause every account without a restart, set the Firestore document engineControl/trading to { paused: true, reason: "..." } (read every 10 s); add holdPending: true to keep waiting pending orders from filling during the pause.`;
 }
 
+/** One line about the spread markup setting for the readiness list. */
+export function describeSpread(spread: Record<string, SpreadRule> | undefined): string {
+  if (!spread || !Object.keys(spread).length) return "Prices: the provider's bid/ask unchanged (no spread markup; FYNX_ENGINE_SPREAD not set).";
+  const own = Object.keys(spread).filter(k => k !== "*");
+  const all = spread["*"] ? `every pair: ${spreadRuleText(spread["*"]).toLowerCase()}` : "pairs without their own setting: no markup";
+  return `Prices: ${all}${own.length ? `; own setting for ${own.join(", ")}` : ""} (FYNX_ENGINE_SPREAD). Traders see the same price in the terminal and the contract specification.`;
+}
+
 export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
   const items: CheckItem[] = [];
 
@@ -42,6 +51,7 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
     items.push({ name: "Trading settings", status: "ready", detail: [
       `Leverage 1:${s.leverage}, commission $${s.commissionPerLotPerSide} per lot per side, up to ${s.maxLots} lots per order, prices older than ${Math.round((s.maxQuoteAgeMs ?? 15_000) / 1000)} s refused.`,
       s.swap ? `Overnight swap set for ${Object.keys(s.swap).length} pair(s).` : "No overnight swap charged (FYNX_ENGINE_SWAP not set).",
+      describeSpread(s.spread),
       s.hours && "closures" in s.hours && s.hours.closures?.length ? `${s.hours.closures.length} holiday/maintenance closure(s) entered.` : "No holiday closures entered (FYNX_ENGINE_CLOSURES); add the provider's calendar when you have it.",
       `Websites allowed to call the engine: ${c.http.allowedOrigins.join(", ")}.`,
       describeRateLimits(c.rateLimits) + (c.rateLimits && !env.FYNX_ENGINE_RATE_LIMITS?.trim() ? " (defaults; change with FYNX_ENGINE_RATE_LIMITS)" : ""),
@@ -109,7 +119,7 @@ export function engineChecklist(env: Env, pairs: PairLike[]): CheckItem[] {
 export interface FeedProbe {
   seconds: number;
   /** Pairs that received at least one accepted price, with the last one. */
-  received: { symbol: string; count: number; bid: number; ask: number; spreadPips: number }[];
+  received: { symbol: string; count: number; bid: number; ask: number; spreadPips: number; traderSpreadPips?: number }[];
   /** Pairs with no accepted price during the probe. */
   silent: string[];
   rejected: Partial<Record<RejectReason, number>>;
@@ -127,6 +137,7 @@ export async function probeFeed(
   pairs: PairLike[],
   seconds: number,
   wait: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms)),
+  spread?: Record<string, SpreadRule>,
 ): Promise<FeedProbe> {
   const last = new Map<string, { count: number; q: Quote }>();
   const stop = feed.subscribe(pairs.map(p => p.symbol), q => {
@@ -137,7 +148,9 @@ export async function probeFeed(
   const h = feed.health();
   const received = pairs.filter(p => last.has(p.symbol)).map(p => {
     const { count, q } = last.get(p.symbol)!;
-    return { symbol: p.symbol, count, bid: q.bid, ask: q.ask, spreadPips: Math.round(((q.ask - q.bid) / p.pipSize) * 10) / 10 };
+    const spreadPips = Math.round(((q.ask - q.bid) / p.pipSize) * 10) / 10;
+    const rule = spreadRuleFor(spread, p.symbol);
+    return { symbol: p.symbol, count, bid: q.bid, ask: q.ask, spreadPips, ...(rule ? { traderSpreadPips: traderSpreadPips(spreadPips, rule) } : {}) };
   });
   const silent = pairs.filter(p => !last.has(p.symbol)).map(p => p.symbol);
   const rejected = Object.fromEntries(Object.entries(h.rejected).filter(([, n]) => n > 0)) as FeedProbe["rejected"];
@@ -179,7 +192,7 @@ export function formatReport(items: CheckItem[], probe?: FeedProbe | null, probe
   if (probe) {
     out.push("", `${probe.verdict === "live" ? MARK.ready : probe.verdict === "partial" ? MARK.warn : MARK.missing} Price feed test (${probe.seconds} s)`);
     out.push(`            Prices received for ${probe.received.length} of ${probe.received.length + probe.silent.length} pairs.`);
-    for (const r of probe.received.slice(0, 8)) out.push(`            ${r.symbol}: ${r.count} price(s), last bid ${r.bid} / ask ${r.ask}, spread ${r.spreadPips} pips`);
+    for (const r of probe.received.slice(0, 8)) out.push(`            ${r.symbol}: ${r.count} price(s), last bid ${r.bid} / ask ${r.ask}, spread ${r.spreadPips} pips${r.traderSpreadPips !== undefined ? ` (traders get about ${r.traderSpreadPips} pips with FYNX_ENGINE_SPREAD)` : ""}`);
     if (probe.received.length > 8) out.push(`            … and ${probe.received.length - 8} more pairs.`);
     if (probe.silent.length) out.push(`            No price for: ${probe.silent.join(", ")}.`);
     for (const [k, n] of Object.entries(probe.rejected)) out.push(`            Refused ${n} message(s): ${REJECT_WORDS[k as RejectReason]}.`);
@@ -204,7 +217,9 @@ export async function runEngineCheck(o: { env: Env; argv: string[]; pairs: PairL
     else if (!o.socket) probeError = "this Node.js has no WebSocket; use Node 22 or newer.";
     else {
       const { feed } = createFeedFromEnv(o.env, o.pairs, { socket: o.socket });
-      probe = await probeFeed(feed, o.pairs, secs, o.wait);
+      let spread: Record<string, SpreadRule> | undefined;
+      try { spread = readEngineConfig(o.env, o.pairs).settings.spread; } catch { spread = undefined; }
+      probe = await probeFeed(feed, o.pairs, secs, o.wait, spread);
     }
   }
   let news: NewsProbe | null = null;

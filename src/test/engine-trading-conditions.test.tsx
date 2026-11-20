@@ -21,7 +21,7 @@ const T0 = Date.parse("2026-11-04T10:00:00Z"); // Wednesday, market open
 const q = (symbol: string, bid: number, ask: number, time = T0): Quote => ({ symbol, bid, ask, time });
 const rules: RuleSet = { startingBalance: 10000, dailyLossPercent: 5, maxLossPercent: 10, profitTargetPercent: 8, minTradingDays: 1, resetHourUtc: 22 };
 const specs = buildSpecs(FOREX_PAIRS, { leverage: 30, commissionPerLotPerSide: 3.5, maxLots: 20, swap: { EURUSD: { longPerLot: -6.2, shortPerLot: 1.1 } } });
-const valid = { contractSize: 100000, minLots: 0.01, lotStep: 0.01, maxLots: 20, leverage: 30, commissionPerLotPerSide: 3.5, swap: null };
+const valid = { contractSize: 100000, minLots: 0.01, lotStep: 0.01, maxLots: 20, leverage: 30, commissionPerLotPerSide: 3.5, swap: null, spread: null };
 
 describe("trading conditions in /v1/status", () => {
   it("publishes leverage, lot limits, commission and swap per symbol from the venue settings", () => {

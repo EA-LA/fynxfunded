@@ -10,6 +10,8 @@ export type Side = "buy" | "sell";
 export type OrderType = "market" | "limit" | "stop";
 export type CloseReason = "manual" | "stop_loss" | "take_profit" | "daily_loss_limit" | "maximum_loss_limit" | "target_reached" | "weekend_close" | "stop_out";
 
+import type { SpreadRule } from "./spread";
+
 export interface InstrumentSpec {
   symbol: string;
   base: string;
@@ -32,6 +34,8 @@ export interface InstrumentSpec {
   hours?: TradingHours;
   /** Overnight financing. Missing = no swap is charged or paid. */
   swap?: SwapRates;
+  /** Spread markup / minimum spread on the provider's price (src/engine/spread.ts). Missing = the provider's price unchanged. */
+  spread?: SpreadRule;
 }
 
 /**

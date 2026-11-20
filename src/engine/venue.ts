@@ -7,6 +7,7 @@ import { exposureLimits, OPEN_LOTS_MAX, OPEN_LOTS_MIN, OPEN_TRADES_MAX, OPEN_TRA
 import { STOP_OUT_MAX_PERCENT, STOP_OUT_MIN_PERCENT, validStopOut } from "./stop-out";
 import { noHedging } from "./hedging";
 import { RISK_MAX_PERCENT, RISK_MIN_PERCENT, tradeRiskRule, validRiskPercent, type TradeRiskRule } from "./trade-risk";
+import { applySpread, normalSpreadRule, spreadRuleFor, spreadRuleProblem, type SpreadRule } from "./spread";
 import { DEFAULT_WEEKEND_CLOSE_MINUTES, WEEKEND_CLOSE_MAX_MINUTES, WEEKEND_CLOSE_MIN_MINUTES, validWeekendMinutes } from "./weekend";
 
 /**
@@ -60,6 +61,12 @@ export interface SpecOptions {
   hoursBySymbol?: Record<string, TradingHours | null>;
   /** Swap rates per symbol from the broker/provider (USD per lot per night). Pairs left out charge no swap. */
   swap?: Record<string, SwapRates>;
+  /**
+   * Spread markup / minimum spread per symbol (src/engine/spread.ts); "*" sets
+   * every pair, a symbol's own entry replaces "*" for that pair. Left out =
+   * the provider's price unchanged (today's behaviour).
+   */
+  spread?: Record<string, SpreadRule>;
 }
 
 /** Builds engine instrument specs from the forex catalogue and venue settings. */
@@ -69,13 +76,19 @@ export function buildSpecs(pairs: PairLike[], settings: Pick<VenueSettings, "lev
     if (!pairs.some(p => p.symbol === symbol)) throw new EngineError("bad_settings", `Swap rates given for ${symbol}, which is not in the catalogue.`);
     if (!Number.isFinite(r.longPerLot) || !Number.isFinite(r.shortPerLot) || (r.tripleWeekday !== undefined && !(Number.isInteger(r.tripleWeekday) && r.tripleWeekday >= 0 && r.tripleWeekday <= 6))) throw new EngineError("bad_settings", `Swap rates for ${symbol} must be numbers (triple weekday 0–6).`);
   }
+  for (const [symbol, r] of Object.entries(settings.spread ?? {})) {
+    if (symbol !== "*" && !pairs.some(p => p.symbol === symbol)) throw new EngineError("bad_settings", `Spread setting given for ${symbol}, which is not in the catalogue.`);
+    const problem = spreadRuleProblem(r);
+    if (problem) throw new EngineError("bad_settings", `Spread setting for ${symbol === "*" ? "all pairs (\"*\")" : symbol} ${problem}.`);
+  }
   return Object.fromEntries(pairs.map(p => {
     const hours = settings.hoursBySymbol && p.symbol in settings.hoursBySymbol ? settings.hoursBySymbol[p.symbol] : base;
     const swap = settings.swap?.[p.symbol];
+    const spread = spreadRuleFor(settings.spread, p.symbol);
     return [p.symbol, {
       symbol: p.symbol, base: p.base, quote: p.quote, pipSize: p.pipSize, tickSize: Number((p.pipSize / 10).toFixed(6)), digits: p.digits,
       contractSize: 100_000, minLots: 0.01, lotStep: 0.01, maxLots: settings.maxLots, leverage: settings.leverage, commissionPerLotPerSide: settings.commissionPerLotPerSide,
-      ...(hours ? { hours } : {}), ...(swap ? { swap } : {}),
+      ...(hours ? { hours } : {}), ...(swap ? { swap } : {}), ...(spread ? { spread } : {}),
     } satisfies InstrumentSpec];
   }));
 }
@@ -98,6 +111,12 @@ export interface TradingConditions {
   commissionPerLotPerSide: number;
   /** USD per lot per night; null when no swap is charged. */
   swap: { longPerLot: number; shortPerLot: number; tripleWeekday: number } | null;
+  /**
+   * How the server's price is made from the provider's: pips added to the
+   * provider's spread and the narrowest spread, or null when the provider's
+   * price is used unchanged. Optional: older servers do not send it.
+   */
+  spread?: { markupPips: number; minSpreadPips: number } | null;
 }
 
 /** The published trading conditions of one instrument spec. */
@@ -106,7 +125,13 @@ export function tradingConditions(s: InstrumentSpec): TradingConditions {
     contractSize: s.contractSize, minLots: s.minLots, lotStep: s.lotStep, maxLots: s.maxLots, leverage: s.leverage,
     commissionPerLotPerSide: s.commissionPerLotPerSide,
     swap: s.swap ? { longPerLot: s.swap.longPerLot, shortPerLot: s.swap.shortPerLot, tripleWeekday: s.swap.tripleWeekday ?? 3 } : null,
+    spread: publishedSpread(s.spread),
   };
+}
+
+function publishedSpread(rule: SpreadRule | undefined): TradingConditions["spread"] {
+  const r = rule ? normalSpreadRule(rule) : null;
+  return r ? { markupPips: r.markupPips ?? 0, minSpreadPips: r.minSpreadPips ?? 0 } : null;
 }
 
 /** Open/closed and next change for one symbol of a venue's specs (for /v1/status or the terminal). */
@@ -327,10 +352,16 @@ export class LocalVenue {
     private ids: (prefix: string) => string = prefix => `${prefix}_${Math.random().toString(36).slice(2, 12)}`,
   ) {}
 
-  /** Connects a price feed. Every quote is stored and open accounts can be ticked by the host. */
+  /**
+   * Connects a price feed. Every quote is stored (with the symbol's spread
+   * markup applied, see src/engine/spread.ts, so fills, stops, limits and the
+   * terminal all see the same price) and open accounts can be ticked by the host.
+   */
   connect(feed: QuoteFeed): () => void {
-    return feed.subscribe(Object.keys(this.specs), q => {
-      if (!this.specs[q.symbol]) return;
+    return feed.subscribe(Object.keys(this.specs), raw => {
+      const spec = this.specs[raw.symbol];
+      if (!spec) return;
+      const q = applySpread(raw, spec);
       this.quotes[q.symbol] = q;
       this.quoteListeners.forEach(l => l(q));
     });

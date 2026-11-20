@@ -12,6 +12,12 @@ import { localClock, pairNews, windowRange } from './news-windows';
 const usd = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const NOT_CONNECTED = 'Shown once trading is connected';
 
+/** How the server builds its price from the provider's (FYNX_ENGINE_SPREAD on the engine host). */
+export function pricingLabel(spread: { markupPips: number; minSpreadPips: number } | null): string {
+  if (!spread || (!spread.markupPips && !spread.minSpreadPips)) return 'Provider’s price, no markup';
+  return `${spread.markupPips ? `Provider + ${spread.markupPips.toFixed(1)} pips` : 'Provider’s spread'}${spread.minSpreadPips ? `, at least ${spread.minSpreadPips.toFixed(1)} pips` : ''}`;
+}
+
 function Row({ label, value, testId }: { label: string; value: string; testId?: string }) {
   return <div className="flex items-baseline justify-between gap-3 border-b border-border/50 py-1.5 text-sm last:border-0"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-mono text-[13px] tabular-nums" data-testid={testId}>{value}</dd></div>;
 }
@@ -59,6 +65,7 @@ export default function ContractSpec({ pair, status, quotes, market, now, open, 
         <h3 id="spec-conditions" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trading conditions</h3>
         {conditions ? <dl className="mt-1" data-testid="spec-conditions">
           <Row label="Leverage" value={`1:${conditions.leverage}`} />
+          {conditions.spread !== undefined && <Row label="Pricing (spread)" testId="spec-pricing" value={pricingLabel(conditions.spread)} />}
           <Row label="Volume" value={`${conditions.minLots} to ${conditions.maxLots} lots, step ${conditions.lotStep}`} />
           <Row label="Margin for 1.00 lot" value={oneLot.margin !== null ? usd(oneLot.margin) : 'Needs a live server price'} />
           <Row label="Commission" value={`${usd(conditions.commissionPerLotPerSide)} per lot per side (${usd(conditions.commissionPerLotPerSide * 2)} round turn)`} />
